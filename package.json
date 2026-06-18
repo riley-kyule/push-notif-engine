@@ -14,6 +14,9 @@
     "typecheck": "npm run typecheck --workspaces",
     "lint": "npm run lint --workspaces"
   },
+  "dependencies": {
+    "@nestjs/platform-express": "^11.0.10"
+  },
   "devDependencies": {
     "@types/node": "^22.10.10",
     "@types/jsonwebtoken": "^9.0.9",
