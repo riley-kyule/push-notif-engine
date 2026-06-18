@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
+import { ScheduleModule } from "@nestjs/schedule";
 
 import { AnalyticsModule } from "./analytics/analytics.module";
 import { AuthModule } from "./auth/auth.module";
@@ -15,6 +16,7 @@ import { SubscribersModule } from "./subscribers/subscribers.module";
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     RateLimitModule,
     AuthModule,
     SitesModule,
