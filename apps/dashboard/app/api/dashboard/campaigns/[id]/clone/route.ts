@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 
-import { cloneCampaign } from "../../../_store";
+import { apiFetch } from "../../../../../../lib/server-api";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
   const { id } = await params;
-  const body = (await request.json().catch(() => ({}))) as { name?: string };
-  const campaign = cloneCampaign(id, body.name);
-  if (!campaign) {
-    return NextResponse.json({ success: false, error: "Campaign not found" }, { status: 404 });
-  }
-
-  return NextResponse.json({ success: true, data: campaign }, { status: 201 });
+  const body = await request.json().catch(() => ({}));
+  const res = await apiFetch(`/campaigns/${id}/clone`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({ success: false, error: { message: "Invalid API response" } }));
+  return NextResponse.json(data, { status: res.status });
 }

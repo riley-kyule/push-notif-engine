@@ -1,3 +1,5 @@
+import { apiJson } from "../../lib/server-api";
+
 export interface SubscriberHistoryItem {
   id: string;
   campaign: string;
@@ -86,8 +88,17 @@ const fallbackSubscribers: SubscriberDetail[] = [
   },
 ];
 
-function getApiBaseUrl(): string {
-  return process.env.DASHBOARD_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:3001/api";
+interface ApiSubscriberRecord {
+  id: string;
+  siteId: string;
+  subscriptionEndpoint: string;
+  browser: string;
+  deviceType: string;
+  country: string;
+  language: string;
+  status: SubscriberSummary["status"];
+  lastSeenAt: string | null;
+  createdAt: string;
 }
 
 function toSummary(record: SubscriberDetail): SubscriberSummary {
@@ -106,39 +117,39 @@ function toSummary(record: SubscriberDetail): SubscriberSummary {
   };
 }
 
-async function fetchJson<T>(path: string): Promise<T | null> {
-  try {
-    const response = await fetch(`${getApiBaseUrl()}${path}`, {
-      cache: "no-store",
-      headers: {
-        accept: "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    return (await response.json()) as T;
-  } catch {
-    return null;
-  }
-}
-
-export async function getSubscriberList(): Promise<SubscriberListPayload> {
-  const response = await fetchJson<SubscriberApiResponse<{ items: Array<SubscriberSummary> }>>("/dashboard/subscribers");
-  const items = response?.data.items ?? fallbackSubscribers.map((subscriber) => toSummary(subscriber));
-
+function toApiSummary(record: ApiSubscriberRecord): SubscriberSummary {
   return {
-    items,
-    total: items.length,
+    id: record.id,
+    siteId: record.siteId,
+    endpoint: record.subscriptionEndpoint,
+    browser: record.browser,
+    deviceType: record.deviceType,
+    country: record.country,
+    language: record.language,
+    status: record.status,
+    lastSeenAt: record.lastSeenAt ?? "Never",
+    createdAt: record.createdAt,
+    historyCount: 0,
   };
 }
 
+export async function getSubscriberList(): Promise<SubscriberListPayload> {
+  const response = await apiJson<SubscriberApiResponse<{ items: ApiSubscriberRecord[] }>>("/subscribers");
+  if (!response?.data.items) {
+    return {
+      items: fallbackSubscribers.map((subscriber) => toSummary(subscriber)),
+      total: fallbackSubscribers.length,
+    };
+  }
+
+  const items = response.data.items.map((record) => toApiSummary(record));
+  return { items, total: items.length };
+}
+
 export async function getSubscriber(id: string): Promise<SubscriberDetail | null> {
-  const response = await fetchJson<SubscriberApiResponse<SubscriberDetail>>(`/dashboard/subscribers/${id}`);
+  const response = await apiJson<SubscriberApiResponse<ApiSubscriberRecord>>(`/subscribers/${id}`);
   if (response?.data) {
-    return response.data;
+    return { ...toApiSummary(response.data), history: [] };
   }
 
   return fallbackSubscribers.find((subscriber) => subscriber.id === id) ?? null;

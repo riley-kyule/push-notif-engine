@@ -1,35 +1,20 @@
 import { NextResponse } from "next/server";
 
-import { createCampaign, listCampaigns } from "../_store";
+import { apiFetch } from "../../../../lib/server-api";
 
 export async function GET(): Promise<Response> {
-  const items = listCampaigns();
-  return NextResponse.json({ success: true, data: { items, total: items.length } });
+  const res = await apiFetch("/campaigns");
+  const data = await res.json().catch(() => ({ success: false, error: { message: "Invalid API response" } }));
+  return NextResponse.json(data, { status: res.status });
 }
 
 export async function POST(request: Request): Promise<Response> {
-  const body = (await request.json()) as {
-    siteId: string;
-    name: string;
-    channel: "web" | "mobile" | "all";
-    type: "instant" | "scheduled" | "recurring";
-    title: string;
-    message: string;
-    url: string;
-    imageUrl: string | null;
-    iconUrl: string | null;
-    buttons: Array<{ label: string; url: string }>;
-    expirationAt: string | null;
-    status: "draft" | "scheduled" | "sending" | "sent" | "failed" | "expired";
-    scheduledAt: string | null;
-    timezone: string | null;
-    recurrenceType: "daily" | "weekly" | "monthly" | null;
-    recurrenceInterval: number | null;
-    recurrenceUntilAt: string | null;
-    clonedFromCampaignId: string | null;
-    sentAt: string | null;
-  };
+  const body = await request.json();
+  const res = await apiFetch("/campaigns", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 
-  const campaign = createCampaign(body);
-  return NextResponse.json({ success: true, data: campaign }, { status: 201 });
+  const data = await res.json().catch(() => ({ success: false, error: { message: "Invalid API response" } }));
+  return NextResponse.json(data, { status: res.status });
 }

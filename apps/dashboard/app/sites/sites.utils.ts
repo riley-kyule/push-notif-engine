@@ -1,3 +1,5 @@
+import { apiJson } from "../../lib/server-api";
+
 export interface SiteSummary {
   id: string;
   name: string;
@@ -18,6 +20,17 @@ export interface SiteListPayload {
 interface SiteApiResponse<T> {
   success: true;
   data: T;
+}
+
+interface ApiSiteRecord {
+  id: string;
+  name: string;
+  url: string;
+  country: string;
+  language: string;
+  platform: SiteSummary["platform"];
+  status: "active" | "inactive";
+  vapidPublicKey: string | null;
 }
 
 const fallbackSites: SiteSummary[] = [
@@ -56,39 +69,38 @@ const fallbackSites: SiteSummary[] = [
   },
 ];
 
-function getApiBaseUrl(): string {
-  return process.env.DASHBOARD_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:3001/api";
-}
-
-async function fetchJson<T>(path: string): Promise<T | null> {
-  try {
-    const response = await fetch(`${getApiBaseUrl()}${path}`, {
-      cache: "no-store",
-      headers: {
-        accept: "application/json",
-      },
-    });
-    if (!response.ok) {
-      return null;
-    }
-    return (await response.json()) as T;
-  } catch {
-    return null;
-  }
+function toSiteSummary(record: ApiSiteRecord, subscribers = 0): SiteSummary {
+  return {
+    id: record.id,
+    name: record.name,
+    url: record.url,
+    country: record.country,
+    language: record.language,
+    platform: record.platform,
+    status: record.status,
+    subscribers,
+    vapidPublicKey: record.vapidPublicKey,
+  };
 }
 
 export async function getSiteList(): Promise<SiteListPayload> {
-  const response = await fetchJson<SiteApiResponse<{ items: Array<SiteSummary> }>>("/dashboard/sites");
-  const items = response?.data.items ?? fallbackSites;
+  const response = await apiJson<SiteApiResponse<{ items: ApiSiteRecord[] }>>("/sites");
+  if (!response?.data.items) {
+    return { items: fallbackSites, total: fallbackSites.length };
+  }
+
+  const items = response.data.items.map((record) => toSiteSummary(record));
   return { items, total: items.length };
 }
 
 export async function getSiteById(id: string): Promise<SiteSummary | null> {
-  const response = await fetchJson<SiteApiResponse<SiteSummary>>(`/dashboard/sites/${id}`);
-  if (response?.data) {
-    return response.data;
+  const response = await apiJson<SiteApiResponse<ApiSiteRecord>>(`/sites/${id}`);
+  if (!response?.data) {
+    return fallbackSites.find((site) => site.id === id) ?? null;
   }
-  return fallbackSites.find((site) => site.id === id) ?? null;
+
+  const analytics = await apiJson<SiteApiResponse<{ totalSubscribers: number }>>(`/analytics/sites/${id}`);
+  return toSiteSummary(response.data, analytics?.data.totalSubscribers ?? 0);
 }
 
 export function getFallbackSiteChoices(): SiteSummary[] {

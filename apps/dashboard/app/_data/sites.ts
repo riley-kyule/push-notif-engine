@@ -1,3 +1,5 @@
+import { apiJson } from "../../lib/server-api";
+
 export interface SiteChoice {
   id: string;
   name: string;
@@ -33,3 +35,13 @@ export const fallbackSiteChoices: SiteChoice[] = [
     status: "active",
   },
 ];
+
+interface SiteApiResponse<T> {
+  success: true;
+  data: T;
+}
+
+export async function getSiteChoices(): Promise<SiteChoice[]> {
+  const response = await apiJson<SiteApiResponse<{ items: SiteChoice[] }>>("/sites");
+  return response?.data.items ?? fallbackSiteChoices;
+}

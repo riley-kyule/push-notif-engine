@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { createSite, listSites } from "../_store";
+import { apiFetch } from "../../../../lib/server-api";
 
 export async function GET(): Promise<Response> {
-  return NextResponse.json({ success: true, data: { items: listSites(), total: listSites().length } });
+  const res = await apiFetch("/sites");
+  const data = await res.json().catch(() => ({ success: false, error: { message: "Invalid API response" } }));
+  return NextResponse.json(data, { status: res.status });
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -12,12 +14,24 @@ export async function POST(request: Request): Promise<Response> {
     url: string;
     country: string;
     language: string;
-    status: "active" | "inactive";
     platform: string;
-    subscribers?: number;
+    status?: "active" | "inactive";
     vapidPublicKey?: string | null;
   };
 
-  const site = createSite(body);
-  return NextResponse.json({ success: true, data: site }, { status: 201 });
+  const res = await apiFetch("/sites", {
+    method: "POST",
+    body: JSON.stringify({
+      name: body.name,
+      url: body.url,
+      country: body.country,
+      language: body.language,
+      platform: body.platform,
+      status: body.status,
+      vapidPublicKey: body.vapidPublicKey ?? null,
+    }),
+  });
+
+  const data = await res.json().catch(() => ({ success: false, error: { message: "Invalid API response" } }));
+  return NextResponse.json(data, { status: res.status });
 }

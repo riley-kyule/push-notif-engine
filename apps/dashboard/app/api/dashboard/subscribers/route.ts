@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { getFallbackSubscriberList } from "../../../_data/subscribers";
+import { getSubscriberList } from "../../../_data/subscribers";
 
 export async function GET(): Promise<Response> {
-  const payload = getFallbackSubscriberList();
+  const payload = await getSubscriberList();
   return NextResponse.json({ success: true, data: payload });
 }

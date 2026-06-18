@@ -1,15 +1,12 @@
 import { NextResponse } from "next/server";
 
-import { deleteSite, getSite, updateSite } from "../../_store";
+import { apiFetch } from "../../../../../lib/server-api";
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
   const { id } = await params;
-  const site = getSite(id);
-  if (!site) {
-    return NextResponse.json({ success: false, error: { message: "Site not found" } }, { status: 404 });
-  }
-
-  return NextResponse.json({ success: true, data: site });
+  const res = await apiFetch(`/sites/${id}`);
+  const data = await res.json().catch(() => ({ success: false, error: { message: "Invalid API response" } }));
+  return NextResponse.json(data, { status: res.status });
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
@@ -19,26 +16,31 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     url: string;
     country: string;
     language: string;
-    status: "active" | "inactive";
     platform: string;
-    subscribers: number;
+    status: "active" | "inactive";
     vapidPublicKey: string | null;
   }>;
 
-  const site = updateSite(id, body);
-  if (!site) {
-    return NextResponse.json({ success: false, error: { message: "Site not found" } }, { status: 404 });
-  }
+  const res = await apiFetch(`/sites/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      name: body.name,
+      url: body.url,
+      country: body.country,
+      language: body.language,
+      platform: body.platform,
+      status: body.status,
+      vapidPublicKey: body.vapidPublicKey,
+    }),
+  });
 
-  return NextResponse.json({ success: true, data: site });
+  const data = await res.json().catch(() => ({ success: false, error: { message: "Invalid API response" } }));
+  return NextResponse.json(data, { status: res.status });
 }
 
-export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
-  const { id } = await params;
-  const deleted = deleteSite(id);
-  if (!deleted) {
-    return NextResponse.json({ success: false, error: { message: "Site not found" } }, { status: 404 });
-  }
-
-  return NextResponse.json({ success: true, data: { deleted: true } });
+export async function DELETE(): Promise<Response> {
+  return NextResponse.json(
+    { success: false, error: { message: "Site deletion is not supported by the API" } },
+    { status: 405 },
+  );
 }
