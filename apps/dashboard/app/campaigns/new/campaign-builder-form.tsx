@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { buildUrl, parseDateTime } from "./campaign-builder.utils";
+import type { SegmentChoice } from "../../_data/segments";
 import type { SiteChoice } from "../../_data/sites";
 
 type CampaignType = "instant" | "scheduled" | "recurring";
@@ -10,6 +11,7 @@ type CampaignChannel = "web" | "mobile" | "all";
 
 interface CampaignBuilderFormProps {
   sites: SiteChoice[];
+  segments: SegmentChoice[];
 }
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
@@ -29,8 +31,9 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   return (await response.json()) as T;
 }
 
-export function CampaignBuilderForm({ sites }: CampaignBuilderFormProps) {
+export function CampaignBuilderForm({ sites, segments }: CampaignBuilderFormProps) {
   const [siteId, setSiteId] = useState(sites[0]?.id ?? "site-1");
+  const [segmentId, setSegmentId] = useState<string>("");
   const [name, setName] = useState("Launch Week");
   const [title, setTitle] = useState("Big Safari Sale");
   const [message, setMessage] = useState("Save 30% on last-minute wilderness stays.");
@@ -52,8 +55,18 @@ export function CampaignBuilderForm({ sites }: CampaignBuilderFormProps) {
     [destination],
   );
 
+  const segmentsForSite = useMemo(() => segments.filter((segment) => segment.siteId === siteId), [segments, siteId]);
+
+  function handleSiteChange(nextSiteId: string) {
+    setSiteId(nextSiteId);
+    if (!segments.some((segment) => segment.siteId === nextSiteId && segment.id === segmentId)) {
+      setSegmentId("");
+    }
+  }
+
   const campaignPayload = {
     siteId,
+    segmentId: segmentId || null,
     name,
     channel,
     type,
@@ -138,10 +151,22 @@ export function CampaignBuilderForm({ sites }: CampaignBuilderFormProps) {
 
         <div className="field">
           <label htmlFor="siteId">Site</label>
-          <select className="select" id="siteId" value={siteId} onChange={(event) => setSiteId(event.target.value)}>
+          <select className="select" id="siteId" value={siteId} onChange={(event) => handleSiteChange(event.target.value)}>
             {sites.map((site) => (
               <option key={site.id} value={site.id}>
                 {site.name} - {site.country}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="field">
+          <label htmlFor="segmentId">Audience</label>
+          <select className="select" id="segmentId" value={segmentId} onChange={(event) => setSegmentId(event.target.value)}>
+            <option value="">All active subscribers</option>
+            {segmentsForSite.map((segment) => (
+              <option key={segment.id} value={segment.id}>
+                {segment.name}
               </option>
             ))}
           </select>
@@ -252,6 +277,9 @@ export function CampaignBuilderForm({ sites }: CampaignBuilderFormProps) {
           <p className="subtle">Type: {type}</p>
           <p className="subtle">Send time: {schedule}</p>
           <p className="subtle">Destination: {destination}</p>
+          <p className="subtle">
+            Audience: {segmentsForSite.find((segment) => segment.id === segmentId)?.name ?? "All active subscribers"}
+          </p>
         </div>
       </aside>
     </div>
