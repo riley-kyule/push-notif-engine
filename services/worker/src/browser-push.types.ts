@@ -11,6 +11,7 @@ export interface BrowserPushNotificationPayload {
 export interface BrowserPushJobPayload {
   siteId: string;
   campaignId?: string | null;
+  segmentId?: string | null;
   notification: BrowserPushNotificationPayload;
   enqueuedAt: string;
 }
