@@ -171,3 +171,76 @@ test("browser push processor retries transient relay failures", async () => {
     { status: "sent", subscriberId: "subscriber-1" },
   ]);
 });
+
+test("browser push processor filters eligible subscribers by the campaign's segment", async () => {
+  const requestedSegmentIds: string[] = [];
+  const requestedSegmentDefinitions: unknown[] = [];
+
+  const fakeRepository = {
+    async findSiteCredentials() {
+      return {
+        id: "site-1",
+        vapid_subject: "mailto:push@example.com",
+        vapid_public_key: "public-key",
+        vapid_private_key: "private-key",
+      };
+    },
+    async findSegmentDefinition(segmentId: string) {
+      requestedSegmentIds.push(segmentId);
+      return { matchMode: "all" as const, rules: [{ field: "country" as const, operator: "is" as const, value: "Kenya" }] };
+    },
+    async listEligibleSubscribers(_siteId: string, segmentDefinition: unknown) {
+      requestedSegmentDefinitions.push(segmentDefinition);
+      return [];
+    },
+    async createPendingDeliveryEvent() {
+      return "delivery-1";
+    },
+    async markDeliveryEventSent() {
+      return undefined;
+    },
+    async markDeliveryEventFailed() {
+      return undefined;
+    },
+    async markSubscriberExpired() {
+      return undefined;
+    },
+    async markCampaignSent() {
+      return undefined;
+    },
+    async markCampaignFailed() {
+      return undefined;
+    },
+  };
+
+  const fakeSender = {
+    configure() {
+      return undefined;
+    },
+    async send() {
+      return { providerMessageId: null };
+    },
+  };
+
+  const processor = new BrowserPushProcessor(fakeRepository as never, fakeSender as never);
+  const job: BrowserPushJobPayload = {
+    siteId: "site-1",
+    segmentId: "segment-1",
+    enqueuedAt: new Date().toISOString(),
+    notification: {
+      title: "Segmented",
+      body: "Targeted message",
+      url: "https://example.com/articles/2",
+      icon: null,
+      image: null,
+    },
+  };
+
+  const result = await processor.process(job);
+
+  assert.equal(result.sent, 0);
+  assert.deepEqual(requestedSegmentIds, ["segment-1"]);
+  assert.deepEqual(requestedSegmentDefinitions, [
+    { matchMode: "all", rules: [{ field: "country", operator: "is", value: "Kenya" }] },
+  ]);
+});
