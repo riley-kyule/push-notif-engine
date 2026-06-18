@@ -77,3 +77,81 @@ test("campaigns service creates, clones, previews, and schedules campaigns", asy
   assert.equal(scheduled.recurrenceType, "daily");
   assert.equal(scheduled.scheduledAt?.toISOString(), "2026-07-02T10:00:00.000Z");
 });
+
+test("campaigns service accepts a segment that belongs to the campaign's site", async () => {
+  const sitesService = {
+    async getSite() {
+      return { id: "site-1" };
+    },
+  };
+  const segmentsService = {
+    async getSegment(id: string) {
+      return { id, siteId: "site-1" };
+    },
+  };
+  const browserPushService = {
+    async dispatch() {
+      return { jobId: "job-1", queued: true as const };
+    },
+  };
+  const repository = new InMemoryCampaignsRepository();
+  const service = new CampaignsService(
+    sitesService as never,
+    segmentsService as never,
+    browserPushService as never,
+    repository as never,
+  );
+
+  const created = await service.createCampaign({
+    siteId: "site-1",
+    segmentId: "segment-1",
+    name: "Segmented Campaign",
+    channel: "web",
+    type: "instant",
+    title: "Big Sale",
+    message: "Shop now",
+    url: "https://example.com",
+  });
+
+  assert.equal(created.segmentId, "segment-1");
+});
+
+test("campaigns service rejects a segment that belongs to a different site", async () => {
+  const sitesService = {
+    async getSite() {
+      return { id: "site-1" };
+    },
+  };
+  const segmentsService = {
+    async getSegment(id: string) {
+      return { id, siteId: "site-2" };
+    },
+  };
+  const browserPushService = {
+    async dispatch() {
+      return { jobId: "job-1", queued: true as const };
+    },
+  };
+  const repository = new InMemoryCampaignsRepository();
+  const service = new CampaignsService(
+    sitesService as never,
+    segmentsService as never,
+    browserPushService as never,
+    repository as never,
+  );
+
+  await assert.rejects(
+    () =>
+      service.createCampaign({
+        siteId: "site-1",
+        segmentId: "segment-1",
+        name: "Mismatched Campaign",
+        channel: "web",
+        type: "instant",
+        title: "Big Sale",
+        message: "Shop now",
+        url: "https://example.com",
+      }),
+    /Segment does not belong/,
+  );
+});
