@@ -11,6 +11,7 @@ import type {
 
 export interface CreateCampaignInput {
   siteId: string;
+  segmentId: string | null;
   name: string;
   channel: CampaignChannel;
   type: CampaignType;
@@ -32,6 +33,7 @@ export interface CreateCampaignInput {
 }
 
 export interface UpdateCampaignInput {
+  segmentId?: string | null;
   name?: string;
   channel?: CampaignChannel;
   type?: CampaignType;
@@ -58,4 +60,5 @@ export interface CampaignsRepository {
   findById(id: string): Promise<CampaignRecord | null>;
   delete(id: string): Promise<boolean>;
   list(filters: CampaignListFilters): Promise<CampaignListResult>;
+  listDueScheduledCampaigns(asOf: Date): Promise<CampaignRecord[]>;
 }
