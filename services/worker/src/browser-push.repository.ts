@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
 
 import type { BrowserPushDeliveryStatus, BrowserPushNotificationPayload } from "./browser-push.types";
+import { buildSegmentFilterClause, type SegmentDefinition } from "./segment.util";
 
 interface BrowserPushSiteRow {
   id: string;
@@ -14,6 +15,11 @@ interface BrowserPushSubscriberRow {
   subscription_endpoint: string;
   p256dh_key: string | null;
   auth_key: string | null;
+}
+
+interface SegmentRow {
+  match_mode: SegmentDefinition["matchMode"];
+  rules: unknown;
 }
 
 export class BrowserPushRepository {
@@ -33,18 +39,46 @@ export class BrowserPushRepository {
     return rows[0] ?? null;
   }
 
-  async listEligibleSubscribers(siteId: string): Promise<BrowserPushSubscriberRow[]> {
+  async findSegmentDefinition(segmentId: string): Promise<SegmentDefinition | null> {
+    const { rows } = await this.pool.query<SegmentRow>(
+      `
+      SELECT match_mode, rules
+      FROM segments
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [segmentId],
+    );
+
+    const row = rows[0];
+    if (!row) {
+      return null;
+    }
+
+    const rules = typeof row.rules === "string" ? JSON.parse(row.rules) : row.rules;
+    return { matchMode: row.match_mode, rules: rules as SegmentDefinition["rules"] };
+  }
+
+  async listEligibleSubscribers(siteId: string, segmentDefinition?: SegmentDefinition | null): Promise<BrowserPushSubscriberRow[]> {
+    const params: Array<string | number | string[]> = [siteId];
+    const clauses = ["site_id = $1", "status = 'active'", "p256dh_key IS NOT NULL", "auth_key IS NOT NULL"];
+
+    if (segmentDefinition) {
+      const built = buildSegmentFilterClause(segmentDefinition, params.length + 1);
+      if (built.clause) {
+        params.push(...built.params);
+        clauses.push(built.clause);
+      }
+    }
+
     const { rows } = await this.pool.query<BrowserPushSubscriberRow>(
       `
       SELECT id, subscription_endpoint, p256dh_key, auth_key
       FROM subscribers
-      WHERE site_id = $1
-        AND status = 'active'
-        AND p256dh_key IS NOT NULL
-        AND auth_key IS NOT NULL
+      WHERE ${clauses.join(" AND ")}
       ORDER BY created_at ASC
       `,
-      [siteId],
+      params,
     );
 
     return rows;
@@ -94,19 +128,6 @@ export class BrowserPushRepository {
       WHERE id = $1
       `,
       [id, providerMessageId],
-    );
-  }
-
-  async markDeliveryEventDelivered(id: string): Promise<void> {
-    await this.pool.query(
-      `
-      UPDATE push_delivery_events
-      SET status = 'delivered',
-          delivered_at = NOW(),
-          updated_at = NOW()
-      WHERE id = $1
-      `,
-      [id],
     );
   }
 
