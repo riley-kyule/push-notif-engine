@@ -27,4 +27,8 @@ export class CreateBrowserPushDispatchDto {
   @IsOptional()
   @IsUUID()
   campaignId?: string | null;
+
+  @IsOptional()
+  @IsUUID()
+  segmentId?: string | null;
 }
