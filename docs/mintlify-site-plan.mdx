@@ -1,0 +1,115 @@
+# Mintlify Docs Site Plan
+
+This document defines the proposed Mintlify information architecture for the Exotic Push Engine documentation site.
+
+## Goals
+
+- Explain what the platform is and why it exists.
+- Document the system architecture, data model, API, security, and deployment model.
+- Separate product documentation from implementation details.
+- Keep the docs aligned with the current scope of EPE:
+  - self-hosted
+  - browser push only
+  - no SaaS billing
+  - no multi-tenancy
+  - no native mobile app push
+
+## Proposed Navigation
+
+### Introduction
+
+- `/introduction`  
+  High-level overview of EPE, what it solves, and where it fits in Exotic's stack.
+
+- `/problem`  
+  The operational and financial problem EPE is designed to replace.
+
+- `/target-users`  
+  Primary internal users and operational stakeholders.
+
+- `/key-features`  
+  Core feature set grouped by product value.
+
+- `/mvp-scope`  
+  What ships first and what remains out of scope.
+
+- `/roadmap`  
+  Phase-based delivery plan and future expansion areas.
+
+### Architecture
+
+- `/architecture/system-overview`  
+  End-to-end system design across dashboard, API, workers, Redis, and PostgreSQL.
+
+- `/architecture/tech-stack`  
+  Chosen stack and why each layer exists.
+
+### Data Models
+
+- `/data-models/database-schema`  
+  Core tables, relationships, and schema conventions.
+
+### Features
+
+- `/features/authentication`  
+  Auth flows, sessions, JWT, refresh tokens, RBAC, and password policy.
+
+- `/features/payments`  
+  Reserved for future separation or adjacent systems.  
+  Note: EPE itself does not include SaaS billing or subscription plans.
+
+- `/features/notifications`  
+  Campaign creation, delivery flow, queueing, retries, and delivery state handling.
+
+### API
+
+- `/api-reference`  
+  REST API reference for dashboard and operational integrations.
+
+### Platform
+
+- `/security`  
+  Authentication, authorization, rate limiting, secrets, audit logs, and transport security.
+
+- `/deployment`  
+  cPanel/VPS deployment model, process management, and runtime expectations.
+
+- `/testing`  
+  Unit, integration, and feature-level testing expectations.
+
+### Business
+
+- `/business/pricing-vs-webpushr`  
+  Pricing and savings comparison against Webpushr.  
+  This route should normalize the requested concept of "money saved as opposed to Webpushr" into a clean slug.
+
+- `/business/roi`  
+  ROI model for migrating to and operating EPE internally.
+
+## Content Rules
+
+- Keep the docs factual and implementation-aligned.
+- Do not describe SaaS billing as part of EPE.
+- Make browser push the default delivery model for both desktop and mobile browsers.
+- Call out that iOS Safari support is browser-based Web Push only, with a manifest requirement.
+- When a feature is future work or intentionally out of scope, mark it explicitly instead of implying it is already implemented.
+
+## Suggested Mintlify Structure
+
+The site should be organized into these top-level groups:
+
+1. Introduction
+2. Architecture
+3. Data Models
+4. Features
+5. API Reference
+6. Security
+7. Deployment
+8. Testing
+9. Business
+
+## Notes
+
+- The requested pricing route is best represented as `/business/pricing-vs-webpushr` for a clean Mintlify slug.
+- The payments page should document boundaries, not imply a billing system that the product does not have.
+- This site plan can be converted into a Mintlify `mint.json` navigation file and individual page stubs if we want to scaffold the docs site next.
