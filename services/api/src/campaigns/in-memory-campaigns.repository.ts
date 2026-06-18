@@ -22,6 +22,7 @@ export class InMemoryCampaignsRepository implements CampaignsRepository {
     const campaign: CampaignRecord = {
       id: randomUUID(),
       siteId: input.siteId,
+      segmentId: input.segmentId,
       name: input.name,
       channel: input.channel,
       type: input.type,
@@ -54,6 +55,7 @@ export class InMemoryCampaignsRepository implements CampaignsRepository {
       return null;
     }
 
+    campaign.segmentId = input.segmentId === undefined ? campaign.segmentId : input.segmentId;
     campaign.name = input.name ?? campaign.name;
     campaign.channel = input.channel ?? campaign.channel;
     campaign.type = input.type ?? campaign.type;
@@ -108,5 +110,12 @@ export class InMemoryCampaignsRepository implements CampaignsRepository {
       .filter((campaign) => !filters.status || campaign.status === filters.status).length;
 
     return { items, total };
+  }
+
+  async listDueScheduledCampaigns(asOf: Date): Promise<CampaignRecord[]> {
+    return this.campaigns
+      .filter((campaign) => campaign.status === "scheduled" && campaign.scheduledAt !== null && campaign.scheduledAt <= asOf)
+      .sort((a, b) => (a.scheduledAt as Date).getTime() - (b.scheduledAt as Date).getTime())
+      .map((campaign) => cloneCampaign(campaign));
   }
 }
