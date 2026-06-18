@@ -7,6 +7,7 @@ import type { BrowserPushJobPayload } from "../src/browser-push.types";
 test("browser push processor marks expired subscribers", async () => {
   const events: Array<{ status: string; subscriberId: string }> = [];
   const expired: string[] = [];
+  let lastSubscriberId: string | null = null;
   const fakeRepository = {
     async findSiteCredentials() {
       return {
@@ -31,18 +32,19 @@ test("browser push processor marks expired subscribers", async () => {
         return "delivery-1";
       }
 
+      lastSubscriberId = input.subscriberId;
       events.push({ status: "pending", subscriberId: input.subscriberId });
       return "delivery-1";
     },
     async markDeliveryEventSent() {
       return undefined;
     },
-    async markDeliveryEventFailed(input: { status: string; subscriberId: string | null }) {
-      if (!input.subscriberId) {
+    async markDeliveryEventFailed(_id: string, input: { status: string }) {
+      if (!lastSubscriberId) {
         return;
       }
 
-      events.push({ status: input.status, subscriberId: input.subscriberId });
+      events.push({ status: input.status, subscriberId: lastSubscriberId });
     },
     async markSubscriberExpired(subscriberId: string) {
       expired.push(subscriberId);
@@ -118,12 +120,8 @@ test("browser push processor retries transient relay failures", async () => {
     async markDeliveryEventSent() {
       events.push({ status: "sent", subscriberId: "subscriber-1" });
     },
-    async markDeliveryEventFailed(input: { status: string; subscriberId: string | null }) {
-      if (!input.subscriberId) {
-        return;
-      }
-
-      events.push({ status: input.status, subscriberId: input.subscriberId });
+    async markDeliveryEventFailed(_id: string, input: { status: string }) {
+      events.push({ status: input.status, subscriberId: "subscriber-1" });
     },
     async markSubscriberExpired() {
       return undefined;
@@ -242,5 +240,81 @@ test("browser push processor filters eligible subscribers by the campaign's segm
   assert.deepEqual(requestedSegmentIds, ["segment-1"]);
   assert.deepEqual(requestedSegmentDefinitions, [
     { matchMode: "all", rules: [{ field: "country", operator: "is", value: "Kenya" }] },
+  ]);
+});
+
+test("browser push processor includes a deliveryId-scoped clickUrl in the outgoing notification", async () => {
+  const sentNotifications: Array<{ deliveryId?: string | null; ackUrl?: string | null; clickUrl?: string | null }> = [];
+
+  const fakeRepository = {
+    async findSiteCredentials() {
+      return {
+        id: "site-1",
+        vapid_subject: "mailto:push@example.com",
+        vapid_public_key: "public-key",
+        vapid_private_key: "private-key",
+      };
+    },
+    async listEligibleSubscribers() {
+      return [
+        {
+          id: "subscriber-1",
+          subscription_endpoint: "https://push.example.com/one",
+          p256dh_key: "p256dh",
+          auth_key: "auth",
+        },
+      ];
+    },
+    async createPendingDeliveryEvent() {
+      return "delivery-42";
+    },
+    async markDeliveryEventSent() {
+      return undefined;
+    },
+    async markDeliveryEventFailed() {
+      return undefined;
+    },
+    async markSubscriberExpired() {
+      return undefined;
+    },
+  };
+
+  const fakeSender = {
+    configure() {
+      return undefined;
+    },
+    async send(_subscription: unknown, notification: { deliveryId?: string | null; ackUrl?: string | null; clickUrl?: string | null }) {
+      sentNotifications.push(notification);
+      return { providerMessageId: "provider-123" };
+    },
+  };
+
+  process.env.BROWSER_PUSH_ACK_BASE_URL = "https://api.example.com/api";
+  const processor = new BrowserPushProcessor(fakeRepository as never, fakeSender as never);
+  const job: BrowserPushJobPayload = {
+    siteId: "site-1",
+    enqueuedAt: new Date().toISOString(),
+    notification: {
+      title: "New article",
+      body: "Read the latest update",
+      url: "https://example.com/articles/1",
+      icon: null,
+      image: null,
+    },
+  };
+
+  await processor.process(job);
+
+  assert.deepEqual(sentNotifications, [
+    {
+      title: "New article",
+      body: "Read the latest update",
+      url: "https://example.com/articles/1",
+      icon: null,
+      image: null,
+      deliveryId: "delivery-42",
+      ackUrl: "https://api.example.com/api/browser-push/deliveries/delivery-42/delivered",
+      clickUrl: "https://api.example.com/api/browser-push/deliveries/delivery-42/clicked",
+    },
   ]);
 });
