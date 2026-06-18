@@ -82,7 +82,6 @@ export class BrowserPushProcessor {
         const result = await this.sendWithRetry(subscription, notification);
 
         await this.repository.markDeliveryEventSent(deliveryId, result.providerMessageId);
-        await this.repository.markDeliveryEventDelivered(deliveryId);
         sent += 1;
       } catch (error) {
         const statusCode = isResponseError(error) ? error.statusCode : undefined;
