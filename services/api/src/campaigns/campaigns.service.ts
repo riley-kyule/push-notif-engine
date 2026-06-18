@@ -1,7 +1,9 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 
 import { BrowserPushService } from "../browser-push/browser-push.service";
+import { SegmentsService } from "../segments/segments.service";
 import { SitesService } from "../sites/sites.service";
+import { computeNextOccurrence } from "./campaign-recurrence.util";
 import { CAMPAIGNS_REPOSITORY } from "./campaigns.constants";
 import type {
   CampaignButton,
@@ -44,23 +46,39 @@ function normalizeButtons(buttons: CreateCampaignDto["buttons"] | UpdateCampaign
 export class CampaignsService {
   constructor(
     private readonly sitesService: SitesService,
+    private readonly segmentsService: SegmentsService,
     private readonly browserPushService: BrowserPushService,
     @Inject(CAMPAIGNS_REPOSITORY) private readonly campaignsRepository: CampaignsRepository,
   ) {}
 
   async createCampaign(dto: CreateCampaignDto): Promise<CampaignRecord> {
     await this.sitesService.getSite(dto.siteId);
+    if (dto.segmentId) {
+      await this.assertSegmentBelongsToSite(dto.segmentId, dto.siteId);
+    }
+
     return this.campaignsRepository.create(this.normalizeCreateInput(dto));
   }
 
   async updateCampaign(id: string, dto: UpdateCampaignDto): Promise<CampaignRecord> {
     const existing = await this.getCampaign(id);
+    if (dto.segmentId) {
+      await this.assertSegmentBelongsToSite(dto.segmentId, existing.siteId);
+    }
+
     const updated = await this.campaignsRepository.update(id, this.normalizeUpdateInput(existing, dto));
     if (!updated) {
       throw new NotFoundException("Campaign not found");
     }
 
     return updated;
+  }
+
+  private async assertSegmentBelongsToSite(segmentId: string, siteId: string): Promise<void> {
+    const segment = await this.segmentsService.getSegment(segmentId);
+    if (segment.siteId !== siteId) {
+      throw new BadRequestException("Segment does not belong to the campaign's site");
+    }
   }
 
   async getCampaign(id: string): Promise<CampaignRecord> {
@@ -104,6 +122,7 @@ export class CampaignsService {
 
     return this.campaignsRepository.create({
       siteId: existing.siteId,
+      segmentId: existing.segmentId,
       name: dto.name ?? `${existing.name} Copy`,
       channel: existing.channel,
       type: existing.type,
@@ -166,6 +185,7 @@ export class CampaignsService {
       icon: campaign.iconUrl,
       image: campaign.imageUrl,
       campaignId: campaign.id,
+      segmentId: campaign.segmentId,
     });
 
     await this.campaignsRepository.update(id, { status: "sending" });
@@ -173,9 +193,42 @@ export class CampaignsService {
     return result;
   }
 
+  async dispatchScheduledOccurrence(campaign: CampaignRecord): Promise<{ jobId: string | undefined; queued: true }> {
+    return this.browserPushService.dispatch({
+      siteId: campaign.siteId,
+      title: campaign.title,
+      body: campaign.message,
+      url: campaign.url,
+      icon: campaign.iconUrl,
+      image: campaign.imageUrl,
+      campaignId: campaign.id,
+      segmentId: campaign.segmentId,
+    });
+  }
+
+  async listDueScheduledCampaigns(asOf: Date): Promise<CampaignRecord[]> {
+    return this.campaignsRepository.listDueScheduledCampaigns(asOf);
+  }
+
+  async advanceRecurringCampaign(campaign: CampaignRecord): Promise<void> {
+    if (!campaign.recurrenceType || !campaign.scheduledAt) {
+      return;
+    }
+
+    const next = computeNextOccurrence(campaign.scheduledAt, campaign.recurrenceType, campaign.recurrenceInterval ?? 1);
+
+    if (campaign.recurrenceUntilAt && next > campaign.recurrenceUntilAt) {
+      await this.campaignsRepository.update(campaign.id, { status: "sent", sentAt: new Date() });
+      return;
+    }
+
+    await this.campaignsRepository.update(campaign.id, { scheduledAt: next });
+  }
+
   private normalizeCreateInput(dto: CreateCampaignDto): CreateCampaignInput {
     return {
       siteId: dto.siteId,
+      segmentId: dto.segmentId ?? null,
       name: dto.name,
       channel: dto.channel,
       type: dto.type,
@@ -199,6 +252,7 @@ export class CampaignsService {
 
   private normalizeUpdateInput(existing: CampaignRecord, dto: UpdateCampaignDto): UpdateCampaignInput {
     return {
+      segmentId: dto.segmentId === undefined ? undefined : dto.segmentId,
       name: dto.name ?? existing.name,
       channel: dto.channel ?? existing.channel,
       type: dto.type ?? existing.type,
