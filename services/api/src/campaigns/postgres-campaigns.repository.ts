@@ -8,6 +8,7 @@ import type { CampaignsRepository, CreateCampaignInput, UpdateCampaignInput } fr
 interface DbCampaignRow {
   id: string;
   site_id: string;
+  segment_id: string | null;
   name: string;
   channel: string;
   type: string;
@@ -58,15 +59,16 @@ export class PostgresCampaignsRepository implements CampaignsRepository {
     const { rows } = await this.pool.query<DbCampaignRow>(
       `
       INSERT INTO campaigns (
-        site_id, name, channel, type, title, message, url, image_url, icon_url, buttons,
+        site_id, segment_id, name, channel, type, title, message, url, image_url, icon_url, buttons,
         expiration_at, status, scheduled_at, timezone, recurrence_type, recurrence_interval,
         recurrence_until_at, cloned_from_campaign_id, sent_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14, $15, $16, $17, $18, $19, $20)
       RETURNING *
       `,
       [
         input.siteId,
+        input.segmentId,
         input.name,
         input.channel,
         input.type,
@@ -100,30 +102,33 @@ export class PostgresCampaignsRepository implements CampaignsRepository {
     const { rows } = await this.pool.query<DbCampaignRow>(
       `
       UPDATE campaigns
-      SET name = COALESCE($2, name),
-          channel = COALESCE($3, channel),
-          type = COALESCE($4, type),
-          title = COALESCE($5, title),
-          message = COALESCE($6, message),
-          url = COALESCE($7, url),
-          image_url = COALESCE($8, image_url),
-          icon_url = COALESCE($9, icon_url),
-          buttons = COALESCE($10::jsonb, buttons),
-          expiration_at = COALESCE($11, expiration_at),
-          status = COALESCE($12, status),
-          scheduled_at = COALESCE($13, scheduled_at),
-          timezone = COALESCE($14, timezone),
-          recurrence_type = COALESCE($15, recurrence_type),
-          recurrence_interval = COALESCE($16, recurrence_interval),
-          recurrence_until_at = COALESCE($17, recurrence_until_at),
-          cloned_from_campaign_id = COALESCE($18, cloned_from_campaign_id),
-          sent_at = COALESCE($19, sent_at),
+      SET segment_id = CASE WHEN $2::boolean THEN $3 ELSE segment_id END,
+          name = COALESCE($4, name),
+          channel = COALESCE($5, channel),
+          type = COALESCE($6, type),
+          title = COALESCE($7, title),
+          message = COALESCE($8, message),
+          url = COALESCE($9, url),
+          image_url = COALESCE($10, image_url),
+          icon_url = COALESCE($11, icon_url),
+          buttons = COALESCE($12::jsonb, buttons),
+          expiration_at = COALESCE($13, expiration_at),
+          status = COALESCE($14, status),
+          scheduled_at = COALESCE($15, scheduled_at),
+          timezone = COALESCE($16, timezone),
+          recurrence_type = COALESCE($17, recurrence_type),
+          recurrence_interval = COALESCE($18, recurrence_interval),
+          recurrence_until_at = COALESCE($19, recurrence_until_at),
+          cloned_from_campaign_id = COALESCE($20, cloned_from_campaign_id),
+          sent_at = COALESCE($21, sent_at),
           updated_at = NOW()
       WHERE id = $1
       RETURNING *
       `,
       [
         id,
+        input.segmentId !== undefined,
+        input.segmentId ?? null,
         input.name ?? null,
         input.channel ?? null,
         input.type ?? null,
@@ -223,10 +228,27 @@ export class PostgresCampaignsRepository implements CampaignsRepository {
     };
   }
 
+  async listDueScheduledCampaigns(asOf: Date): Promise<CampaignRecord[]> {
+    const { rows } = await this.pool.query<DbCampaignRow>(
+      `
+      SELECT *
+      FROM campaigns
+      WHERE status = 'scheduled'
+        AND scheduled_at IS NOT NULL
+        AND scheduled_at <= $1
+      ORDER BY scheduled_at ASC
+      `,
+      [asOf],
+    );
+
+    return rows.map((row) => this.mapRow(row));
+  }
+
   private mapRow(row: DbCampaignRow): CampaignRecord {
     return {
       id: row.id,
       siteId: row.site_id,
+      segmentId: row.segment_id,
       name: row.name,
       channel: row.channel as CampaignRecord["channel"],
       type: row.type as CampaignRecord["type"],
