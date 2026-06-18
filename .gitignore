@@ -3,6 +3,9 @@ node_modules
 *.tsbuildinfo
 dist
 coverage
+*.md
+!README.md
+.claude/
 .env
 .env.*
 *.log
