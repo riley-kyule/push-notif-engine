@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 interface CampaignActionsProps {
   campaignId: string;
@@ -31,6 +32,7 @@ async function postJson<T>(url: string, body?: unknown): Promise<T> {
 }
 
 export function CampaignActions({ campaignId, initialName }: CampaignActionsProps) {
+  const router = useRouter();
   const [status, setStatus] = useState<string | null>(null);
   const [cloneId, setCloneId] = useState<string | null>(null);
   const [preview, setPreview] = useState<{
@@ -39,7 +41,21 @@ export function CampaignActions({ campaignId, initialName }: CampaignActionsProp
     url: string;
     buttons: Array<{ label: string; url: string }>;
   } | null>(null);
-  const [busy, setBusy] = useState<"clone" | "preview" | "schedule" | null>(null);
+  const [busy, setBusy] = useState<"clone" | "preview" | "schedule" | "send" | null>(null);
+
+  async function handleSendNow() {
+    setBusy("send");
+    setStatus(null);
+    try {
+      await postJson(`/api/dashboard/campaigns/${campaignId}/send`);
+      setStatus("Campaign queued for dispatch");
+      router.refresh();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Unable to send campaign");
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function handleClone() {
     setBusy("clone");
@@ -112,8 +128,11 @@ export function CampaignActions({ campaignId, initialName }: CampaignActionsProp
         <button className="button secondary" type="button" onClick={handleClone} disabled={busy !== null}>
           {busy === "clone" ? "Cloning..." : "Clone Campaign"}
         </button>
-        <button className="button primary" type="button" onClick={handleScheduleNow} disabled={busy !== null}>
+        <button className="button secondary" type="button" onClick={handleScheduleNow} disabled={busy !== null}>
           {busy === "schedule" ? "Scheduling..." : "Schedule Now"}
+        </button>
+        <button className="button primary" type="button" onClick={handleSendNow} disabled={busy !== null}>
+          {busy === "send" ? "Sending..." : "Send Now"}
         </button>
       </div>
 

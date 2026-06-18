@@ -1,3 +1,5 @@
+import { apiJson } from "../../lib/server-api";
+
 export interface CampaignSummary {
   id: string;
   name: string;
@@ -152,10 +154,6 @@ export const campaignDetails: Record<string, CampaignDetail> = {
   },
 };
 
-function getApiBaseUrl(): string {
-  return process.env.DASHBOARD_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:3001/api";
-}
-
 function toCampaignSummary(record: {
   id: string;
   name: string;
@@ -228,27 +226,8 @@ function toCampaignDetail(record: {
   };
 }
 
-async function fetchJson<T>(path: string): Promise<T | null> {
-  try {
-    const response = await fetch(`${getApiBaseUrl()}${path}`, {
-      cache: "no-store",
-      headers: {
-        accept: "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    return (await response.json()) as T;
-  } catch {
-    return null;
-  }
-}
-
 export async function getCampaignList(): Promise<CampaignListPayload> {
-  const response = await fetchJson<CampaignApiResponse<{ items: Array<CampaignSummary & { siteId?: string }> }>>(
+  const response = await apiJson<CampaignApiResponse<{ items: Array<CampaignSummary & { siteId?: string }> }>>(
     "/campaigns",
   );
 
@@ -260,7 +239,7 @@ export async function getCampaignList(): Promise<CampaignListPayload> {
 }
 
 export async function getCampaignById(id: string): Promise<CampaignDetail | null> {
-  const response = await fetchJson<CampaignApiResponse<CampaignDetail & { siteId?: string }>>(`/campaigns/${id}`);
+  const response = await apiJson<CampaignApiResponse<CampaignDetail & { siteId?: string }>>(`/campaigns/${id}`);
   if (response?.data) {
     return toCampaignDetail(response.data);
   }
