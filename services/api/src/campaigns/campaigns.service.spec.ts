@@ -10,13 +10,23 @@ test("campaigns service creates, clones, previews, and schedules campaigns", asy
       return { id: "site-1" };
     },
   };
+  const segmentsService = {
+    async getSegment() {
+      return { id: "segment-1", siteId: "site-1" };
+    },
+  };
   const browserPushService = {
     async dispatch() {
       return { jobId: "job-1", queued: true as const };
     },
   };
   const repository = new InMemoryCampaignsRepository();
-  const service = new CampaignsService(sitesService as never, browserPushService as never, repository as never);
+  const service = new CampaignsService(
+    sitesService as never,
+    segmentsService as never,
+    browserPushService as never,
+    repository as never,
+  );
 
   const created = await service.createCampaign({
     siteId: "site-1",
