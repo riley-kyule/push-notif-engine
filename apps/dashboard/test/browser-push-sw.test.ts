@@ -14,4 +14,6 @@ test("local browser push service worker exists", () => {
   assert.match(file, /message/);
   assert.match(file, /acknowledgeDelivery/);
   assert.match(file, /deliveryId/);
+  assert.match(file, /acknowledgeClick/);
+  assert.match(file, /clickUrl/);
 });
