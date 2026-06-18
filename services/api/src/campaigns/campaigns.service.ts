@@ -252,7 +252,7 @@ export class CampaignsService {
 
   private normalizeUpdateInput(existing: CampaignRecord, dto: UpdateCampaignDto): UpdateCampaignInput {
     return {
-      segmentId: dto.segmentId === undefined ? undefined : dto.segmentId,
+      ...(dto.segmentId !== undefined ? { segmentId: dto.segmentId } : {}),
       name: dto.name ?? existing.name,
       channel: dto.channel ?? existing.channel,
       type: dto.type ?? existing.type,
