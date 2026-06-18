@@ -37,9 +37,6 @@ test("browser push processor marks expired subscribers", async () => {
     async markDeliveryEventSent() {
       return undefined;
     },
-    async markDeliveryEventDelivered() {
-      return undefined;
-    },
     async markDeliveryEventFailed(input: { status: string; subscriberId: string | null }) {
       if (!input.subscriberId) {
         return;
@@ -121,9 +118,6 @@ test("browser push processor retries transient relay failures", async () => {
     async markDeliveryEventSent() {
       events.push({ status: "sent", subscriberId: "subscriber-1" });
     },
-    async markDeliveryEventDelivered() {
-      events.push({ status: "delivered", subscriberId: "subscriber-1" });
-    },
     async markDeliveryEventFailed(input: { status: string; subscriberId: string | null }) {
       if (!input.subscriberId) {
         return;
@@ -175,6 +169,5 @@ test("browser push processor retries transient relay failures", async () => {
   assert.deepEqual(events, [
     { status: "pending", subscriberId: "subscriber-1" },
     { status: "sent", subscriberId: "subscriber-1" },
-    { status: "delivered", subscriberId: "subscriber-1" },
   ]);
 });
