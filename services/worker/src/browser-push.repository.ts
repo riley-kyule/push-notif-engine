@@ -131,39 +131,24 @@ export class BrowserPushRepository {
     );
   }
 
-  async markDeliveryEventFailed(input: {
-    siteId: string;
-    campaignId?: string | null;
-    subscriberId: string | null;
-    endpoint: string;
-    status: BrowserPushDeliveryStatus;
-    providerMessageId: string | null;
-    errorCode: string | null;
-    errorMessage: string | null;
-    payload: BrowserPushNotificationPayload;
-  }): Promise<void> {
+  async markDeliveryEventFailed(
+    id: string,
+    input: {
+      status: BrowserPushDeliveryStatus;
+      errorCode: string | null;
+      errorMessage: string | null;
+    },
+  ): Promise<void> {
     await this.pool.query(
       `
-      INSERT INTO push_delivery_events (
-        site_id, campaign_id, subscriber_id, endpoint, status,
-        provider_message_id, error_code, error_message, payload,
-        sent_at, delivered_at, created_at, updated_at
-      )
-      VALUES ($1, $2, $3, $4, $5,
-        $6, $7, $8, $9,
-        NULL, NULL, NOW(), NOW())
+      UPDATE push_delivery_events
+      SET status = $2,
+          error_code = $3,
+          error_message = $4,
+          updated_at = NOW()
+      WHERE id = $1
       `,
-      [
-        input.siteId,
-        input.campaignId ?? null,
-        input.subscriberId,
-        input.endpoint,
-        input.status,
-        input.providerMessageId,
-        input.errorCode,
-        input.errorMessage,
-        JSON.stringify(input.payload),
-      ],
+      [id, input.status, input.errorCode, input.errorMessage],
     );
   }
 
