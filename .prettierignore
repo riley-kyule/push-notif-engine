@@ -1,0 +1,4 @@
+# Hand-crafted SVG assets — do not reformat or regenerate
+apps/dashboard/public/logo.svg
+apps/dashboard/public/logo-dark.svg
+apps/dashboard/public/logo-icon.svg

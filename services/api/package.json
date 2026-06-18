@@ -1,0 +1,35 @@
+{
+  "name": "@epe/api",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "nest start --watch",
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test src/**/*.spec.ts"
+  },
+  "dependencies": {
+    "bullmq": "^5.58.9",
+    "@nestjs/common": "^11.0.10",
+    "@nestjs/core": "^11.0.10",
+    "@nestjs/platform-express": "^11.0.10",
+    "argon2": "^0.41.1",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "ioredis": "^5.5.0",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.13.3",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "@nestjs/throttler": "^6.0.0",
+    "web-push": "^3.6.7",
+    "@epe/shared": "file:../../packages/shared",
+    "@epe/types": "file:../../packages/types"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.11",
+    "@types/pg": "^8.11.10",
+    "@types/web-push": "^3.6.4"
+  }
+}

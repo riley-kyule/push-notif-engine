@@ -1,0 +1,39 @@
+import { Controller, Get, Param, Query, UseGuards } from "@nestjs/common";
+
+import { Roles } from "../auth/decorators/roles.decorator";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../auth/guards/roles.guard";
+import { AnalyticsService } from "./analytics.service";
+
+@Controller("analytics")
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles("super-admin", "admin", "editor", "analyst")
+export class AnalyticsController {
+  constructor(private readonly analyticsService: AnalyticsService) {}
+
+  @Get("campaigns/:campaignId")
+  async getCampaignStats(
+    @Param("campaignId") campaignId: string,
+  ): Promise<{ success: true; data: unknown }> {
+    const stats = await this.analyticsService.getCampaignStats(campaignId);
+    return { success: true, data: stats };
+  }
+
+  @Get("sites/:siteId")
+  async getSiteOverview(
+    @Param("siteId") siteId: string,
+    @Query("days") days?: string,
+  ): Promise<{ success: true; data: unknown }> {
+    const overview = await this.analyticsService.getSiteOverview(siteId, days ? parseInt(days, 10) : 30);
+    return { success: true, data: overview };
+  }
+
+  @Get("sites/:siteId/subscriber-growth")
+  async getSubscriberGrowth(
+    @Param("siteId") siteId: string,
+    @Query("days") days?: string,
+  ): Promise<{ success: true; data: unknown }> {
+    const growth = await this.analyticsService.getSubscriberGrowth(siteId, days ? parseInt(days, 10) : 30);
+    return { success: true, data: growth };
+  }
+}

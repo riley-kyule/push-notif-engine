@@ -1,0 +1,1 @@
+export const SITES_REPOSITORY = Symbol("SITES_REPOSITORY");

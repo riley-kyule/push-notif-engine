@@ -1,0 +1,1 @@
+export const SEGMENTS_REPOSITORY = Symbol("SEGMENTS_REPOSITORY");
