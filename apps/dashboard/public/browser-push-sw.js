@@ -34,6 +34,7 @@ function showPushNotification(payload) {
     image: payload.image || undefined,
     data: {
       url: payload.url || "/",
+      clickUrl: payload.clickUrl || null,
     },
     actions: Array.isArray(payload.buttons)
       ? payload.buttons.slice(0, 2).map((button) => ({ action: button.url, title: button.label }))
@@ -49,6 +50,16 @@ function acknowledgeDelivery(payload) {
   }
 
   return fetch(payload.ackUrl, {
+    method: "POST",
+  }).catch(() => undefined);
+}
+
+function acknowledgeClick(clickUrl) {
+  if (!clickUrl) {
+    return Promise.resolve();
+  }
+
+  return fetch(clickUrl, {
     method: "POST",
   }).catch(() => undefined);
 }
@@ -70,23 +81,27 @@ self.addEventListener("message", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const targetUrl = event.notification.data && event.notification.data.url ? event.notification.data.url : "/";
+  const clickUrl = event.notification.data && event.notification.data.clickUrl ? event.notification.data.clickUrl : null;
   event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
-      for (const client of clients) {
-        if ("focus" in client) {
-          client.focus();
-          if ("navigate" in client) {
-            client.navigate(targetUrl);
+    Promise.all([
+      acknowledgeClick(clickUrl),
+      self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+        for (const client of clients) {
+          if ("focus" in client) {
+            client.focus();
+            if ("navigate" in client) {
+              client.navigate(targetUrl);
+            }
+            return;
           }
-          return;
         }
-      }
 
-      if (self.clients.openWindow) {
-        return self.clients.openWindow(targetUrl);
-      }
+        if (self.clients.openWindow) {
+          return self.clients.openWindow(targetUrl);
+        }
 
-      return undefined;
-    }),
+        return undefined;
+      }),
+    ]),
   );
 });
