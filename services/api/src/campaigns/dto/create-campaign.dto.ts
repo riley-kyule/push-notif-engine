@@ -1,4 +1,4 @@
-import { IsArray, IsIn, IsInt, IsOptional, IsString, IsUrl, Min, MinLength, ValidateNested } from "class-validator";
+import { IsArray, IsIn, IsInt, IsOptional, IsString, IsUUID, IsUrl, Min, MinLength, ValidateNested } from "class-validator";
 import { Type } from "class-transformer";
 
 const CAMPAIGN_TYPES = ["instant", "scheduled", "recurring"] as const;
@@ -17,6 +17,10 @@ export class CreateCampaignDto {
   @IsString()
   @MinLength(1)
   siteId!: string;
+
+  @IsOptional()
+  @IsUUID()
+  segmentId?: string | null;
 
   @IsString()
   @MinLength(1)
