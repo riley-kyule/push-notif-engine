@@ -6,6 +6,7 @@ export interface BrowserPushNotificationPayload {
   image?: string | null;
   deliveryId?: string | null;
   ackUrl?: string | null;
+  clickUrl?: string | null;
 }
 
 export interface BrowserPushJobPayload {
