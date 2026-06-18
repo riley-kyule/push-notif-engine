@@ -39,6 +39,8 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
           <p>{campaign.message}</p>
           <p className="subtle">URL</p>
           <p>{campaign.url}</p>
+          <p className="subtle">Audience</p>
+          <p>{campaign.audienceLabel}</p>
           <p className="subtle">Buttons</p>
           <ul>
             {campaign.buttons.map((button) => (
