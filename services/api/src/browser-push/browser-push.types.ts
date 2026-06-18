@@ -12,6 +12,7 @@ export interface BrowserPushDispatchRequest {
   siteId: string;
   notification: BrowserPushNotificationPayload;
   campaignId?: string | null;
+  segmentId?: string | null;
 }
 
 export interface BrowserPushJobPayload extends BrowserPushDispatchRequest {
