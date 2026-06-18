@@ -11,6 +11,12 @@ import { AnalyticsService } from "./analytics.service";
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
+  @Get("overview")
+  async getOverview(@Query("days") days?: string): Promise<{ success: true; data: unknown }> {
+    const overview = await this.analyticsService.getOverview(days ? parseInt(days, 10) : 30);
+    return { success: true, data: overview };
+  }
+
   @Get("campaigns/:campaignId")
   async getCampaignStats(
     @Param("campaignId") campaignId: string,
