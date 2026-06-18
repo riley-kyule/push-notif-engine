@@ -93,6 +93,23 @@ export class BrowserPushRepository {
     return (result.rowCount ?? 0) > 0;
   }
 
+  async markDeliveryEventClicked(id: string): Promise<boolean> {
+    const result = await this.pool.query(
+      `
+      UPDATE push_delivery_events
+      SET clicked_at = NOW(),
+          status = CASE WHEN status IN ('pending', 'sent') THEN 'delivered' ELSE status END,
+          delivered_at = COALESCE(delivered_at, NOW()),
+          updated_at = NOW()
+      WHERE id = $1
+        AND clicked_at IS NULL
+      `,
+      [id],
+    );
+
+    return (result.rowCount ?? 0) > 0;
+  }
+
   async markDeliveryEventSent(id: string, providerMessageId: string | null): Promise<void> {
     await this.pool.query(
       `
