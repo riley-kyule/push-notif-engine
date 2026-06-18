@@ -17,6 +17,7 @@ export interface CampaignDetail extends CampaignSummary {
   url: string;
   imageLabel: string;
   iconLabel: string;
+  audienceLabel: string;
   buttons: Array<{ label: string; url: string }>;
   metrics: {
     sent: string;
@@ -85,6 +86,7 @@ export const campaignDetails: Record<string, CampaignDetail> = {
     url: "https://exotic-africa.com/offers/safari-sale",
     imageLabel: "Hero image",
     iconLabel: "Brand icon",
+    audienceLabel: "All active subscribers",
     buttons: [{ label: "View Deal", url: "https://exotic-africa.com/offers/safari-sale" }],
     metrics: {
       sent: "0",
@@ -112,6 +114,7 @@ export const campaignDetails: Record<string, CampaignDetail> = {
     url: "https://zebra-travel.co.za/deals",
     imageLabel: "Hero image",
     iconLabel: "Brand icon",
+    audienceLabel: "All active subscribers",
     buttons: [{ label: "Book Now", url: "https://zebra-travel.co.za/deals" }],
     metrics: {
       sent: "184,311",
@@ -139,6 +142,7 @@ export const campaignDetails: Record<string, CampaignDetail> = {
     url: "https://exotic.com/roundup",
     imageLabel: "Digest image",
     iconLabel: "Digest icon",
+    audienceLabel: "All active subscribers",
     buttons: [{ label: "Read More", url: "https://exotic.com/roundup" }],
     metrics: {
       sent: "0",
@@ -198,7 +202,7 @@ function toCampaignDetail(record: {
   buttons?: Array<{ label: string; url: string }>;
   metrics?: CampaignDetail["metrics"];
   timeline?: CampaignDetail["timeline"];
-}): CampaignDetail {
+}, audienceLabel = "All active subscribers"): CampaignDetail {
   const summary = toCampaignSummary(record);
   return {
     ...summary,
@@ -210,6 +214,7 @@ function toCampaignDetail(record: {
     url: record.url,
     imageLabel: record.imageUrl ? "Hero image" : "Image not set",
     iconLabel: record.iconUrl ? "Brand icon" : "Icon not set",
+    audienceLabel,
     buttons: record.buttons ?? [],
     metrics:
       record.metrics ?? {
@@ -226,6 +231,34 @@ function toCampaignDetail(record: {
   };
 }
 
+async function resolveSegmentName(segmentId: string): Promise<string> {
+  const response = await apiJson<CampaignApiResponse<{ name: string }>>(`/segments/${segmentId}`);
+  return response?.data.name ?? "All active subscribers";
+}
+
+interface CampaignAnalyticsStats {
+  sent: number;
+  delivered: number;
+  clicked: number;
+  total: number;
+  clickThroughRate: number;
+}
+
+async function resolveCampaignMetrics(campaignId: string): Promise<CampaignDetail["metrics"] | null> {
+  const response = await apiJson<CampaignApiResponse<CampaignAnalyticsStats>>(`/analytics/campaigns/${campaignId}`);
+  if (!response?.data || response.data.total === 0) {
+    return null;
+  }
+
+  const { sent, delivered, clicked, clickThroughRate } = response.data;
+  return {
+    sent: (sent + delivered).toLocaleString(),
+    delivered: delivered.toLocaleString(),
+    clicks: clicked.toLocaleString(),
+    ctr: `${clickThroughRate}%`,
+  };
+}
+
 export async function getCampaignList(): Promise<CampaignListPayload> {
   const response = await apiJson<CampaignApiResponse<{ items: Array<CampaignSummary & { siteId?: string }> }>>(
     "/campaigns",
@@ -239,9 +272,18 @@ export async function getCampaignList(): Promise<CampaignListPayload> {
 }
 
 export async function getCampaignById(id: string): Promise<CampaignDetail | null> {
-  const response = await apiJson<CampaignApiResponse<CampaignDetail & { siteId?: string }>>(`/campaigns/${id}`);
+  const response = await apiJson<CampaignApiResponse<CampaignDetail & { siteId?: string; segmentId?: string | null }>>(
+    `/campaigns/${id}`,
+  );
   if (response?.data) {
-    return toCampaignDetail(response.data);
+    const segmentId = response.data.segmentId;
+    const [audienceLabel, liveMetrics] = await Promise.all([
+      segmentId ? resolveSegmentName(segmentId) : Promise.resolve("All active subscribers"),
+      resolveCampaignMetrics(id),
+    ]);
+
+    const detail = toCampaignDetail(response.data, audienceLabel);
+    return liveMetrics ? { ...detail, metrics: liveMetrics } : detail;
   }
 
   return campaignDetails[id] ?? null;
