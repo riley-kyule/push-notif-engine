@@ -14,6 +14,7 @@ export interface CampaignButton {
 export interface CampaignRecord {
   id: string;
   siteId: string;
+  segmentId: string | null;
   name: string;
   channel: CampaignChannel;
   type: CampaignType;
