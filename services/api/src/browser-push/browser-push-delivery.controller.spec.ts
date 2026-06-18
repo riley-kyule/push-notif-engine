@@ -18,3 +18,19 @@ test("browser push delivery controller marks events as delivered", async () => {
   assert.deepEqual(result.data, { updated: true });
   assert.deepEqual(updates, ["delivery-1"]);
 });
+
+test("browser push delivery controller marks events as clicked", async () => {
+  const updates: string[] = [];
+  const controller = new BrowserPushDeliveryController({
+    async markDeliveryEventClicked(id: string) {
+      updates.push(id);
+      return true;
+    },
+  } as never);
+
+  const result = await controller.markClicked("delivery-1");
+
+  assert.equal(result.success, true);
+  assert.deepEqual(result.data, { updated: true });
+  assert.deepEqual(updates, ["delivery-1"]);
+});
