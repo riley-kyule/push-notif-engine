@@ -63,6 +63,7 @@ export class BrowserPushProcessor {
           ...job.notification,
           deliveryId: null,
           ackUrl: null,
+          clickUrl: null,
         },
       });
 
@@ -79,6 +80,7 @@ export class BrowserPushProcessor {
           ...job.notification,
           deliveryId,
           ackUrl: `${browserPushConfig.ackBaseUrl}/browser-push/deliveries/${deliveryId}/delivered`,
+          clickUrl: `${browserPushConfig.ackBaseUrl}/browser-push/deliveries/${deliveryId}/clicked`,
         };
         const result = await this.sendWithRetry(subscription, notification);
 
@@ -89,16 +91,10 @@ export class BrowserPushProcessor {
         const message = isResponseError(error) ? error.message : "Unknown push failure";
         const shouldExpire = statusCode === 404 || statusCode === 410;
 
-        await this.repository.markDeliveryEventFailed({
-          siteId: job.siteId,
-          campaignId: job.campaignId ?? null,
-          subscriberId: subscriber.id,
-          endpoint: subscriber.subscription_endpoint,
+        await this.repository.markDeliveryEventFailed(deliveryId, {
           status: shouldExpire ? "expired" : "failed",
-          providerMessageId: null,
           errorCode: statusCode ? String(statusCode) : null,
           errorMessage: message,
-          payload: job.notification,
         });
 
         if (shouldExpire) {
