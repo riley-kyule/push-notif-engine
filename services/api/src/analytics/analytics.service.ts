@@ -29,4 +29,8 @@ export class AnalyticsService {
   async getSubscriberGrowth(siteId: string, days = 30) {
     return this.analyticsRepository.getSubscriberGrowth(siteId, days);
   }
+
+  async getOverview(days = 30) {
+    return this.analyticsRepository.getOverview(days);
+  }
 }
