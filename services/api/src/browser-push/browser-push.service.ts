@@ -16,6 +16,7 @@ export interface BrowserPushDispatchInput {
   icon?: string | null;
   image?: string | null;
   campaignId?: string | null;
+  segmentId?: string | null;
 }
 
 @Injectable()
@@ -37,6 +38,7 @@ export class BrowserPushService {
     const payload: BrowserPushJobPayload = {
       siteId: site.id,
       campaignId: dto.campaignId ?? null,
+      segmentId: dto.segmentId ?? null,
       notification: {
         title: dto.title,
         body: dto.body,
