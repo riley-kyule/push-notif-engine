@@ -318,3 +318,75 @@ test("browser push processor includes a deliveryId-scoped clickUrl in the outgoi
     },
   ]);
 });
+
+test("browser push processor sends to exactly one subscriber when subscriberId is set", async () => {
+  const eligibleByIdCalls: Array<[string, string]> = [];
+  const listAllCalls: number[] = [];
+
+  const fakeRepository = {
+    async findSiteCredentials() {
+      return {
+        id: "site-1",
+        vapid_subject: "mailto:push@example.com",
+        vapid_public_key: "public-key",
+        vapid_private_key: "private-key",
+      };
+    },
+    async findEligibleSubscriberById(siteId: string, subscriberId: string) {
+      eligibleByIdCalls.push([siteId, subscriberId]);
+      return [
+        {
+          id: subscriberId,
+          subscription_endpoint: "https://push.example.com/one",
+          p256dh_key: "p256dh",
+          auth_key: "auth",
+        },
+      ];
+    },
+    async listEligibleSubscribers() {
+      listAllCalls.push(1);
+      return [];
+    },
+    async createPendingDeliveryEvent() {
+      return "delivery-1";
+    },
+    async markDeliveryEventSent() {
+      return undefined;
+    },
+    async markDeliveryEventFailed() {
+      return undefined;
+    },
+    async markSubscriberExpired() {
+      return undefined;
+    },
+  };
+
+  const fakeSender = {
+    configure() {
+      return undefined;
+    },
+    async send() {
+      return { providerMessageId: "provider-1" };
+    },
+  };
+
+  const processor = new BrowserPushProcessor(fakeRepository as never, fakeSender as never);
+  const job: BrowserPushJobPayload = {
+    siteId: "site-1",
+    subscriberId: "subscriber-42",
+    enqueuedAt: new Date().toISOString(),
+    notification: {
+      title: "Welcome",
+      body: "Thanks for subscribing",
+      url: "https://example.com/welcome",
+      icon: null,
+      image: null,
+    },
+  };
+
+  const result = await processor.process(job);
+
+  assert.equal(result.sent, 1);
+  assert.deepEqual(eligibleByIdCalls, [["site-1", "subscriber-42"]]);
+  assert.deepEqual(listAllCalls, []);
+});
