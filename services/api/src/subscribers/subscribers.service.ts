@@ -1,5 +1,6 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 
+import { AutomationsService } from "../automations/automations.service";
 import { SUBSCRIBERS_REPOSITORY } from "./subscribers.constants";
 import type { SubscribersRepository } from "./subscribers.repository";
 import type { SubscriberListFilters, SubscriberListResult, SubscriberRecord } from "./subscribers.types";
@@ -9,10 +10,15 @@ import { UpdateSubscriberStatusDto } from "./dto/update-subscriber-status.dto";
 
 @Injectable()
 export class SubscribersService {
-  constructor(@Inject(SUBSCRIBERS_REPOSITORY) private readonly subscribersRepository: SubscribersRepository) {}
+  private readonly logger = new Logger(SubscribersService.name);
+
+  constructor(
+    @Inject(SUBSCRIBERS_REPOSITORY) private readonly subscribersRepository: SubscribersRepository,
+    private readonly automationsService: AutomationsService,
+  ) {}
 
   async registerSubscriber(dto: RegisterSubscriberDto): Promise<SubscriberRecord> {
-    return this.subscribersRepository.upsert({
+    const { subscriber, isNew } = await this.subscribersRepository.upsert({
       siteId: dto.siteId,
       browser: dto.browser,
       deviceType: dto.deviceType,
@@ -24,6 +30,18 @@ export class SubscribersService {
       status: dto.status ?? "active",
       lastSeenAt: new Date(),
     });
+
+    if (isNew) {
+      // Best-effort: a failure to enqueue a welcome automation must never fail
+      // subscriber registration itself.
+      try {
+        await this.automationsService.handleSubscriberRegistered(subscriber);
+      } catch (error) {
+        this.logger.error(`Failed to run subscriber_registered automations for ${subscriber.id}`, error as Error);
+      }
+    }
+
+    return subscriber;
   }
 
   async listSubscribers(query: ListSubscribersQueryDto): Promise<SubscriberListResult> {
