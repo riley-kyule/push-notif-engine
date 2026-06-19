@@ -31,4 +31,8 @@ export class CreateBrowserPushDispatchDto {
   @IsOptional()
   @IsUUID()
   segmentId?: string | null;
+
+  @IsOptional()
+  @IsUUID()
+  subscriberId?: string | null;
 }
