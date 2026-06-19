@@ -1,12 +1,17 @@
 import crypto from "node:crypto";
 
-import type { SubscribersRepository, UpsertSubscriberInput, UpdateSubscriberStatusInput } from "./subscribers.repository";
+import type {
+  SubscribersRepository,
+  UpsertSubscriberInput,
+  UpdateSubscriberStatusInput,
+  UpsertSubscriberResult,
+} from "./subscribers.repository";
 import type { SubscriberListFilters, SubscriberListResult, SubscriberRecord } from "./subscribers.types";
 
 export class InMemorySubscribersRepository implements SubscribersRepository {
   private readonly subscribers = new Map<string, SubscriberRecord>();
 
-  async upsert(input: UpsertSubscriberInput): Promise<SubscriberRecord> {
+  async upsert(input: UpsertSubscriberInput): Promise<UpsertSubscriberResult> {
     const existing = await this.findBySiteAndEndpoint(input.siteId, input.subscriptionEndpoint);
     if (existing) {
       const updated: SubscriberRecord = {
@@ -22,7 +27,7 @@ export class InMemorySubscribersRepository implements SubscribersRepository {
         updatedAt: new Date(),
       };
       this.subscribers.set(updated.id, updated);
-      return updated;
+      return { subscriber: updated, isNew: false };
     }
 
     const now = new Date();
@@ -36,7 +41,7 @@ export class InMemorySubscribersRepository implements SubscribersRepository {
       updatedAt: now,
     };
     this.subscribers.set(subscriber.id, subscriber);
-    return subscriber;
+    return { subscriber, isNew: true };
   }
 
   async findById(id: string): Promise<SubscriberRecord | null> {
