@@ -2,7 +2,12 @@ import { Inject, Injectable } from "@nestjs/common";
 import type { Pool } from "pg";
 
 import { DATABASE_POOL } from "../database/database.constants";
-import type { SubscribersRepository, UpsertSubscriberInput, UpdateSubscriberStatusInput } from "./subscribers.repository";
+import type {
+  SubscribersRepository,
+  UpsertSubscriberInput,
+  UpdateSubscriberStatusInput,
+  UpsertSubscriberResult,
+} from "./subscribers.repository";
 import type { SubscriberListFilters, SubscriberListResult, SubscriberRecord, SubscriberStatus } from "./subscribers.types";
 
 interface DbSubscriberRow {
@@ -25,7 +30,7 @@ interface DbSubscriberRow {
 export class PostgresSubscribersRepository implements SubscribersRepository {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool) {}
 
-  async upsert(input: UpsertSubscriberInput): Promise<SubscriberRecord> {
+  async upsert(input: UpsertSubscriberInput): Promise<UpsertSubscriberResult> {
     const { rows } = await this.pool.query<DbSubscriberRow>(
       `
       INSERT INTO subscribers (
@@ -64,7 +69,14 @@ export class PostgresSubscribersRepository implements SubscribersRepository {
       throw new Error("Failed to upsert subscriber");
     }
 
-    return this.mapRow(row);
+    // On a fresh INSERT, created_at and updated_at both default to NOW() in the same
+    // transaction and are therefore identical. On a conflict UPDATE, only updated_at
+    // is bumped, so it diverges from the original created_at. This is the standard
+    // trick for distinguishing insert-vs-update from a single ON CONFLICT statement
+    // without a second round-trip.
+    const isNew = new Date(row.created_at).getTime() === new Date(row.updated_at).getTime();
+
+    return { subscriber: this.mapRow(row), isNew };
   }
 
   async findById(id: string): Promise<SubscriberRecord | null> {
