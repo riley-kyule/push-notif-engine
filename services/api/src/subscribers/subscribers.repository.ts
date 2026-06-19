@@ -18,8 +18,13 @@ export interface UpdateSubscriberStatusInput {
   lastSeenAt?: Date | null;
 }
 
+export interface UpsertSubscriberResult {
+  subscriber: SubscriberRecord;
+  isNew: boolean;
+}
+
 export interface SubscribersRepository {
-  upsert(input: UpsertSubscriberInput): Promise<SubscriberRecord>;
+  upsert(input: UpsertSubscriberInput): Promise<UpsertSubscriberResult>;
   findById(id: string): Promise<SubscriberRecord | null>;
   findBySiteAndEndpoint(siteId: string, subscriptionEndpoint: string): Promise<SubscriberRecord | null>;
   updateStatus(id: string, input: UpdateSubscriberStatusInput): Promise<SubscriberRecord | null>;
