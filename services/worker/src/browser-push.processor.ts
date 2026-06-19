@@ -47,8 +47,12 @@ export class BrowserPushProcessor {
       vapidPrivateKey: site.vapid_private_key,
     });
 
-    const segmentDefinition = job.segmentId ? await this.repository.findSegmentDefinition(job.segmentId) : null;
-    const subscribers = await this.repository.listEligibleSubscribers(job.siteId, segmentDefinition);
+    const subscribers = job.subscriberId
+      ? await this.repository.findEligibleSubscriberById(job.siteId, job.subscriberId)
+      : await this.repository.listEligibleSubscribers(
+          job.siteId,
+          job.segmentId ? await this.repository.findSegmentDefinition(job.segmentId) : null,
+        );
     let sent = 0;
     let failed = 0;
     let expired = 0;
