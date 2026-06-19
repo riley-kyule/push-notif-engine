@@ -14,6 +14,8 @@ export interface BrowserPushDispatchRequest {
   notification: BrowserPushNotificationPayload;
   campaignId?: string | null;
   segmentId?: string | null;
+  /** Send to exactly this one subscriber instead of the site's full eligible audience. */
+  subscriberId?: string | null;
 }
 
 export interface BrowserPushJobPayload extends BrowserPushDispatchRequest {
