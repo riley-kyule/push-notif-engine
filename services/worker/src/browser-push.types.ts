@@ -13,6 +13,7 @@ export interface BrowserPushJobPayload {
   siteId: string;
   campaignId?: string | null;
   segmentId?: string | null;
+  subscriberId?: string | null;
   notification: BrowserPushNotificationPayload;
   enqueuedAt: string;
 }
