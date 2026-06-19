@@ -3,6 +3,7 @@ import { APP_GUARD } from "@nestjs/core";
 import { ScheduleModule } from "@nestjs/schedule";
 
 import { AnalyticsModule } from "./analytics/analytics.module";
+import { AutomationsModule } from "./automations/automations.module";
 import { AuthModule } from "./auth/auth.module";
 import { CampaignsModule } from "./campaigns/campaigns.module";
 import { BrowserPushModule } from "./browser-push/browser-push.module";
@@ -26,6 +27,7 @@ import { SubscribersModule } from "./subscribers/subscribers.module";
     CampaignsModule,
     SegmentsModule,
     AnalyticsModule,
+    AutomationsModule,
   ],
   controllers: [HealthController],
   providers: [
