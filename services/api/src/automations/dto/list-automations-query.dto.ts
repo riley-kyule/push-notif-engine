@@ -1,0 +1,29 @@
+import { IsIn, IsInt, IsOptional, IsString, Min } from "class-validator";
+import type { AutomationStatus, AutomationTriggerEvent } from "../automations.types";
+
+const AUTOMATION_TRIGGER_EVENTS = ["subscriber_registered"] as const;
+const AUTOMATION_STATUSES = ["active", "paused"] as const;
+
+export class ListAutomationsQueryDto {
+  @IsOptional()
+  @IsString()
+  siteId?: string;
+
+  @IsOptional()
+  @IsIn(AUTOMATION_TRIGGER_EVENTS)
+  triggerEvent?: AutomationTriggerEvent;
+
+  @IsOptional()
+  @IsIn(AUTOMATION_STATUSES)
+  status?: AutomationStatus;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  limit?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  offset?: number;
+}
