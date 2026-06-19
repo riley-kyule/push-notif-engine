@@ -6,6 +6,7 @@
     "dev": "nest start --watch",
     "build": "nest build",
     "start": "node dist/main.js",
+    "migrate": "node scripts/migrate.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --import tsx --test src/**/*.spec.ts"
   },
@@ -23,7 +24,6 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "@nestjs/schedule": "^6.1.3",
-    "@nestjs/throttler": "^6.0.0",
     "web-push": "^3.6.7",
     "@epe/shared": "file:../../packages/shared",
     "@epe/types": "file:../../packages/types"
