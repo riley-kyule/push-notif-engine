@@ -17,6 +17,7 @@ export interface BrowserPushDispatchInput {
   image?: string | null;
   campaignId?: string | null;
   segmentId?: string | null;
+  subscriberId?: string | null;
 }
 
 @Injectable()
@@ -39,6 +40,7 @@ export class BrowserPushService {
       siteId: site.id,
       campaignId: dto.campaignId ?? null,
       segmentId: dto.segmentId ?? null,
+      subscriberId: dto.subscriberId ?? null,
       notification: {
         title: dto.title,
         body: dto.body,
