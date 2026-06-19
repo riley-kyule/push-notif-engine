@@ -59,6 +59,24 @@ export class BrowserPushRepository {
     return { matchMode: row.match_mode, rules: rules as SegmentDefinition["rules"] };
   }
 
+  async findEligibleSubscriberById(siteId: string, subscriberId: string): Promise<BrowserPushSubscriberRow[]> {
+    const { rows } = await this.pool.query<BrowserPushSubscriberRow>(
+      `
+      SELECT id, subscription_endpoint, p256dh_key, auth_key
+      FROM subscribers
+      WHERE site_id = $1
+        AND id = $2
+        AND status = 'active'
+        AND p256dh_key IS NOT NULL
+        AND auth_key IS NOT NULL
+      LIMIT 1
+      `,
+      [siteId, subscriberId],
+    );
+
+    return rows;
+  }
+
   async listEligibleSubscribers(siteId: string, segmentDefinition?: SegmentDefinition | null): Promise<BrowserPushSubscriberRow[]> {
     const params: Array<string | number | string[]> = [siteId];
     const clauses = ["site_id = $1", "status = 'active'", "p256dh_key IS NOT NULL", "auth_key IS NOT NULL"];
