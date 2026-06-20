@@ -21,6 +21,14 @@ function buildQuery(params: { days: number; siteId?: string; campaignId?: string
   return `/analytics?${search.toString()}`;
 }
 
+function buildExportUrl(params: { days: number; report: "overview" | "countries" | "sites-performance" | "time-performance" | "content-performance" }): string {
+  const search = new URLSearchParams({
+    days: String(params.days),
+    report: params.report,
+  });
+  return `/api/dashboard/analytics/export?${search.toString()}`;
+}
+
 function formatNumber(value: number): string {
   return new Intl.NumberFormat("en-US").format(value);
 }
@@ -46,6 +54,7 @@ export default async function AnalyticsPage({
   const maxCountrySubscribers = Math.max(...dashboard.countryPerformance.map((item) => item.totalSubscribers), 1);
   const maxSiteSubscribers = Math.max(...dashboard.sitePerformance.map((item) => item.totalSubscribers), 1);
   const maxHourVolume = Math.max(...dashboard.timePerformance.map((item) => item.totalDelivered + item.totalSent), 1);
+  const maxContentVolume = Math.max(...dashboard.contentPerformance.map((item) => item.totalDelivered + item.totalSent), 1);
 
   return (
     <DashboardShell
@@ -54,6 +63,12 @@ export default async function AnalyticsPage({
       description="Track delivery health, subscriber growth, and campaign performance from a single reporting surface."
       actions={
         <>
+          <Link className="button secondary" href={buildExportUrl({ days: dashboard.days, report: "overview" })}>
+            Export overview CSV
+          </Link>
+          <Link className="button secondary" href={buildExportUrl({ days: dashboard.days, report: "content-performance" })}>
+            Export taxonomy CSV
+          </Link>
           <Link className="button secondary" href="/campaigns/new">
             New campaign
           </Link>
@@ -336,6 +351,37 @@ export default async function AnalyticsPage({
               <span>{formatPercent(item.clickThroughRate)}</span>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="card analytics-panel" style={{ marginTop: 18 }}>
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">Content performance</p>
+            <h3>Taxonomy performance by campaign type</h3>
+          </div>
+          <span className="badge warning">Taxonomy driven</span>
+        </div>
+
+        <div className="analytics-list">
+          {dashboard.contentPerformance.map((item) => {
+            const totalVolume = item.totalDelivered + item.totalSent;
+            return (
+              <article key={item.contentType} className="analytics-list-row">
+                <div className="analytics-list-labels">
+                  <strong>{item.contentType}</strong>
+                  <span className="subtle">{formatNumber(item.totalCampaigns)} campaigns</span>
+                </div>
+                <div className="analytics-list-track">
+                  <div className="analytics-list-fill" style={{ width: `${Math.max((totalVolume / maxContentVolume) * 100, 8)}%` }} />
+                </div>
+                <div className="analytics-list-metrics">
+                  <strong>{formatPercent(item.deliveryRate)} delivery</strong>
+                  <span className="subtle">CTR {formatPercent(item.clickThroughRate)}</span>
+                </div>
+              </article>
+            );
+          })}
         </div>
       </section>
     </DashboardShell>

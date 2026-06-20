@@ -8,6 +8,7 @@ import type { SiteChoice } from "../../_data/sites";
 
 type CampaignType = "instant" | "scheduled" | "recurring";
 type CampaignChannel = "web" | "mobile" | "all";
+type CampaignContentType = "announcement" | "promotion" | "editorial" | "digest" | "alert";
 
 interface CampaignBuilderFormProps {
   sites: SiteChoice[];
@@ -40,6 +41,7 @@ export function CampaignBuilderForm({ sites, segments }: CampaignBuilderFormProp
   const [destination, setDestination] = useState("https://example.com/safari-sale");
   const [channel, setChannel] = useState<CampaignChannel>("web");
   const [type, setType] = useState<CampaignType>("scheduled");
+  const [contentType, setContentType] = useState<CampaignContentType>("promotion");
   const [schedule, setSchedule] = useState("2026-06-18T09:00");
   const [imageUrl, setImageUrl] = useState("https://example.com/hero.png");
   const [iconUrl, setIconUrl] = useState("https://example.com/icon.png");
@@ -70,6 +72,7 @@ export function CampaignBuilderForm({ sites, segments }: CampaignBuilderFormProp
     name,
     channel,
     type,
+    contentType,
     title,
     message,
     url: destination,
@@ -196,6 +199,22 @@ export function CampaignBuilderForm({ sites, segments }: CampaignBuilderFormProp
         </div>
 
         <div className="field">
+          <label htmlFor="contentType">Content taxonomy</label>
+          <select
+            className="select"
+            id="contentType"
+            value={contentType}
+            onChange={(event) => setContentType(event.target.value as CampaignContentType)}
+          >
+            <option value="announcement">Announcement</option>
+            <option value="promotion">Promotion</option>
+            <option value="editorial">Editorial</option>
+            <option value="digest">Digest</option>
+            <option value="alert">Alert</option>
+          </select>
+        </div>
+
+        <div className="field">
           <label htmlFor="title">Title</label>
           <input className="input" id="title" value={title} onChange={(event) => setTitle(event.target.value)} />
         </div>
@@ -256,12 +275,15 @@ export function CampaignBuilderForm({ sites, segments }: CampaignBuilderFormProp
       <aside className="preview">
         <div className="card preview-card">
           <div className="preview-head">
-            <span>Platform: Chrome</span>
-            <span>{channel}</span>
-          </div>
+          <span>Platform: Chrome</span>
+          <span>{channel}</span>
+        </div>
           <div className="preview-image" />
           <p className="preview-title">{title}</p>
           <p className="preview-body">{message}</p>
+          <p className="subtle" style={{ marginBottom: 8 }}>
+            UTM seed: {contentType}
+          </p>
           <div className="actions">
             <button className="button primary" type="button">
               View Deal

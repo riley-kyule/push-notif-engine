@@ -33,6 +33,8 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
       <section className="grid" style={{ gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 0.9fr)", marginTop: 18 }}>
         <article className="card">
           <h3>Campaign content</h3>
+          <p className="subtle">Content taxonomy</p>
+          <p>{campaign.contentType}</p>
           <p className="subtle">Title</p>
           <p>{campaign.title}</p>
           <p className="subtle">Message</p>

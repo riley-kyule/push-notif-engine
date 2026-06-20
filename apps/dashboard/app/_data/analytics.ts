@@ -41,6 +41,18 @@ export interface TimePerformanceSummary {
   clickThroughRate: number;
 }
 
+export interface ContentPerformanceSummary {
+  contentType: string;
+  totalCampaigns: number;
+  totalDelivered: number;
+  totalSent: number;
+  totalFailed: number;
+  totalExpired: number;
+  totalClicked: number;
+  deliveryRate: number;
+  clickThroughRate: number;
+}
+
 export interface AnalyticsDashboardData {
   days: AnalyticsDays;
   rangeLabel: string;
@@ -53,6 +65,7 @@ export interface AnalyticsDashboardData {
   countryPerformance: CountryPerformanceSummary[];
   sitePerformance: SitePerformanceSummary[];
   timePerformance: TimePerformanceSummary[];
+  contentPerformance: ContentPerformanceSummary[];
 }
 
 const rangeLabels: Record<AnalyticsDays, string> = {
@@ -113,6 +126,16 @@ function fallbackTimePerformance(): TimePerformanceSummary[] {
   }));
 }
 
+function fallbackContentPerformance(): ContentPerformanceSummary[] {
+  return [
+    { contentType: "promotion", totalCampaigns: 12, totalDelivered: 142000, totalSent: 151000, totalFailed: 2100, totalExpired: 600, totalClicked: 11800, deliveryRate: 92.1, clickThroughRate: 7.8 },
+    { contentType: "editorial", totalCampaigns: 8, totalDelivered: 92000, totalSent: 95500, totalFailed: 1100, totalExpired: 250, totalClicked: 7100, deliveryRate: 94.2, clickThroughRate: 7.2 },
+    { contentType: "digest", totalCampaigns: 6, totalDelivered: 62000, totalSent: 64500, totalFailed: 900, totalExpired: 180, totalClicked: 5300, deliveryRate: 94.4, clickThroughRate: 8.3 },
+    { contentType: "announcement", totalCampaigns: 4, totalDelivered: 38000, totalSent: 39600, totalFailed: 560, totalExpired: 140, totalClicked: 2900, deliveryRate: 94.8, clickThroughRate: 7.1 },
+    { contentType: "alert", totalCampaigns: 2, totalDelivered: 12000, totalSent: 12600, totalFailed: 220, totalExpired: 80, totalClicked: 900, deliveryRate: 93.7, clickThroughRate: 6.6 },
+  ];
+}
+
 function buildFallbackAnalytics(site: SiteSummary): SiteAnalyticsSummary {
   const activeSubscribers = site.subscribers;
   const totalDelivered = Math.max(Math.floor(site.subscribers * 0.94), 1);
@@ -170,6 +193,10 @@ export async function getAnalyticsDashboardData(input: {
     getAnalyticsApiList<SitePerformanceSummary>("/analytics/sites-performance?days=" + days, fallbackSitePerformance(sites)),
     getAnalyticsApiList<TimePerformanceSummary>("/analytics/time-performance?days=" + days, fallbackTimePerformance()),
   ]);
+  const contentPerformance = await getAnalyticsApiList<ContentPerformanceSummary>(
+    "/analytics/content-performance?days=" + days,
+    fallbackContentPerformance(),
+  );
 
   return {
     days,
@@ -183,6 +210,7 @@ export async function getAnalyticsDashboardData(input: {
     countryPerformance,
     sitePerformance,
     timePerformance,
+    contentPerformance,
   };
 }
 

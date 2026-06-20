@@ -5,6 +5,7 @@ export interface CampaignSummary {
   name: string;
   site: string;
   type: "instant" | "scheduled" | "recurring";
+  contentType: "announcement" | "promotion" | "editorial" | "digest" | "alert";
   status: "draft" | "scheduled" | "sending" | "sent" | "failed" | "expired";
   sent: string;
   ctr: string;
@@ -18,6 +19,7 @@ export interface CampaignDetail extends CampaignSummary {
   imageLabel: string;
   iconLabel: string;
   audienceLabel: string;
+  contentType: "announcement" | "promotion" | "editorial" | "digest" | "alert";
   buttons: Array<{ label: string; url: string }>;
   metrics: {
     sent: string;
@@ -44,6 +46,7 @@ export const campaignSummaries: CampaignSummary[] = [
     name: "Launch Week",
     site: "exotic-africa.com",
     type: "scheduled",
+    contentType: "promotion",
     status: "scheduled",
     sent: "0",
     ctr: "0%",
@@ -54,6 +57,7 @@ export const campaignSummaries: CampaignSummary[] = [
     name: "Safari Sale",
     site: "zebra-travel.co.za",
     type: "instant",
+    contentType: "announcement",
     status: "sent",
     sent: "184,311",
     ctr: "7.8%",
@@ -64,6 +68,7 @@ export const campaignSummaries: CampaignSummary[] = [
     name: "Weekly Roundup",
     site: "all sites",
     type: "recurring",
+    contentType: "digest",
     status: "draft",
     sent: "0",
     ctr: "-",
@@ -77,6 +82,7 @@ export const campaignDetails: Record<string, CampaignDetail> = {
     name: "Launch Week",
     site: "exotic-africa.com",
     type: "scheduled",
+    contentType: "promotion",
     status: "scheduled",
     sent: "0",
     ctr: "0%",
@@ -105,6 +111,7 @@ export const campaignDetails: Record<string, CampaignDetail> = {
     name: "Safari Sale",
     site: "zebra-travel.co.za",
     type: "instant",
+    contentType: "announcement",
     status: "sent",
     sent: "184,311",
     ctr: "7.8%",
@@ -133,6 +140,7 @@ export const campaignDetails: Record<string, CampaignDetail> = {
     name: "Weekly Roundup",
     site: "all sites",
     type: "recurring",
+    contentType: "digest",
     status: "draft",
     sent: "0",
     ctr: "-",
@@ -164,6 +172,7 @@ function toCampaignSummary(record: {
   siteId?: string;
   site?: string;
   type: CampaignSummary["type"];
+  contentType?: CampaignSummary["contentType"];
   status: CampaignSummary["status"];
   sentAt?: string | null;
   sent?: string;
@@ -175,6 +184,7 @@ function toCampaignSummary(record: {
     name: record.name,
     site: record.site ?? record.siteId ?? "all sites",
     type: record.type,
+    contentType: record.contentType ?? "announcement",
     status: record.status,
     sent: record.sent ?? (record.sentAt ? "sent" : "0"),
     ctr: record.ctr ?? "0%",
@@ -190,6 +200,7 @@ function toCampaignDetail(record: {
   siteId?: string;
   site?: string;
   type: CampaignDetail["type"];
+  contentType?: CampaignDetail["contentType"];
   status: CampaignDetail["status"];
   sent?: string;
   ctr?: string;
@@ -209,6 +220,7 @@ function toCampaignDetail(record: {
     id: record.id,
     name: record.name,
     site: summary.site,
+    contentType: record.contentType ?? summary.contentType,
     title: record.title,
     message: record.message,
     url: record.url,
