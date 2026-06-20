@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
 
-import type { AutomationListFilters, AutomationListResult, AutomationRecord, AutomationTriggerEvent } from "./automations.types";
+import type { AutomationEventRecord, AutomationListFilters, AutomationListResult, AutomationRecord, AutomationTriggerEvent } from "./automations.types";
 import type { AutomationsRepository, CreateAutomationInput, UpdateAutomationInput } from "./automations.repository";
 
 function cloneAutomation(automation: AutomationRecord): AutomationRecord {
   return {
     ...automation,
+    actions: automation.actions.map((action) => ({ ...action })),
     buttons: automation.buttons.map((button) => ({ ...button })),
   };
 }
@@ -20,6 +21,7 @@ export class InMemoryAutomationsRepository implements AutomationsRepository {
       siteId: input.siteId,
       name: input.name,
       triggerEvent: input.triggerEvent,
+      actions: input.actions.map((action) => ({ ...action })),
       title: input.title,
       message: input.message,
       url: input.url,
@@ -43,6 +45,7 @@ export class InMemoryAutomationsRepository implements AutomationsRepository {
 
     automation.name = input.name ?? automation.name;
     automation.triggerEvent = input.triggerEvent ?? automation.triggerEvent;
+    automation.actions = input.actions ? input.actions.map((action) => ({ ...action })) : automation.actions;
     automation.title = input.title ?? automation.title;
     automation.message = input.message ?? automation.message;
     automation.url = input.url ?? automation.url;
@@ -87,4 +90,32 @@ export class InMemoryAutomationsRepository implements AutomationsRepository {
       .filter((automation) => automation.siteId === siteId && automation.triggerEvent === triggerEvent && automation.status === "active")
       .map(cloneAutomation);
   }
+
+  async recordEvent(input: {
+    siteId: string;
+    subscriberId?: string | null;
+    campaignId?: string | null;
+    triggerEvent: AutomationTriggerEvent;
+    payload: Record<string, unknown>;
+  }): Promise<AutomationEventRecord> {
+    const now = new Date();
+    const event: AutomationEventRecord = {
+      id: randomUUID(),
+      siteId: input.siteId,
+      subscriberId: input.subscriberId ?? null,
+      campaignId: input.campaignId ?? null,
+      triggerEvent: input.triggerEvent,
+      payload: { ...input.payload },
+      status: "pending",
+      errorMessage: null,
+      executedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    return event;
+  }
+
+  async markEventCompleted(_eventId: string): Promise<void> {}
+
+  async markEventFailed(_eventId: string, _errorMessage: string): Promise<void> {}
 }

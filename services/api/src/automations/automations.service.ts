@@ -1,10 +1,8 @@
-import { Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
-
-import { BrowserPushService } from "../browser-push/browser-push.service";
+import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { SitesService } from "../sites/sites.service";
-import type { SubscriberRecord } from "../subscribers/subscribers.types";
 import { AUTOMATIONS_REPOSITORY } from "./automations.constants";
 import type {
+  AutomationAction,
   AutomationButton,
   AutomationListFilters,
   AutomationListResult,
@@ -19,13 +17,47 @@ function normalizeButtons(buttons: CreateAutomationDto["buttons"] | UpdateAutoma
   return (buttons ?? []).map((button) => ({ label: button.label, url: button.url }));
 }
 
+function normalizeActions(actions: CreateAutomationDto["actions"] | UpdateAutomationDto["actions"] | undefined): AutomationAction[] {
+  return (actions ?? []).map((action) => {
+    if (action.type === "send_notification") {
+      return {
+        type: "send_notification",
+        title: action.title ?? "",
+        message: action.message ?? "",
+        url: action.url ?? "",
+        imageUrl: action.imageUrl ?? null,
+        iconUrl: action.iconUrl ?? null,
+        buttons: normalizeButtons(action.buttons),
+      };
+    }
+
+    if (action.type === "add_tag") {
+      return {
+        type: "add_tag",
+        tag: action.tag ?? "",
+      };
+    }
+
+    if (action.type === "remove_tag") {
+      return {
+        type: "remove_tag",
+        tag: action.tag ?? "",
+      };
+    }
+
+    return {
+      type: "webhook",
+      url: action.url ?? "",
+      method: action.method ?? "POST",
+      payload: action.payload ?? {},
+    };
+  });
+}
+
 @Injectable()
 export class AutomationsService {
-  private readonly logger = new Logger(AutomationsService.name);
-
   constructor(
     private readonly sitesService: SitesService,
-    private readonly browserPushService: BrowserPushService,
     @Inject(AUTOMATIONS_REPOSITORY) private readonly automationsRepository: AutomationsRepository,
   ) {}
 
@@ -36,6 +68,7 @@ export class AutomationsService {
       siteId: dto.siteId,
       name: dto.name,
       triggerEvent: dto.triggerEvent,
+      actions: normalizeActions(dto.actions),
       title: dto.title,
       message: dto.message,
       url: dto.url,
@@ -54,6 +87,7 @@ export class AutomationsService {
     const input: UpdateAutomationInput = {
       name: dto.name ?? existing.name,
       triggerEvent: dto.triggerEvent ?? existing.triggerEvent,
+      actions: dto.actions ? normalizeActions(dto.actions) : existing.actions,
       title: dto.title ?? existing.title,
       message: dto.message ?? existing.message,
       url: dto.url ?? existing.url,
@@ -93,6 +127,10 @@ export class AutomationsService {
     return this.automationsRepository.list(filters);
   }
 
+  async listActiveByTrigger(siteId: string, triggerEvent: AutomationRecord["triggerEvent"]): Promise<AutomationRecord[]> {
+    return this.automationsRepository.listActiveByTrigger(siteId, triggerEvent);
+  }
+
   async deleteAutomation(id: string): Promise<void> {
     const deleted = await this.automationsRepository.delete(id);
     if (!deleted) {
@@ -100,32 +138,4 @@ export class AutomationsService {
     }
   }
 
-  async handleSubscriberRegistered(subscriber: SubscriberRecord): Promise<void> {
-    if (!subscriber.p256dhKey || !subscriber.authKey) {
-      // Subscriber registered without push keys (both optional on RegisterSubscriberDto).
-      // The worker's eligibility query requires both keys, so dispatching now would
-      // silently no-op. Skip until the subscriber re-registers with keys present.
-      return;
-    }
-
-    const automations = await this.automationsRepository.listActiveByTrigger(subscriber.siteId, "subscriber_registered");
-
-    for (const automation of automations) {
-      try {
-        await this.browserPushService.dispatch({
-          siteId: automation.siteId,
-          subscriberId: subscriber.id,
-          title: automation.title,
-          body: automation.message,
-          url: automation.url,
-          icon: automation.iconUrl,
-          image: automation.imageUrl,
-        });
-      } catch (error) {
-        // Isolate failures per automation so one bad dispatch (e.g. missing VAPID
-        // credentials) doesn't prevent the remaining automations from running.
-        this.logger.error(`Failed to dispatch automation ${automation.id} for subscriber ${subscriber.id}`, error as Error);
-      }
-    }
-  }
 }

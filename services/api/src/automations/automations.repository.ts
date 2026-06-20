@@ -1,5 +1,7 @@
 import type {
+  AutomationAction,
   AutomationButton,
+  AutomationEventRecord,
   AutomationListFilters,
   AutomationListResult,
   AutomationRecord,
@@ -11,6 +13,7 @@ export interface CreateAutomationInput {
   siteId: string;
   name: string;
   triggerEvent: AutomationTriggerEvent;
+  actions: AutomationAction[];
   title: string;
   message: string;
   url: string;
@@ -23,6 +26,7 @@ export interface CreateAutomationInput {
 export interface UpdateAutomationInput {
   name?: string;
   triggerEvent?: AutomationTriggerEvent;
+  actions?: AutomationAction[];
   title?: string;
   message?: string;
   url?: string;
@@ -39,4 +43,13 @@ export interface AutomationsRepository {
   delete(id: string): Promise<boolean>;
   list(filters: AutomationListFilters): Promise<AutomationListResult>;
   listActiveByTrigger(siteId: string, triggerEvent: AutomationTriggerEvent): Promise<AutomationRecord[]>;
+  recordEvent(input: {
+    siteId: string;
+    subscriberId?: string | null;
+    campaignId?: string | null;
+    triggerEvent: AutomationTriggerEvent;
+    payload: Record<string, unknown>;
+  }): Promise<AutomationEventRecord>;
+  markEventCompleted(eventId: string): Promise<void>;
+  markEventFailed(eventId: string, errorMessage: string): Promise<void>;
 }

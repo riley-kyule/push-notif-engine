@@ -7,12 +7,12 @@ import { SubscribersService } from "./subscribers.service";
 test("subscribers service registers and filters subscribers", async () => {
   const repository = new InMemorySubscribersRepository();
   const automationCalls: string[] = [];
-  const automationsService = {
+  const workflowService = {
     async handleSubscriberRegistered(subscriber: { id: string }) {
       automationCalls.push(subscriber.id);
     },
   };
-  const service = new SubscribersService(repository, automationsService as never);
+  const service = new SubscribersService(repository, workflowService as never);
 
   const subscriber = await service.registerSubscriber({
     siteId: "site-1",
@@ -36,12 +36,12 @@ test("subscribers service registers and filters subscribers", async () => {
 test("subscribers service does not re-trigger automations on a re-registration", async () => {
   const repository = new InMemorySubscribersRepository();
   const automationCalls: string[] = [];
-  const automationsService = {
+  const workflowService = {
     async handleSubscriberRegistered(subscriber: { id: string }) {
       automationCalls.push(subscriber.id);
     },
   };
-  const service = new SubscribersService(repository, automationsService as never);
+  const service = new SubscribersService(repository, workflowService as never);
 
   const input = {
     siteId: "site-1",

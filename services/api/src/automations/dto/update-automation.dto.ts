@@ -1,7 +1,9 @@
 import { IsArray, IsIn, IsOptional, IsString, IsUrl, MinLength, ValidateNested } from "class-validator";
 import { Type } from "class-transformer";
 
-const AUTOMATION_TRIGGER_EVENTS = ["subscriber_registered"] as const;
+import { AutomationActionDto } from "./automation-action.dto";
+
+const AUTOMATION_TRIGGER_EVENTS = ["subscriber_registered", "page_visit", "click", "api_event", "rss_item_published"] as const;
 const AUTOMATION_STATUSES = ["active", "paused"] as const;
 
 class AutomationButtonDto {
@@ -44,6 +46,12 @@ export class UpdateAutomationDto {
   @IsOptional()
   @IsUrl({ require_tld: false })
   iconUrl?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AutomationActionDto)
+  actions?: AutomationActionDto[];
 
   @IsOptional()
   @IsArray()

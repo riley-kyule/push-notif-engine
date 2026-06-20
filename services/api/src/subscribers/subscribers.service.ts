@@ -1,12 +1,12 @@
 import { Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 
-import { AutomationsService } from "../automations/automations.service";
 import { SUBSCRIBERS_REPOSITORY } from "./subscribers.constants";
 import type { SubscribersRepository } from "./subscribers.repository";
 import type { SubscriberListFilters, SubscriberListResult, SubscriberRecord } from "./subscribers.types";
 import { RegisterSubscriberDto } from "./dto/register-subscriber.dto";
 import { ListSubscribersQueryDto } from "./dto/list-subscribers-query.dto";
 import { UpdateSubscriberStatusDto } from "./dto/update-subscriber-status.dto";
+import { WorkflowService } from "../workflows/workflow.service";
 
 @Injectable()
 export class SubscribersService {
@@ -14,7 +14,7 @@ export class SubscribersService {
 
   constructor(
     @Inject(SUBSCRIBERS_REPOSITORY) private readonly subscribersRepository: SubscribersRepository,
-    private readonly automationsService: AutomationsService,
+    private readonly workflowService: WorkflowService,
   ) {}
 
   async registerSubscriber(dto: RegisterSubscriberDto): Promise<SubscriberRecord> {
@@ -35,7 +35,7 @@ export class SubscribersService {
       // Best-effort: a failure to enqueue a welcome automation must never fail
       // subscriber registration itself.
       try {
-        await this.automationsService.handleSubscriberRegistered(subscriber);
+        await this.workflowService.handleSubscriberRegistered(subscriber);
       } catch (error) {
         this.logger.error(`Failed to run subscriber_registered automations for ${subscriber.id}`, error as Error);
       }

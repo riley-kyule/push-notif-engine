@@ -2,7 +2,15 @@ import { Inject, Injectable } from "@nestjs/common";
 import type { Pool } from "pg";
 
 import { DATABASE_POOL } from "../database/database.constants";
-import type { AutomationButton, AutomationListFilters, AutomationListResult, AutomationRecord, AutomationTriggerEvent } from "./automations.types";
+import type {
+  AutomationAction,
+  AutomationButton,
+  AutomationEventRecord,
+  AutomationListFilters,
+  AutomationListResult,
+  AutomationRecord,
+  AutomationTriggerEvent,
+} from "./automations.types";
 import type { AutomationsRepository, CreateAutomationInput, UpdateAutomationInput } from "./automations.repository";
 
 interface DbAutomationRow {
@@ -10,6 +18,7 @@ interface DbAutomationRow {
   site_id: string;
   name: string;
   trigger_event: string;
+  actions: unknown;
   title: string;
   message: string;
   url: string;
@@ -40,6 +49,22 @@ function encodeButtons(buttons: AutomationButton[]): string {
   return JSON.stringify(buttons);
 }
 
+function decodeActions(value: unknown): AutomationAction[] {
+  if (Array.isArray(value)) {
+    return value as AutomationAction[];
+  }
+
+  if (typeof value === "string" && value.length > 0) {
+    return decodeActions(JSON.parse(value) as unknown);
+  }
+
+  return [];
+}
+
+function encodeActions(actions: AutomationAction[]): string {
+  return JSON.stringify(actions);
+}
+
 @Injectable()
 export class PostgresAutomationsRepository implements AutomationsRepository {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool) {}
@@ -48,15 +73,16 @@ export class PostgresAutomationsRepository implements AutomationsRepository {
     const { rows } = await this.pool.query<DbAutomationRow>(
       `
       INSERT INTO automations (
-        site_id, name, trigger_event, title, message, url, image_url, icon_url, buttons, status
+        site_id, name, trigger_event, actions, title, message, url, image_url, icon_url, buttons, status
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10)
+      VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10::jsonb, $11)
       RETURNING *
       `,
       [
         input.siteId,
         input.name,
         input.triggerEvent,
+        encodeActions(input.actions),
         input.title,
         input.message,
         input.url,
@@ -81,13 +107,14 @@ export class PostgresAutomationsRepository implements AutomationsRepository {
       UPDATE automations
       SET name = COALESCE($2, name),
           trigger_event = COALESCE($3, trigger_event),
-          title = COALESCE($4, title),
-          message = COALESCE($5, message),
-          url = COALESCE($6, url),
-          image_url = COALESCE($7, image_url),
-          icon_url = COALESCE($8, icon_url),
-          buttons = COALESCE($9::jsonb, buttons),
-          status = COALESCE($10, status),
+          actions = COALESCE($4::jsonb, actions),
+          title = COALESCE($5, title),
+          message = COALESCE($6, message),
+          url = COALESCE($7, url),
+          image_url = COALESCE($8, image_url),
+          icon_url = COALESCE($9, icon_url),
+          buttons = COALESCE($10::jsonb, buttons),
+          status = COALESCE($11, status),
           updated_at = NOW()
       WHERE id = $1
       RETURNING *
@@ -96,6 +123,7 @@ export class PostgresAutomationsRepository implements AutomationsRepository {
         id,
         input.name ?? null,
         input.triggerEvent ?? null,
+        input.actions ? encodeActions(input.actions) : null,
         input.title ?? null,
         input.message ?? null,
         input.url ?? null,
@@ -176,6 +204,7 @@ export class PostgresAutomationsRepository implements AutomationsRepository {
       siteId: row.site_id,
       name: row.name,
       triggerEvent: row.trigger_event as AutomationTriggerEvent,
+      actions: decodeActions(row.actions),
       title: row.title,
       message: row.message,
       url: row.url,
@@ -186,5 +215,88 @@ export class PostgresAutomationsRepository implements AutomationsRepository {
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
     };
+  }
+
+  async recordEvent(input: {
+    siteId: string;
+    subscriberId?: string | null;
+    campaignId?: string | null;
+    triggerEvent: AutomationTriggerEvent;
+    payload: Record<string, unknown>;
+  }): Promise<AutomationEventRecord> {
+    const { rows } = await this.pool.query<{
+      id: string;
+      site_id: string;
+      subscriber_id: string | null;
+      campaign_id: string | null;
+      trigger_event: string;
+      payload: unknown;
+      status: string;
+      error_message: string | null;
+      executed_at: string | null;
+      created_at: string;
+      updated_at: string;
+    }>(
+      `
+      INSERT INTO automation_events (
+        site_id, subscriber_id, campaign_id, trigger_event, payload, status, created_at, updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5::jsonb, 'pending', NOW(), NOW())
+      RETURNING *
+      `,
+      [
+        input.siteId,
+        input.subscriberId ?? null,
+        input.campaignId ?? null,
+        input.triggerEvent,
+        JSON.stringify(input.payload),
+      ],
+    );
+
+    const row = rows[0];
+    if (!row) {
+      throw new Error("Failed to record automation event");
+    }
+
+    return {
+      id: row.id,
+      siteId: row.site_id,
+      subscriberId: row.subscriber_id,
+      campaignId: row.campaign_id,
+      triggerEvent: row.trigger_event as AutomationTriggerEvent,
+      payload: typeof row.payload === "string" ? (JSON.parse(row.payload) as Record<string, unknown>) : (row.payload as Record<string, unknown>),
+      status: row.status as AutomationEventRecord["status"],
+      errorMessage: row.error_message,
+      executedAt: row.executed_at ? new Date(row.executed_at) : null,
+      createdAt: new Date(row.created_at),
+      updatedAt: new Date(row.updated_at),
+    };
+  }
+
+  async markEventCompleted(eventId: string): Promise<void> {
+    await this.pool.query(
+      `
+      UPDATE automation_events
+      SET status = 'completed',
+          executed_at = NOW(),
+          error_message = NULL,
+          updated_at = NOW()
+      WHERE id = $1
+      `,
+      [eventId],
+    );
+  }
+
+  async markEventFailed(eventId: string, errorMessage: string): Promise<void> {
+    await this.pool.query(
+      `
+      UPDATE automation_events
+      SET status = 'failed',
+          error_message = $2,
+          updated_at = NOW()
+      WHERE id = $1
+      `,
+      [eventId, errorMessage],
+    );
   }
 }
