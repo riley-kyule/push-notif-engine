@@ -43,6 +43,9 @@ export default async function AnalyticsPage({
   };
 
   const maxGrowth = Math.max(...dashboard.siteAnalytics.last30Days.subscriberGrowth.map((item) => item.newSubscribers), 1);
+  const maxCountrySubscribers = Math.max(...dashboard.countryPerformance.map((item) => item.totalSubscribers), 1);
+  const maxSiteSubscribers = Math.max(...dashboard.sitePerformance.map((item) => item.totalSubscribers), 1);
+  const maxHourVolume = Math.max(...dashboard.timePerformance.map((item) => item.totalDelivered + item.totalSent), 1);
 
   return (
     <DashboardShell
@@ -67,8 +70,9 @@ export default async function AnalyticsPage({
           </p>
           <h2>Turn live delivery events into decisions.</h2>
           <p>
-            This reporting surface is driven by delivery events, subscriber growth, and campaign outcomes. Date range,
-            site scope, and campaign selection stay visible so the numbers remain easy to trust.
+            This reporting surface is driven by delivery events, subscriber growth, and campaign outcomes. The current
+            window is <strong>{dashboard.rangeLabel}</strong>, and site scope plus campaign selection stay visible so the
+            numbers remain easy to trust.
           </p>
         </div>
 
@@ -242,6 +246,97 @@ export default async function AnalyticsPage({
             </div>
           </section>
         </aside>
+      </section>
+
+      <section className="grid cards-2" style={{ marginTop: 18 }}>
+        <section className="card analytics-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Country performance</p>
+              <h3>Top regions by delivery volume</h3>
+            </div>
+            <span className="badge sent">Live</span>
+          </div>
+
+          <div className="analytics-list">
+            {dashboard.countryPerformance.map((item) => (
+              <article key={item.country} className="analytics-list-row">
+                <div className="analytics-list-labels">
+                  <strong>{item.country}</strong>
+                  <span className="subtle">{formatNumber(item.totalSubscribers)} subscribers</span>
+                </div>
+                <div className="analytics-list-track">
+                  <div className="analytics-list-fill" style={{ width: `${Math.max((item.totalSubscribers / maxCountrySubscribers) * 100, 8)}%` }} />
+                </div>
+                <div className="analytics-list-metrics">
+                  <strong>{formatPercent(item.deliveryRate)} delivery</strong>
+                  <span className="subtle">CTR {formatPercent(item.clickThroughRate)}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="card analytics-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Time performance</p>
+              <h3>Delivery volume by hour</h3>
+            </div>
+            <span className="badge active">UTC</span>
+          </div>
+
+          <div className="analytics-list">
+            {dashboard.timePerformance.slice(0, 12).map((item) => {
+              const totalVolume = item.totalDelivered + item.totalSent;
+              return (
+                <article key={item.hour} className="analytics-list-row">
+                  <div className="analytics-list-labels">
+                    <strong>{String(item.hour).padStart(2, "0")}:00</strong>
+                    <span className="subtle">{formatNumber(totalVolume)} events</span>
+                  </div>
+                  <div className="analytics-list-track">
+                    <div className="analytics-list-fill" style={{ width: `${Math.max((totalVolume / maxHourVolume) * 100, 8)}%` }} />
+                  </div>
+                  <div className="analytics-list-metrics">
+                    <strong>{formatPercent(item.deliveryRate)} delivery</strong>
+                    <span className="subtle">CTR {formatPercent(item.clickThroughRate)}</span>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      </section>
+
+      <section className="card analytics-panel" style={{ marginTop: 18 }}>
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">Site performance</p>
+            <h3>Cross-site delivery comparison</h3>
+          </div>
+          <span className="badge scheduled">{dashboard.sitePerformance.length} sites</span>
+        </div>
+
+        <div className="analytics-table">
+          <div className="analytics-table-head">
+            <span>Site</span>
+            <span>Subscribers</span>
+            <span>Delivery rate</span>
+            <span>CTR</span>
+          </div>
+          {dashboard.sitePerformance.map((item) => (
+            <div key={item.siteId} className="analytics-table-row">
+              <div>
+                <strong>{item.siteName}</strong>
+                <p className="subtle">{item.siteId}</p>
+              </div>
+              <span>{formatNumber(item.totalSubscribers)}</span>
+              <span>{formatPercent(item.deliveryRate)}</span>
+              <span>{formatPercent(item.clickThroughRate)}</span>
+            </div>
+          ))}
+        </div>
       </section>
     </DashboardShell>
   );
