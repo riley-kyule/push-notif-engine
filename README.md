@@ -213,6 +213,7 @@ All read from `push_delivery_events`, `subscribers`, and `campaigns` — no sepa
 - `GET /api/analytics/campaigns/:campaignId` — per-campaign breakdown: `pending/sent/delivered/failed/expired/clicked`, `deliveryRate` (delivered ÷ total), `clickThroughRate` (clicked ÷ (sent + delivered)).
 - `GET /api/analytics/sites/:siteId?days=30` — subscriber totals + the same delivery/click breakdown, scoped to one site, plus daily subscriber growth.
 - `GET /api/analytics/sites/:siteId/subscriber-growth?days=30` — just the growth series.
+- The dashboard now has a dedicated `/analytics` reporting page with date-range controls, site scope selection, campaign performance panels, and a controlled taxonomy note for content/UTM reporting.
 
 **Click-through rate is computed against successfully handed-off pushes (`sent + delivered`), not against total attempts.** A push that failed or expired was never shown to anyone, so it shouldn't dilute the CTR denominator.
 
@@ -220,7 +221,7 @@ This is a minimal analytics layer — no date-range presets beyond a `days` quer
 
 ## Dashboard
 
-Next.js 15 App Router. Pages: `/` (overview), `/sites`, `/sites/new`, `/sites/:id`, `/sites/:id/edit`, `/campaigns`, `/campaigns/new`, `/campaigns/:id`, `/subscribers`, `/subscribers/:id`, `/login`.
+Next.js 15 App Router. Pages: `/` (overview), `/analytics`, `/sites`, `/sites/new`, `/sites/:id`, `/sites/:id/edit`, `/campaigns`, `/campaigns/new`, `/campaigns/:id`, `/subscribers`, `/subscribers/:id`, `/workflow`, `/login`.
 
 - **Auth:** `middleware.ts` gates every route except `/login` and `/api/dashboard/auth/*` on the presence of the `epe_access_token` cookie.
 - **Data fetching:** server components call the real NestJS API directly via `lib/server-api.ts`'s `apiFetch`/`apiJson`, which attach the Bearer token from the cookie automatically.
@@ -266,7 +267,7 @@ Each service uses Node's built-in test runner (`node --import tsx --test`), not 
 ## Known gaps
 
 - **No geo-IP enrichment** — subscriber `country` is whatever the browser SDK sends (nothing, currently), defaults to `"Unknown"`.
-- **Analytics is MVP-level** — no date-range presets, no country/content/time-of-day breakdowns, no CSV/Excel/PDF export (all called for in `docs/phase-7-analytics-reporting.md` but not built).
+- **Analytics is still expanding** — the first Phase 7 reporting page exists, but country/content/time-of-day breakdowns and CSV/Excel/PDF export still need to be built.
 - **Native mobile push (Phase 4) exists in code** (APNs/FCM credential storage, device registration, dispatch, click tracking endpoints) but is explicitly gated on Exotic having actual mobile apps to integrate with — nothing currently calls it.
 - **Magento, Node.js, and Laravel integrations are docs-only.**
 - **The site editor's "Subscribers" field is a leftover manual number input** that doesn't map to anything real (subscriber count is derived from actual registrations) — the API silently ignores it, but the UI still shows it.
