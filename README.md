@@ -213,11 +213,14 @@ All read from `push_delivery_events`, `subscribers`, and `campaigns` — no sepa
 - `GET /api/analytics/campaigns/:campaignId` — per-campaign breakdown: `pending/sent/delivered/failed/expired/clicked`, `deliveryRate` (delivered ÷ total), `clickThroughRate` (clicked ÷ (sent + delivered)).
 - `GET /api/analytics/sites/:siteId?days=30` — subscriber totals + the same delivery/click breakdown, scoped to one site, plus daily subscriber growth.
 - `GET /api/analytics/sites/:siteId/subscriber-growth?days=30` — just the growth series.
-- The dashboard now has a dedicated `/analytics` reporting page with date-range controls, site scope selection, campaign performance panels, and a controlled taxonomy note for content/UTM reporting.
+- `GET /api/analytics/countries?days=30` — country performance grouped from subscriber country data and delivery events.
+- `GET /api/analytics/sites-performance?days=30` — cross-site delivery comparison with subscriber counts.
+- `GET /api/analytics/time-performance?days=30` — hour-by-hour delivery and click volume in UTC.
+- The dashboard now has a dedicated `/analytics` reporting page with date-range controls, site scope selection, campaign performance panels, country/site/time reporting, and a controlled taxonomy note for content/UTM reporting.
 
 **Click-through rate is computed against successfully handed-off pushes (`sent + delivered`), not against total attempts.** A push that failed or expired was never shown to anyone, so it shouldn't dilute the CTR denominator.
 
-This is a minimal analytics layer — no date-range presets beyond a `days` query param, no country/content/time-of-day breakdowns, no CSV/Excel/PDF export. See [Known gaps](#known-gaps).
+This is still a staged analytics layer — country, site, and time-of-day reporting are live, while controlled content taxonomy and CSV/Excel/PDF export remain next. See [Known gaps](#known-gaps).
 
 ## Dashboard
 
@@ -267,7 +270,7 @@ Each service uses Node's built-in test runner (`node --import tsx --test`), not 
 ## Known gaps
 
 - **No geo-IP enrichment** — subscriber `country` is whatever the browser SDK sends (nothing, currently), defaults to `"Unknown"`.
-- **Analytics is still expanding** — the first Phase 7 reporting page exists, but country/content/time-of-day breakdowns and CSV/Excel/PDF export still need to be built.
+- **Analytics is still expanding** — country, site, and time-of-day reporting exist, but controlled content taxonomy and CSV/Excel/PDF export still need to be built.
 - **Native mobile push (Phase 4) exists in code** (APNs/FCM credential storage, device registration, dispatch, click tracking endpoints) but is explicitly gated on Exotic having actual mobile apps to integrate with — nothing currently calls it.
 - **Magento, Node.js, and Laravel integrations are docs-only.**
 - **The site editor's "Subscribers" field is a leftover manual number input** that doesn't map to anything real (subscriber count is derived from actual registrations) — the API silently ignores it, but the UI still shows it.
