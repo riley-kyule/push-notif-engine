@@ -42,4 +42,22 @@ export class AnalyticsController {
     const growth = await this.analyticsService.getSubscriberGrowth(siteId, days ? parseInt(days, 10) : 30);
     return { success: true, data: growth };
   }
+
+  @Get("countries")
+  async getCountryPerformance(@Query("days") days?: string): Promise<{ success: true; data: unknown }> {
+    const performance = await this.analyticsService.getCountryPerformance(days ? parseInt(days, 10) : 30);
+    return { success: true, data: performance };
+  }
+
+  @Get("sites-performance")
+  async getSitePerformance(@Query("days") days?: string): Promise<{ success: true; data: unknown }> {
+    const performance = await this.analyticsService.getSitePerformance(days ? parseInt(days, 10) : 30);
+    return { success: true, data: performance };
+  }
+
+  @Get("time-performance")
+  async getTimePerformance(@Query("days") days?: string): Promise<{ success: true; data: unknown }> {
+    const performance = await this.analyticsService.getTimePerformance(days ? parseInt(days, 10) : 30);
+    return { success: true, data: performance };
+  }
 }

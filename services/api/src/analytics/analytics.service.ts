@@ -33,4 +33,16 @@ export class AnalyticsService {
   async getOverview(days = 30) {
     return this.analyticsRepository.getOverview(days);
   }
+
+  async getCountryPerformance(days = 30) {
+    return this.analyticsRepository.getCountryPerformance(days);
+  }
+
+  async getSitePerformance(days = 30) {
+    return this.analyticsRepository.getSitePerformance(days);
+  }
+
+  async getTimePerformance(days = 30) {
+    return this.analyticsRepository.getTimePerformance(days);
+  }
 }

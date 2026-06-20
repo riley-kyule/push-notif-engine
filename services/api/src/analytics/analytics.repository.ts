@@ -32,6 +32,35 @@ interface DailyGrowthRow {
   new_subscribers: string;
 }
 
+interface CountryPerformanceRow {
+  country: string;
+  total_subscribers: string;
+  total_delivered: string;
+  total_sent: string;
+  total_failed: string;
+  total_expired: string;
+  total_clicked: string;
+}
+
+interface SitePerformanceRow {
+  site_id: string;
+  site_name: string;
+  total_subscribers: string;
+  total_delivered: string;
+  total_sent: string;
+  total_failed: string;
+  total_expired: string;
+  total_clicked: string;
+}
+
+interface HourPerformanceRow {
+  hour: string;
+  total_delivered: string;
+  total_sent: string;
+  total_failed: string;
+  total_clicked: string;
+}
+
 @Injectable()
 export class AnalyticsRepository {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool) {}
@@ -247,5 +276,180 @@ export class AnalyticsRepository {
       deliveryRate: total > 0 ? Math.round((totalDelivered / total) * 10000) / 100 : 0,
       clickThroughRate: successfullyHandedOff > 0 ? Math.round((totalClicked / successfullyHandedOff) * 10000) / 100 : 0,
     };
+  }
+
+  async getCountryPerformance(days: number): Promise<
+    Array<{
+      country: string;
+      totalSubscribers: number;
+      totalDelivered: number;
+      totalSent: number;
+      totalFailed: number;
+      totalExpired: number;
+      totalClicked: number;
+      deliveryRate: number;
+      clickThroughRate: number;
+    }>
+  > {
+    const { rows } = await this.pool.query<CountryPerformanceRow>(
+      `
+      SELECT
+        COALESCE(NULLIF(s.country, ''), 'Unknown') AS country,
+        COUNT(DISTINCT s.id) AS total_subscribers,
+        COUNT(*) FILTER (WHERE pde.status = 'delivered') AS total_delivered,
+        COUNT(*) FILTER (WHERE pde.status = 'sent') AS total_sent,
+        COUNT(*) FILTER (WHERE pde.status = 'failed') AS total_failed,
+        COUNT(*) FILTER (WHERE pde.status = 'expired') AS total_expired,
+        COUNT(*) FILTER (WHERE pde.clicked_at IS NOT NULL) AS total_clicked
+      FROM subscribers s
+      LEFT JOIN push_delivery_events pde
+        ON pde.subscriber_id = s.id
+       AND pde.created_at >= NOW() - ($1 || ' days')::interval
+      GROUP BY COALESCE(NULLIF(s.country, ''), 'Unknown')
+      ORDER BY total_delivered DESC, total_subscribers DESC
+      `,
+      [days],
+    );
+
+    return rows.map((row) => {
+      const totalDelivered = parseInt(row.total_delivered ?? "0", 10);
+      const totalSent = parseInt(row.total_sent ?? "0", 10);
+      const totalClicked = parseInt(row.total_clicked ?? "0", 10);
+      const totalAttempts = totalSent + totalDelivered + parseInt(row.total_failed ?? "0", 10) + parseInt(row.total_expired ?? "0", 10);
+      const successfullyHandedOff = totalSent + totalDelivered;
+
+      return {
+        country: row.country,
+        totalSubscribers: parseInt(row.total_subscribers ?? "0", 10),
+        totalDelivered,
+        totalSent,
+        totalFailed: parseInt(row.total_failed ?? "0", 10),
+        totalExpired: parseInt(row.total_expired ?? "0", 10),
+        totalClicked,
+        deliveryRate: totalAttempts > 0 ? Math.round((totalDelivered / totalAttempts) * 10000) / 100 : 0,
+        clickThroughRate: successfullyHandedOff > 0 ? Math.round((totalClicked / successfullyHandedOff) * 10000) / 100 : 0,
+      };
+    });
+  }
+
+  async getSitePerformance(days: number): Promise<
+    Array<{
+      siteId: string;
+      siteName: string;
+      totalSubscribers: number;
+      totalDelivered: number;
+      totalSent: number;
+      totalFailed: number;
+      totalExpired: number;
+      totalClicked: number;
+      deliveryRate: number;
+      clickThroughRate: number;
+    }>
+  > {
+    const { rows } = await this.pool.query<SitePerformanceRow>(
+      `
+      WITH subscriber_totals AS (
+        SELECT site_id, COUNT(*)::int AS total_subscribers
+        FROM subscribers
+        GROUP BY site_id
+      ),
+      delivery_totals AS (
+        SELECT
+          site_id,
+          COUNT(*) FILTER (WHERE status = 'delivered') AS total_delivered,
+          COUNT(*) FILTER (WHERE status = 'sent') AS total_sent,
+          COUNT(*) FILTER (WHERE status = 'failed') AS total_failed,
+          COUNT(*) FILTER (WHERE status = 'expired') AS total_expired,
+          COUNT(*) FILTER (WHERE clicked_at IS NOT NULL) AS total_clicked
+        FROM push_delivery_events
+        WHERE created_at >= NOW() - ($1 || ' days')::interval
+        GROUP BY site_id
+      )
+      SELECT
+        s.id AS site_id,
+        s.name AS site_name,
+        COALESCE(st.total_subscribers, 0)::text AS total_subscribers,
+        COALESCE(dt.total_delivered, 0)::text AS total_delivered,
+        COALESCE(dt.total_sent, 0)::text AS total_sent,
+        COALESCE(dt.total_failed, 0)::text AS total_failed,
+        COALESCE(dt.total_expired, 0)::text AS total_expired,
+        COALESCE(dt.total_clicked, 0)::text AS total_clicked
+      FROM sites s
+      LEFT JOIN subscriber_totals st ON st.site_id = s.id
+      LEFT JOIN delivery_totals dt ON dt.site_id = s.id
+      ORDER BY total_delivered DESC, total_subscribers DESC
+      `,
+      [days],
+    );
+
+    return rows.map((row) => {
+      const totalDelivered = parseInt(row.total_delivered ?? "0", 10);
+      const totalSent = parseInt(row.total_sent ?? "0", 10);
+      const totalFailed = parseInt(row.total_failed ?? "0", 10);
+      const totalExpired = parseInt(row.total_expired ?? "0", 10);
+      const totalClicked = parseInt(row.total_clicked ?? "0", 10);
+      const totalAttempts = totalSent + totalDelivered + totalFailed + totalExpired;
+      const successfullyHandedOff = totalSent + totalDelivered;
+
+      return {
+        siteId: row.site_id,
+        siteName: row.site_name,
+        totalSubscribers: parseInt(row.total_subscribers ?? "0", 10),
+        totalDelivered,
+        totalSent,
+        totalFailed,
+        totalExpired,
+        totalClicked,
+        deliveryRate: totalAttempts > 0 ? Math.round((totalDelivered / totalAttempts) * 10000) / 100 : 0,
+        clickThroughRate: successfullyHandedOff > 0 ? Math.round((totalClicked / successfullyHandedOff) * 10000) / 100 : 0,
+      };
+    });
+  }
+
+  async getTimePerformance(days: number): Promise<
+    Array<{
+      hour: number;
+      totalDelivered: number;
+      totalSent: number;
+      totalFailed: number;
+      totalClicked: number;
+      deliveryRate: number;
+      clickThroughRate: number;
+    }>
+  > {
+    const { rows } = await this.pool.query<HourPerformanceRow>(
+      `
+      SELECT
+        EXTRACT(HOUR FROM created_at AT TIME ZONE 'UTC')::int AS hour,
+        COUNT(*) FILTER (WHERE status = 'delivered') AS total_delivered,
+        COUNT(*) FILTER (WHERE status = 'sent') AS total_sent,
+        COUNT(*) FILTER (WHERE status = 'failed') AS total_failed,
+        COUNT(*) FILTER (WHERE clicked_at IS NOT NULL) AS total_clicked
+      FROM push_delivery_events
+      WHERE created_at >= NOW() - ($1 || ' days')::interval
+      GROUP BY EXTRACT(HOUR FROM created_at AT TIME ZONE 'UTC')
+      ORDER BY hour ASC
+      `,
+      [days],
+    );
+
+    return rows.map((row) => {
+      const totalDelivered = parseInt(row.total_delivered ?? "0", 10);
+      const totalSent = parseInt(row.total_sent ?? "0", 10);
+      const totalFailed = parseInt(row.total_failed ?? "0", 10);
+      const totalClicked = parseInt(row.total_clicked ?? "0", 10);
+      const totalAttempts = totalSent + totalDelivered + totalFailed;
+      const successfullyHandedOff = totalSent + totalDelivered;
+
+      return {
+        hour: Number.parseInt(row.hour, 10),
+        totalDelivered,
+        totalSent,
+        totalFailed,
+        totalClicked,
+        deliveryRate: totalAttempts > 0 ? Math.round((totalDelivered / totalAttempts) * 10000) / 100 : 0,
+        clickThroughRate: successfullyHandedOff > 0 ? Math.round((totalClicked / successfullyHandedOff) * 10000) / 100 : 0,
+      };
+    });
   }
 }

@@ -22,6 +22,18 @@ function createController(overrides: Partial<Record<string, (...args: never[]) =
       calls.push({ method: "getSubscriberGrowth", args });
       return overrides.getSubscriberGrowth ? overrides.getSubscriberGrowth(...args) : [];
     },
+    async getCountryPerformance(...args: never[]) {
+      calls.push({ method: "getCountryPerformance", args });
+      return overrides.getCountryPerformance ? overrides.getCountryPerformance(...args) : [];
+    },
+    async getSitePerformance(...args: never[]) {
+      calls.push({ method: "getSitePerformance", args });
+      return overrides.getSitePerformance ? overrides.getSitePerformance(...args) : [];
+    },
+    async getTimePerformance(...args: never[]) {
+      calls.push({ method: "getTimePerformance", args });
+      return overrides.getTimePerformance ? overrides.getTimePerformance(...args) : [];
+    },
   };
 
   return { controller: new AnalyticsController(service as never), calls };
@@ -63,5 +75,22 @@ test("analytics controller returns site overview and subscriber growth", async (
   assert.deepEqual(calls, [
     { method: "getSiteOverview", args: ["site-1", 14] },
     { method: "getSubscriberGrowth", args: ["site-1", 30] },
+  ]);
+});
+
+test("analytics controller returns country, site, and time reports", async () => {
+  const { controller, calls } = createController();
+
+  const countries = await controller.getCountryPerformance("21");
+  const sites = await controller.getSitePerformance(undefined);
+  const time = await controller.getTimePerformance("7");
+
+  assert.equal(countries.success, true);
+  assert.equal(sites.success, true);
+  assert.equal(time.success, true);
+  assert.deepEqual(calls, [
+    { method: "getCountryPerformance", args: [21] },
+    { method: "getSitePerformance", args: [30] },
+    { method: "getTimePerformance", args: [7] },
   ]);
 });
