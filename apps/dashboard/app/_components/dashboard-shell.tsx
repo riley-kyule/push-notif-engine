@@ -8,6 +8,7 @@ const navigation = [
   { href: "/sites", label: "Sites" },
   { href: "/campaigns", label: "Campaigns" },
   { href: "/campaigns/new", label: "Create Campaign" },
+  { href: "/analytics", label: "Analytics" },
   { href: "/subscribers", label: "Subscribers" },
   { href: "/workflow", label: "Workflow" },
 ];
