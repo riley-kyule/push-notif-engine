@@ -14,6 +14,7 @@ Not a SaaS product. Not multi-tenant. Built for Exotic's own sites only.
 - [Browser push delivery](#browser-push-delivery)
 - [Campaigns](#campaigns)
 - [Segments](#segments)
+- [Workflow automation](#workflow-automation)
 - [Analytics](#analytics)
 - [Dashboard](#dashboard)
 - [WordPress plugin](#wordpress-plugin)
@@ -196,6 +197,14 @@ A segment definition is `{ matchMode: "all" | "any", rules: [...] }`. Each rule 
 
 `matchMode: "all"` ANDs the rules together; `"any"` ORs them. The same rule-to-SQL builder exists twice — once in `services/api/src/segments/postgres-segments.repository.ts` (for reach estimation) and once in `services/worker/src/segment.util.ts` (for actually filtering subscribers at send time). If you add a new field or operator, update both.
 
+## Workflow automation
+
+Phase 6 now includes a workflow console in the dashboard, RSS feed management, manual workflow event recording, and subscriber tag automation.
+
+- `POST /api/workflow/events` and `GET /api/workflow/events` record and inspect workflow events.
+- `POST /api/workflow/rss-feeds`, `GET /api/workflow/rss-feeds`, `PATCH /api/workflow/rss-feeds/:id`, `DELETE /api/workflow/rss-feeds/:id`, and `POST /api/workflow/rss-feeds/:id/poll` manage RSS automation.
+- The dashboard `/workflow` page exposes feed controls, execution visibility, and event logging.
+
 ## Analytics
 
 All read from `push_delivery_events`, `subscribers`, and `campaigns` — no separate aggregation table, so numbers are always live.
@@ -232,6 +241,8 @@ To onboard a new WordPress site: create the site in EPE, generate its VAPID keys
 ## Other platform integrations
 
 `docs/phase-2-6-*.md` contain integration guides for Magento, Node.js, and Laravel — these are documentation only, no actual plugin/package code has been written for them. WordPress is the only platform with a working, installable integration today.
+
+Phase 7 is next and will expand the analytics surface with time, country, content, site, and export reporting.
 
 ## Production deployment
 
