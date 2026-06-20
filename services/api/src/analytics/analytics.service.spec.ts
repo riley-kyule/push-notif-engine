@@ -38,6 +38,14 @@ function createService(overrides: Partial<Record<string, (...args: never[]) => u
       calls.push({ method: "getTimePerformance", args });
       return overrides.getTimePerformance ? overrides.getTimePerformance(...args) : [{ hour: 10 }];
     },
+    async getContentPerformance(...args: never[]) {
+      calls.push({ method: "getContentPerformance", args });
+      return overrides.getContentPerformance ? overrides.getContentPerformance(...args) : [{ contentType: "promotion" }];
+    },
+    async exportReport(...args: never[]) {
+      calls.push({ method: "exportReport", args });
+      return overrides.exportReport ? overrides.exportReport(...args) : { filename: "analytics-overview-7d.csv", csv: "metric,value" };
+    },
   };
 
   return { service: new AnalyticsService(repository as never), calls };
@@ -50,12 +58,23 @@ test("analytics service proxies overview and reporting data", async () => {
   await service.getCountryPerformance(7);
   await service.getSitePerformance(7);
   await service.getTimePerformance(7);
+  await service.getContentPerformance(7);
+  await service.exportReport({ report: "overview", days: 7 });
 
   assert.deepEqual(calls.map((call) => call.method), [
     "getOverview",
     "getCountryPerformance",
     "getSitePerformance",
     "getTimePerformance",
+    "getContentPerformance",
+    "getOverview",
   ]);
 });
 
+test("analytics service exports csv reports", async () => {
+  const { service } = createService();
+  const result = await service.exportReport({ report: "content-performance", days: 7 });
+
+  assert.equal(result.filename, "analytics-content-performance-7d.csv");
+  assert.match(result.csv, /contentType/);
+});

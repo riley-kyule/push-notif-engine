@@ -3,6 +3,7 @@ import { Type } from "class-transformer";
 
 const CAMPAIGN_TYPES = ["instant", "scheduled", "recurring"] as const;
 const CAMPAIGN_CHANNELS = ["web", "mobile", "all"] as const;
+const CAMPAIGN_CONTENT_TYPES = ["announcement", "promotion", "editorial", "digest", "alert"] as const;
 
 class CampaignButtonDto {
   @IsString()
@@ -31,6 +32,10 @@ export class CreateCampaignDto {
 
   @IsIn(CAMPAIGN_TYPES)
   type!: (typeof CAMPAIGN_TYPES)[number];
+
+  @IsOptional()
+  @IsIn(CAMPAIGN_CONTENT_TYPES)
+  contentType?: (typeof CAMPAIGN_CONTENT_TYPES)[number];
 
   @IsString()
   @MinLength(2)

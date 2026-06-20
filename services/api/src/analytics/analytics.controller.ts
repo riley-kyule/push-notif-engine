@@ -1,9 +1,13 @@
-import { Controller, Get, Param, Query, UseGuards } from "@nestjs/common";
+import { Controller, Get, Param, Query, Res, UseGuards } from "@nestjs/common";
 
 import { Roles } from "../auth/decorators/roles.decorator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { AnalyticsService } from "./analytics.service";
+
+interface CsvResponseLike {
+  setHeader(name: string, value: string): void;
+}
 
 @Controller("analytics")
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -59,5 +63,27 @@ export class AnalyticsController {
   async getTimePerformance(@Query("days") days?: string): Promise<{ success: true; data: unknown }> {
     const performance = await this.analyticsService.getTimePerformance(days ? parseInt(days, 10) : 30);
     return { success: true, data: performance };
+  }
+
+  @Get("content-performance")
+  async getContentPerformance(@Query("days") days?: string): Promise<{ success: true; data: unknown }> {
+    const performance = await this.analyticsService.getContentPerformance(days ? parseInt(days, 10) : 30);
+    return { success: true, data: performance };
+  }
+
+  @Get("export")
+  async exportReport(
+    @Res({ passthrough: true }) response: CsvResponseLike,
+    @Query("days") days?: string,
+    @Query("report") report?: "overview" | "countries" | "sites-performance" | "time-performance" | "content-performance",
+  ): Promise<string> {
+    const result = await this.analyticsService.exportReport({
+      days: days ? parseInt(days, 10) : 30,
+      report: report ?? "overview",
+    });
+
+    response.setHeader("content-type", "text/csv; charset=utf-8");
+    response.setHeader("content-disposition", `attachment; filename="${result.filename}"`);
+    return result.csv;
   }
 }

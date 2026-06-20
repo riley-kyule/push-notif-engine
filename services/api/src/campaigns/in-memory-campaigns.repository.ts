@@ -24,6 +24,7 @@ export class InMemoryCampaignsRepository implements CampaignsRepository {
       siteId: input.siteId,
       segmentId: input.segmentId,
       name: input.name,
+      contentType: input.contentType,
       channel: input.channel,
       type: input.type,
       title: input.title,
@@ -57,6 +58,7 @@ export class InMemoryCampaignsRepository implements CampaignsRepository {
 
     campaign.segmentId = input.segmentId === undefined ? campaign.segmentId : input.segmentId;
     campaign.name = input.name ?? campaign.name;
+    campaign.contentType = input.contentType ?? campaign.contentType;
     campaign.channel = input.channel ?? campaign.channel;
     campaign.type = input.type ?? campaign.type;
     campaign.title = input.title ?? campaign.title;
@@ -102,12 +104,14 @@ export class InMemoryCampaignsRepository implements CampaignsRepository {
       .filter((campaign) => !filters.siteId || campaign.siteId === filters.siteId)
       .filter((campaign) => !filters.type || campaign.type === filters.type)
       .filter((campaign) => !filters.status || campaign.status === filters.status)
+      .filter((campaign) => !filters.contentType || campaign.contentType === filters.contentType)
       .slice(filters.offset, filters.offset + filters.limit)
       .map((campaign) => cloneCampaign(campaign));
 
     const total = this.campaigns.filter((campaign) => !filters.siteId || campaign.siteId === filters.siteId)
       .filter((campaign) => !filters.type || campaign.type === filters.type)
-      .filter((campaign) => !filters.status || campaign.status === filters.status).length;
+      .filter((campaign) => !filters.status || campaign.status === filters.status)
+      .filter((campaign) => !filters.contentType || campaign.contentType === filters.contentType).length;
 
     return { items, total };
   }

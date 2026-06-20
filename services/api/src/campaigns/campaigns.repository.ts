@@ -1,5 +1,6 @@
 import type {
   CampaignButton,
+  CampaignContentType,
   CampaignChannel,
   CampaignListFilters,
   CampaignListResult,
@@ -15,6 +16,7 @@ export interface CreateCampaignInput {
   name: string;
   channel: CampaignChannel;
   type: CampaignType;
+  contentType: CampaignContentType;
   title: string;
   message: string;
   url: string;
@@ -37,6 +39,7 @@ export interface UpdateCampaignInput {
   name?: string;
   channel?: CampaignChannel;
   type?: CampaignType;
+  contentType?: CampaignContentType;
   title?: string;
   message?: string;
   url?: string;

@@ -34,6 +34,14 @@ function createController(overrides: Partial<Record<string, (...args: never[]) =
       calls.push({ method: "getTimePerformance", args });
       return overrides.getTimePerformance ? overrides.getTimePerformance(...args) : [];
     },
+    async getContentPerformance(...args: never[]) {
+      calls.push({ method: "getContentPerformance", args });
+      return overrides.getContentPerformance ? overrides.getContentPerformance(...args) : [];
+    },
+    async exportReport(...args: never[]) {
+      calls.push({ method: "exportReport", args });
+      return overrides.exportReport ? overrides.exportReport(...args) : { filename: "analytics-overview-30d.csv", csv: "metric,value" };
+    },
   };
 
   return { controller: new AnalyticsController(service as never), calls };
@@ -93,4 +101,22 @@ test("analytics controller returns country, site, and time reports", async () =>
     { method: "getSitePerformance", args: [30] },
     { method: "getTimePerformance", args: [7] },
   ]);
+});
+
+test("analytics controller returns content performance", async () => {
+  const { controller, calls } = createController();
+
+  const content = await controller.getContentPerformance("14");
+
+  assert.equal(content.success, true);
+  assert.deepEqual(calls, [{ method: "getContentPerformance", args: [14] }]);
+});
+
+test("analytics controller exports csv reports", async () => {
+  const { controller, calls } = createController();
+  const response = { setHeader() {} };
+  const csv = await controller.exportReport(response as never, "7", "content-performance");
+
+  assert.match(csv, /metric|contentType/);
+  assert.deepEqual(calls, [{ method: "exportReport", args: [{ days: 7, report: "content-performance" }] }]);
 });

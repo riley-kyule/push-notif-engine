@@ -61,6 +61,16 @@ interface HourPerformanceRow {
   total_clicked: string;
 }
 
+interface ContentPerformanceRow {
+  content_type: string;
+  total_campaigns: string;
+  total_delivered: string;
+  total_sent: string;
+  total_failed: string;
+  total_expired: string;
+  total_clicked: string;
+}
+
 @Injectable()
 export class AnalyticsRepository {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool) {}
@@ -446,6 +456,62 @@ export class AnalyticsRepository {
         totalDelivered,
         totalSent,
         totalFailed,
+        totalClicked,
+        deliveryRate: totalAttempts > 0 ? Math.round((totalDelivered / totalAttempts) * 10000) / 100 : 0,
+        clickThroughRate: successfullyHandedOff > 0 ? Math.round((totalClicked / successfullyHandedOff) * 10000) / 100 : 0,
+      };
+    });
+  }
+
+  async getContentPerformance(days: number): Promise<
+    Array<{
+      contentType: string;
+      totalCampaigns: number;
+      totalDelivered: number;
+      totalSent: number;
+      totalFailed: number;
+      totalExpired: number;
+      totalClicked: number;
+      deliveryRate: number;
+      clickThroughRate: number;
+    }>
+  > {
+    const { rows } = await this.pool.query<ContentPerformanceRow>(
+      `
+      SELECT
+        COALESCE(NULLIF(c.content_type, ''), 'announcement') AS content_type,
+        COUNT(DISTINCT c.id) AS total_campaigns,
+        COUNT(*) FILTER (WHERE pde.status = 'delivered') AS total_delivered,
+        COUNT(*) FILTER (WHERE pde.status = 'sent') AS total_sent,
+        COUNT(*) FILTER (WHERE pde.status = 'failed') AS total_failed,
+        COUNT(*) FILTER (WHERE pde.status = 'expired') AS total_expired,
+        COUNT(*) FILTER (WHERE pde.clicked_at IS NOT NULL) AS total_clicked
+      FROM campaigns c
+      LEFT JOIN push_delivery_events pde
+        ON pde.campaign_id = c.id
+       AND pde.created_at >= NOW() - ($1 || ' days')::interval
+      GROUP BY COALESCE(NULLIF(c.content_type, ''), 'announcement')
+      ORDER BY total_delivered DESC, total_campaigns DESC
+      `,
+      [days],
+    );
+
+    return rows.map((row) => {
+      const totalDelivered = parseInt(row.total_delivered ?? "0", 10);
+      const totalSent = parseInt(row.total_sent ?? "0", 10);
+      const totalFailed = parseInt(row.total_failed ?? "0", 10);
+      const totalExpired = parseInt(row.total_expired ?? "0", 10);
+      const totalClicked = parseInt(row.total_clicked ?? "0", 10);
+      const totalAttempts = totalSent + totalDelivered + totalFailed + totalExpired;
+      const successfullyHandedOff = totalSent + totalDelivered;
+
+      return {
+        contentType: row.content_type,
+        totalCampaigns: parseInt(row.total_campaigns ?? "0", 10),
+        totalDelivered,
+        totalSent,
+        totalFailed,
+        totalExpired,
         totalClicked,
         deliveryRate: totalAttempts > 0 ? Math.round((totalDelivered / totalAttempts) * 10000) / 100 : 0,
         clickThroughRate: successfullyHandedOff > 0 ? Math.round((totalClicked / successfullyHandedOff) * 10000) / 100 : 0,

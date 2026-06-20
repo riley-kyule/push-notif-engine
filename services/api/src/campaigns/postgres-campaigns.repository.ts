@@ -10,6 +10,7 @@ interface DbCampaignRow {
   site_id: string;
   segment_id: string | null;
   name: string;
+  content_type: string;
   channel: string;
   type: string;
   title: string;
@@ -60,10 +61,10 @@ export class PostgresCampaignsRepository implements CampaignsRepository {
       `
       INSERT INTO campaigns (
         site_id, segment_id, name, channel, type, title, message, url, image_url, icon_url, buttons,
-        expiration_at, status, scheduled_at, timezone, recurrence_type, recurrence_interval,
+        content_type, expiration_at, status, scheduled_at, timezone, recurrence_type, recurrence_interval,
         recurrence_until_at, cloned_from_campaign_id, sent_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
       RETURNING *
       `,
       [
@@ -78,6 +79,7 @@ export class PostgresCampaignsRepository implements CampaignsRepository {
         input.imageUrl,
         input.iconUrl,
         encodeButtons(input.buttons),
+        input.contentType,
         input.expirationAt,
         input.status,
         input.scheduledAt,
@@ -104,23 +106,24 @@ export class PostgresCampaignsRepository implements CampaignsRepository {
       UPDATE campaigns
       SET segment_id = CASE WHEN $2::boolean THEN $3 ELSE segment_id END,
           name = COALESCE($4, name),
-          channel = COALESCE($5, channel),
-          type = COALESCE($6, type),
-          title = COALESCE($7, title),
-          message = COALESCE($8, message),
-          url = COALESCE($9, url),
-          image_url = COALESCE($10, image_url),
-          icon_url = COALESCE($11, icon_url),
-          buttons = COALESCE($12::jsonb, buttons),
-          expiration_at = COALESCE($13, expiration_at),
-          status = COALESCE($14, status),
-          scheduled_at = COALESCE($15, scheduled_at),
-          timezone = COALESCE($16, timezone),
-          recurrence_type = COALESCE($17, recurrence_type),
-          recurrence_interval = COALESCE($18, recurrence_interval),
-          recurrence_until_at = COALESCE($19, recurrence_until_at),
-          cloned_from_campaign_id = COALESCE($20, cloned_from_campaign_id),
-          sent_at = COALESCE($21, sent_at),
+          content_type = COALESCE($5, content_type),
+          channel = COALESCE($6, channel),
+          type = COALESCE($7, type),
+          title = COALESCE($8, title),
+          message = COALESCE($9, message),
+          url = COALESCE($10, url),
+          image_url = COALESCE($11, image_url),
+          icon_url = COALESCE($12, icon_url),
+          buttons = COALESCE($13::jsonb, buttons),
+          expiration_at = COALESCE($14, expiration_at),
+          status = COALESCE($15, status),
+          scheduled_at = COALESCE($16, scheduled_at),
+          timezone = COALESCE($17, timezone),
+          recurrence_type = COALESCE($18, recurrence_type),
+          recurrence_interval = COALESCE($19, recurrence_interval),
+          recurrence_until_at = COALESCE($20, recurrence_until_at),
+          cloned_from_campaign_id = COALESCE($21, cloned_from_campaign_id),
+          sent_at = COALESCE($22, sent_at),
           updated_at = NOW()
       WHERE id = $1
       RETURNING *
@@ -130,6 +133,7 @@ export class PostgresCampaignsRepository implements CampaignsRepository {
         input.segmentId !== undefined,
         input.segmentId ?? null,
         input.name ?? null,
+        input.contentType ?? null,
         input.channel ?? null,
         input.type ?? null,
         input.title ?? null,
@@ -204,6 +208,11 @@ export class PostgresCampaignsRepository implements CampaignsRepository {
       where.push(`status = $${params.length}`);
     }
 
+    if (filters.contentType) {
+      params.push(filters.contentType);
+      where.push(`content_type = $${params.length}`);
+    }
+
     if (where.length > 0) {
       query.push(`WHERE ${where.join(" AND ")}`);
     }
@@ -250,6 +259,7 @@ export class PostgresCampaignsRepository implements CampaignsRepository {
       siteId: row.site_id,
       segmentId: row.segment_id,
       name: row.name,
+      contentType: row.content_type as CampaignRecord["contentType"],
       channel: row.channel as CampaignRecord["channel"],
       type: row.type as CampaignRecord["type"],
       title: row.title,

@@ -1,5 +1,7 @@
 export type CampaignType = "instant" | "scheduled" | "recurring";
 
+export type CampaignContentType = "announcement" | "promotion" | "editorial" | "digest" | "alert";
+
 export type CampaignChannel = "web" | "mobile" | "all";
 
 export type CampaignStatus = "draft" | "scheduled" | "sending" | "sent" | "failed" | "expired";
@@ -16,6 +18,7 @@ export interface CampaignRecord {
   siteId: string;
   segmentId: string | null;
   name: string;
+  contentType: CampaignContentType;
   channel: CampaignChannel;
   type: CampaignType;
   title: string;
@@ -41,6 +44,7 @@ export interface CampaignListFilters {
   siteId?: string;
   type?: CampaignType;
   status?: CampaignStatus;
+  contentType?: CampaignContentType;
   limit: number;
   offset: number;
 }

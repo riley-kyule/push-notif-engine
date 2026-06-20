@@ -105,6 +105,9 @@ export class CampaignsService {
     if (filters.status) {
       normalized.status = filters.status;
     }
+    if (filters.contentType) {
+      normalized.contentType = filters.contentType;
+    }
 
     return this.campaignsRepository.list(normalized);
   }
@@ -124,6 +127,7 @@ export class CampaignsService {
       siteId: existing.siteId,
       segmentId: existing.segmentId,
       name: dto.name ?? `${existing.name} Copy`,
+      contentType: existing.contentType,
       channel: existing.channel,
       type: existing.type,
       title: existing.title,
@@ -230,6 +234,7 @@ export class CampaignsService {
       siteId: dto.siteId,
       segmentId: dto.segmentId ?? null,
       name: dto.name,
+      contentType: dto.contentType ?? "announcement",
       channel: dto.channel,
       type: dto.type,
       title: dto.title,
@@ -254,6 +259,7 @@ export class CampaignsService {
     return {
       ...(dto.segmentId !== undefined ? { segmentId: dto.segmentId } : {}),
       name: dto.name ?? existing.name,
+      contentType: dto.contentType ?? existing.contentType,
       channel: dto.channel ?? existing.channel,
       type: dto.type ?? existing.type,
       title: dto.title ?? existing.title,

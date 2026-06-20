@@ -78,6 +78,47 @@ test("campaigns service creates, clones, previews, and schedules campaigns", asy
   assert.equal(scheduled.scheduledAt?.toISOString(), "2026-07-02T10:00:00.000Z");
 });
 
+test("campaigns service lists campaigns with content taxonomy filters", async () => {
+  const sitesService = {
+    async getSite() {
+      return { id: "site-1" };
+    },
+  };
+  const segmentsService = {
+    async getSegment() {
+      return { id: "segment-1", siteId: "site-1" };
+    },
+  };
+  const browserPushService = {
+    async dispatch() {
+      return { jobId: "job-1", queued: true as const };
+    },
+  };
+  const repository = new InMemoryCampaignsRepository();
+  const service = new CampaignsService(
+    sitesService as never,
+    segmentsService as never,
+    browserPushService as never,
+    repository as never,
+  );
+
+  await service.createCampaign({
+    siteId: "site-1",
+    name: "Launch Campaign",
+    channel: "web",
+    type: "instant",
+    contentType: "promotion",
+    title: "Big Sale",
+    message: "Shop now",
+    url: "https://example.com",
+  });
+
+  const campaigns = await service.listCampaigns({ contentType: "promotion", limit: 20, offset: 0 });
+
+  assert.equal(campaigns.total, 1);
+  assert.equal(campaigns.items[0]?.contentType, "promotion");
+});
+
 test("campaigns service accepts a segment that belongs to the campaign's site", async () => {
   const sitesService = {
     async getSite() {
