@@ -1,12 +1,15 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 
+import { DashboardNav } from "./dashboard-nav";
+
 const navigation = [
   { href: "/", label: "Overview" },
   { href: "/sites", label: "Sites" },
   { href: "/campaigns", label: "Campaigns" },
   { href: "/campaigns/new", label: "Create Campaign" },
   { href: "/subscribers", label: "Subscribers" },
+  { href: "/workflow", label: "Workflow" },
 ];
 
 export function DashboardShell({
@@ -33,13 +36,7 @@ export function DashboardShell({
           </div>
         </div>
 
-        <nav className="nav" aria-label="Primary">
-          {navigation.map((item) => (
-            <Link key={item.href} href={item.href}>
-              <span>{item.label}</span>
-            </Link>
-          ))}
-        </nav>
+        <DashboardNav items={navigation} />
       </aside>
 
       <main className="main">
