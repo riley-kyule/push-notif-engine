@@ -34,20 +34,20 @@ export class AnalyticsService {
     return this.analyticsRepository.getOverview(days);
   }
 
-  async getCountryPerformance(days = 30) {
-    return this.analyticsRepository.getCountryPerformance(days);
+  async getCountryPerformance(days = 30, siteId?: string) {
+    return this.analyticsRepository.getCountryPerformance(days, siteId);
   }
 
-  async getSitePerformance(days = 30) {
-    return this.analyticsRepository.getSitePerformance(days);
+  async getSitePerformance(days = 30, siteId?: string) {
+    return this.analyticsRepository.getSitePerformance(days, siteId);
   }
 
-  async getTimePerformance(days = 30) {
-    return this.analyticsRepository.getTimePerformance(days);
+  async getTimePerformance(days = 30, siteId?: string) {
+    return this.analyticsRepository.getTimePerformance(days, siteId);
   }
 
-  async getContentPerformance(days = 30) {
-    return this.analyticsRepository.getContentPerformance(days);
+  async getContentPerformance(days = 30, siteId?: string) {
+    return this.analyticsRepository.getContentPerformance(days, siteId);
   }
 
   async exportReport(input: {
