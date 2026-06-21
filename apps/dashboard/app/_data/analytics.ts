@@ -4,7 +4,16 @@ import { getSiteById, getSiteList, type SiteSummary } from "../sites/sites.utils
 import { getSiteAnalytics, type SiteAnalyticsSummary } from "../../lib/site-analytics";
 import { apiJson } from "../../lib/server-api";
 
-export type AnalyticsDays = 1 | 7 | 30 | 90;
+export type AnalyticsDays = 1 | 7 | 30 | 90 | 365;
+export type AnalyticsPreset = "today" | "7d" | "30d" | "90d" | "1y" | "custom";
+export type AnalyticsCompareMode = "off" | "previous" | "custom";
+
+export interface AnalyticsDateRange {
+  startDate: string;
+  endDate: string;
+  days: number;
+  label: string;
+}
 
 export interface CountryPerformanceSummary {
   country: string;
@@ -54,9 +63,14 @@ export interface ContentPerformanceSummary {
 }
 
 export interface AnalyticsDashboardData {
-  days: AnalyticsDays;
+  days: number;
+  selectedPreset: AnalyticsPreset;
+  compareMode: AnalyticsCompareMode;
   rangeLabel: string;
+  range: AnalyticsDateRange;
+  comparisonRange: AnalyticsDateRange | null;
   overview: DashboardOverview;
+  comparisonOverview: DashboardOverview | null;
   sites: SiteSummary[];
   selectedSite: SiteSummary;
   siteAnalytics: SiteAnalyticsSummary;
@@ -73,15 +87,108 @@ const rangeLabels: Record<AnalyticsDays, string> = {
   7: "Last 7 days",
   30: "Last 30 days",
   90: "Last 90 days",
+  365: "Last 1 year",
 };
 
 function normalizeDays(value?: string): AnalyticsDays {
   const parsed = Number.parseInt(value ?? "30", 10);
-  if (parsed === 1 || parsed === 7 || parsed === 30 || parsed === 90) {
+  if (parsed === 1 || parsed === 7 || parsed === 30 || parsed === 90 || parsed === 365) {
     return parsed;
   }
 
   return 30;
+}
+
+function resolvePreset(input: { preset?: string; days: AnalyticsDays; startDate?: string; endDate?: string }): AnalyticsPreset {
+  if (input.preset === "today" || input.preset === "7d" || input.preset === "30d" || input.preset === "90d" || input.preset === "1y" || input.preset === "custom") {
+    return input.preset;
+  }
+
+  if (input.startDate || input.endDate) {
+    return "custom";
+  }
+
+  switch (input.days) {
+    case 1:
+      return "today";
+    case 7:
+      return "7d";
+    case 30:
+      return "30d";
+    case 90:
+      return "90d";
+    case 365:
+      return "1y";
+    default:
+      return "30d";
+  }
+}
+
+function parseDateInput(value?: string): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatDate(value: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(value);
+}
+
+function buildPreviousRange(range: AnalyticsDateRange): AnalyticsDateRange {
+  const currentStart = parseDateInput(range.startDate) ?? new Date();
+  const previousEnd = new Date(currentStart);
+  previousEnd.setUTCDate(previousEnd.getUTCDate() - 1);
+  const previousStart = new Date(previousEnd);
+  previousStart.setUTCDate(previousStart.getUTCDate() - (range.days - 1));
+  const label = range.days === 1 ? formatDate(previousStart) : `${formatDate(previousStart)} - ${formatDate(previousEnd)}`;
+
+  return {
+    startDate: previousStart.toISOString().slice(0, 10),
+    endDate: previousEnd.toISOString().slice(0, 10),
+    days: range.days,
+    label,
+  };
+}
+
+function buildDateRange(input: { startDate?: string; endDate?: string; days?: AnalyticsDays }, fallbackLabel: string): AnalyticsDateRange {
+  if (!input.startDate && !input.endDate) {
+    const normalizedDays = input.days ?? 30;
+    const fallbackEnd = new Date();
+    const fallbackStart = new Date(fallbackEnd);
+    fallbackStart.setUTCDate(fallbackStart.getUTCDate() - (normalizedDays - 1));
+    return {
+      startDate: fallbackStart.toISOString().slice(0, 10),
+      endDate: fallbackEnd.toISOString().slice(0, 10),
+      days: normalizedDays,
+      label: fallbackLabel,
+    };
+  }
+
+  const start = parseDateInput(input.startDate) ?? parseDateInput(input.endDate) ?? new Date();
+  const end = parseDateInput(input.endDate) ?? parseDateInput(input.startDate) ?? new Date(start);
+
+  if (start > end) {
+    const swapped = new Date(start);
+    start.setTime(end.getTime());
+    end.setTime(swapped.getTime());
+  }
+
+  const dayCount = Math.max(Math.round((end.getTime() - start.getTime()) / 86400000) + 1, 1);
+  const label = dayCount === 1 ? formatDate(start) : `${formatDate(start)} - ${formatDate(end)}`;
+  return {
+    startDate: start.toISOString().slice(0, 10),
+    endDate: end.toISOString().slice(0, 10),
+    days: dayCount,
+    label,
+  };
 }
 
 function fallbackCountryPerformance(site: SiteSummary[]): CountryPerformanceSummary[] {
@@ -167,21 +274,56 @@ function buildFallbackAnalytics(site: SiteSummary): SiteAnalyticsSummary {
 
 export async function getAnalyticsDashboardData(input: {
   days?: string;
+  preset?: string;
+  startDate?: string;
+  endDate?: string;
+  compareMode?: string;
+  compareStartDate?: string;
+  compareEndDate?: string;
   siteId?: string;
   campaignId?: string;
 }): Promise<AnalyticsDashboardData> {
   const days = normalizeDays(input.days);
+  const selectedPreset = resolvePreset({
+    days,
+    ...(input.preset ? { preset: input.preset } : {}),
+    ...(input.startDate ? { startDate: input.startDate } : {}),
+    ...(input.endDate ? { endDate: input.endDate } : {}),
+  });
+  const rangeInput = {
+    ...(input.startDate ? { startDate: input.startDate } : {}),
+    ...(input.endDate ? { endDate: input.endDate } : {}),
+    days,
+  };
+  const range = buildDateRange(rangeInput, rangeLabels[days]);
+  const compareMode: AnalyticsCompareMode =
+    input.compareMode === "previous" || input.compareMode === "custom" ? input.compareMode : "off";
+  const comparisonRange =
+    compareMode === "previous"
+      ? buildPreviousRange(range)
+      : compareMode === "custom" && (input.compareStartDate || input.compareEndDate)
+        ? buildDateRange(
+            {
+              ...(input.compareStartDate ? { startDate: input.compareStartDate } : {}),
+              ...(input.compareEndDate ? { endDate: input.compareEndDate } : {}),
+              days,
+            },
+            "Comparison period",
+          )
+        : null;
   const [overview, sitesPayload, campaignsPayload] = await Promise.all([
-    getDashboardOverview(days),
+    getDashboardOverview(range.days),
     getSiteList(),
     getCampaignList(),
   ]);
+  const comparisonOverview = comparisonRange ? await getDashboardOverview(comparisonRange.days) : null;
 
   const sites = sitesPayload.items;
   const selectedSite = ((input.siteId ? await getSiteById(input.siteId) : null) ?? sites[0] ?? null);
   if (!selectedSite) {
     throw new Error("No sites available for analytics reporting.");
   }
+  const siteScopeId = selectedSite.id === "site-3" ? undefined : selectedSite.id;
 
   const selectedCampaign =
     (input.campaignId ? await getCampaignById(input.campaignId) : null) ??
@@ -189,19 +331,33 @@ export async function getAnalyticsDashboardData(input: {
 
   const siteAnalytics = await getSiteAnalytics(selectedSite);
   const [countryPerformance, sitePerformance, timePerformance] = await Promise.all([
-    getAnalyticsApiList<CountryPerformanceSummary>("/analytics/countries?days=" + days, fallbackCountryPerformance(sites)),
-    getAnalyticsApiList<SitePerformanceSummary>("/analytics/sites-performance?days=" + days, fallbackSitePerformance(sites)),
-    getAnalyticsApiList<TimePerformanceSummary>("/analytics/time-performance?days=" + days, fallbackTimePerformance()),
+    getAnalyticsApiList<CountryPerformanceSummary>(
+      `/analytics/countries?days=${days}${siteScopeId ? `&siteId=${encodeURIComponent(siteScopeId)}` : ""}`,
+      fallbackCountryPerformance(sites),
+    ),
+    getAnalyticsApiList<SitePerformanceSummary>(
+      `/analytics/sites-performance?days=${days}${siteScopeId ? `&siteId=${encodeURIComponent(siteScopeId)}` : ""}`,
+      fallbackSitePerformance(sites),
+    ),
+    getAnalyticsApiList<TimePerformanceSummary>(
+      `/analytics/time-performance?days=${days}${siteScopeId ? `&siteId=${encodeURIComponent(siteScopeId)}` : ""}`,
+      fallbackTimePerformance(),
+    ),
   ]);
   const contentPerformance = await getAnalyticsApiList<ContentPerformanceSummary>(
-    "/analytics/content-performance?days=" + days,
+    `/analytics/content-performance?days=${days}${siteScopeId ? `&siteId=${encodeURIComponent(siteScopeId)}` : ""}`,
     fallbackContentPerformance(),
   );
 
   return {
-    days,
-    rangeLabel: rangeLabels[days],
+    days: range.days,
+    selectedPreset,
+    compareMode,
+    rangeLabel: range.label,
+    range,
+    comparisonRange,
     overview,
+    comparisonOverview,
     sites,
     selectedSite,
     siteAnalytics,
