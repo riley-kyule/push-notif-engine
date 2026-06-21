@@ -288,7 +288,7 @@ export class AnalyticsRepository {
     };
   }
 
-  async getCountryPerformance(days: number): Promise<
+  async getCountryPerformance(days: number, siteId?: string): Promise<
     Array<{
       country: string;
       totalSubscribers: number;
@@ -315,10 +315,11 @@ export class AnalyticsRepository {
       LEFT JOIN push_delivery_events pde
         ON pde.subscriber_id = s.id
        AND pde.created_at >= NOW() - ($1 || ' days')::interval
+      ${siteId ? "WHERE s.site_id = $2" : ""}
       GROUP BY COALESCE(NULLIF(s.country, ''), 'Unknown')
       ORDER BY total_delivered DESC, total_subscribers DESC
       `,
-      [days],
+      siteId ? [days, siteId] : [days],
     );
 
     return rows.map((row) => {
@@ -342,7 +343,7 @@ export class AnalyticsRepository {
     });
   }
 
-  async getSitePerformance(days: number): Promise<
+  async getSitePerformance(days: number, siteId?: string): Promise<
     Array<{
       siteId: string;
       siteName: string;
@@ -361,6 +362,7 @@ export class AnalyticsRepository {
       WITH subscriber_totals AS (
         SELECT site_id, COUNT(*)::int AS total_subscribers
         FROM subscribers
+        ${siteId ? "WHERE site_id = $2" : ""}
         GROUP BY site_id
       ),
       delivery_totals AS (
@@ -373,6 +375,7 @@ export class AnalyticsRepository {
           COUNT(*) FILTER (WHERE clicked_at IS NOT NULL) AS total_clicked
         FROM push_delivery_events
         WHERE created_at >= NOW() - ($1 || ' days')::interval
+        ${siteId ? "AND site_id = $2" : ""}
         GROUP BY site_id
       )
       SELECT
@@ -387,9 +390,10 @@ export class AnalyticsRepository {
       FROM sites s
       LEFT JOIN subscriber_totals st ON st.site_id = s.id
       LEFT JOIN delivery_totals dt ON dt.site_id = s.id
+      ${siteId ? "WHERE s.id = $2" : ""}
       ORDER BY total_delivered DESC, total_subscribers DESC
       `,
-      [days],
+      siteId ? [days, siteId] : [days],
     );
 
     return rows.map((row) => {
@@ -416,7 +420,7 @@ export class AnalyticsRepository {
     });
   }
 
-  async getTimePerformance(days: number): Promise<
+  async getTimePerformance(days: number, siteId?: string): Promise<
     Array<{
       hour: number;
       totalDelivered: number;
@@ -437,10 +441,11 @@ export class AnalyticsRepository {
         COUNT(*) FILTER (WHERE clicked_at IS NOT NULL) AS total_clicked
       FROM push_delivery_events
       WHERE created_at >= NOW() - ($1 || ' days')::interval
+      ${siteId ? "AND site_id = $2" : ""}
       GROUP BY EXTRACT(HOUR FROM created_at AT TIME ZONE 'UTC')
       ORDER BY hour ASC
       `,
-      [days],
+      siteId ? [days, siteId] : [days],
     );
 
     return rows.map((row) => {
@@ -463,7 +468,7 @@ export class AnalyticsRepository {
     });
   }
 
-  async getContentPerformance(days: number): Promise<
+  async getContentPerformance(days: number, siteId?: string): Promise<
     Array<{
       contentType: string;
       totalCampaigns: number;
@@ -490,10 +495,11 @@ export class AnalyticsRepository {
       LEFT JOIN push_delivery_events pde
         ON pde.campaign_id = c.id
        AND pde.created_at >= NOW() - ($1 || ' days')::interval
+      ${siteId ? "WHERE c.site_id = $2" : ""}
       GROUP BY COALESCE(NULLIF(c.content_type, ''), 'announcement')
       ORDER BY total_delivered DESC, total_campaigns DESC
       `,
-      [days],
+      siteId ? [days, siteId] : [days],
     );
 
     return rows.map((row) => {
