@@ -48,26 +48,26 @@ export class AnalyticsController {
   }
 
   @Get("countries")
-  async getCountryPerformance(@Query("days") days?: string): Promise<{ success: true; data: unknown }> {
-    const performance = await this.analyticsService.getCountryPerformance(days ? parseInt(days, 10) : 30);
+  async getCountryPerformance(@Query("days") days?: string, @Query("siteId") siteId?: string): Promise<{ success: true; data: unknown }> {
+    const performance = await this.analyticsService.getCountryPerformance(days ? parseInt(days, 10) : 30, siteId);
     return { success: true, data: performance };
   }
 
   @Get("sites-performance")
-  async getSitePerformance(@Query("days") days?: string): Promise<{ success: true; data: unknown }> {
-    const performance = await this.analyticsService.getSitePerformance(days ? parseInt(days, 10) : 30);
+  async getSitePerformance(@Query("days") days?: string, @Query("siteId") siteId?: string): Promise<{ success: true; data: unknown }> {
+    const performance = await this.analyticsService.getSitePerformance(days ? parseInt(days, 10) : 30, siteId);
     return { success: true, data: performance };
   }
 
   @Get("time-performance")
-  async getTimePerformance(@Query("days") days?: string): Promise<{ success: true; data: unknown }> {
-    const performance = await this.analyticsService.getTimePerformance(days ? parseInt(days, 10) : 30);
+  async getTimePerformance(@Query("days") days?: string, @Query("siteId") siteId?: string): Promise<{ success: true; data: unknown }> {
+    const performance = await this.analyticsService.getTimePerformance(days ? parseInt(days, 10) : 30, siteId);
     return { success: true, data: performance };
   }
 
   @Get("content-performance")
-  async getContentPerformance(@Query("days") days?: string): Promise<{ success: true; data: unknown }> {
-    const performance = await this.analyticsService.getContentPerformance(days ? parseInt(days, 10) : 30);
+  async getContentPerformance(@Query("days") days?: string, @Query("siteId") siteId?: string): Promise<{ success: true; data: unknown }> {
+    const performance = await this.analyticsService.getContentPerformance(days ? parseInt(days, 10) : 30, siteId);
     return { success: true, data: performance };
   }
 
