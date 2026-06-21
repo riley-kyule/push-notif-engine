@@ -55,10 +55,10 @@ test("analytics service proxies overview and reporting data", async () => {
   const { service, calls } = createService();
 
   await service.getOverview(7);
-  await service.getCountryPerformance(7);
-  await service.getSitePerformance(7);
-  await service.getTimePerformance(7);
-  await service.getContentPerformance(7);
+  await service.getCountryPerformance(7, "site-1");
+  await service.getSitePerformance(7, "site-1");
+  await service.getTimePerformance(7, "site-1");
+  await service.getContentPerformance(7, "site-1");
   await service.exportReport({ report: "overview", days: 7 });
 
   assert.deepEqual(calls.map((call) => call.method), [
@@ -69,6 +69,11 @@ test("analytics service proxies overview and reporting data", async () => {
     "getContentPerformance",
     "getOverview",
   ]);
+
+  assert.deepEqual(calls[1]?.args, [7, "site-1"]);
+  assert.deepEqual(calls[2]?.args, [7, "site-1"]);
+  assert.deepEqual(calls[3]?.args, [7, "site-1"]);
+  assert.deepEqual(calls[4]?.args, [7, "site-1"]);
 });
 
 test("analytics service exports csv reports", async () => {
