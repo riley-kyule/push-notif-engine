@@ -97,9 +97,9 @@ test("analytics controller returns country, site, and time reports", async () =>
   assert.equal(sites.success, true);
   assert.equal(time.success, true);
   assert.deepEqual(calls, [
-    { method: "getCountryPerformance", args: [21] },
-    { method: "getSitePerformance", args: [30] },
-    { method: "getTimePerformance", args: [7] },
+    { method: "getCountryPerformance", args: [21, undefined] },
+    { method: "getSitePerformance", args: [30, undefined] },
+    { method: "getTimePerformance", args: [7, undefined] },
   ]);
 });
 
@@ -109,7 +109,7 @@ test("analytics controller returns content performance", async () => {
   const content = await controller.getContentPerformance("14");
 
   assert.equal(content.success, true);
-  assert.deepEqual(calls, [{ method: "getContentPerformance", args: [14] }]);
+  assert.deepEqual(calls, [{ method: "getContentPerformance", args: [14, undefined] }]);
 });
 
 test("analytics controller exports csv reports", async () => {
