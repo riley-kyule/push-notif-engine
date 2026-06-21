@@ -2,16 +2,42 @@ import Link from "next/link";
 
 import { DashboardShell } from "../_components/dashboard-shell";
 import { getAnalyticsDashboardData } from "../_data/analytics";
+import { AnalyticsRangePicker } from "./analytics-range-picker";
+import { AnalyticsPerformanceExplorer, type ExplorerSection } from "./analytics-performance-explorer";
 
-const rangeOptions = [
-  { days: 1, label: "Today" },
-  { days: 7, label: "7 days" },
-  { days: 30, label: "30 days" },
-  { days: 90, label: "90 days" },
-] as const;
-
-function buildQuery(params: { days: number; siteId?: string; campaignId?: string }): string {
-  const search = new URLSearchParams({ days: String(params.days) });
+function buildQuery(params: {
+  preset: string;
+  days: number;
+  section?: string;
+  startDate?: string;
+  endDate?: string;
+  compareMode?: string;
+  compareStartDate?: string;
+  compareEndDate?: string;
+  siteId?: string;
+  campaignId?: string;
+}): string {
+  const search = new URLSearchParams();
+  search.set("preset", params.preset);
+  search.set("days", String(params.days));
+  if (params.section) {
+    search.set("section", params.section);
+  }
+  if (params.startDate) {
+    search.set("startDate", params.startDate);
+  }
+  if (params.endDate) {
+    search.set("endDate", params.endDate);
+  }
+  if (params.compareMode) {
+    search.set("compareMode", params.compareMode);
+  }
+  if (params.compareStartDate) {
+    search.set("compareStartDate", params.compareStartDate);
+  }
+  if (params.compareEndDate) {
+    search.set("compareEndDate", params.compareEndDate);
+  }
   if (params.siteId) {
     search.set("siteId", params.siteId);
   }
@@ -40,21 +66,196 @@ function formatPercent(value: number): string {
 export default async function AnalyticsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ days?: string; siteId?: string; campaignId?: string }>;
+  searchParams: Promise<{ days?: string; preset?: string; section?: string; startDate?: string; endDate?: string; compareMode?: string; compareStartDate?: string; compareEndDate?: string; siteId?: string; campaignId?: string }>;
 }) {
   const query = await searchParams;
   const dashboard = await getAnalyticsDashboardData(query);
+  const activeSection = typeof query.section === "string" ? query.section : "site";
+  const overviewCards = [
+    {
+      label: "Total subscribers",
+      value: formatNumber(dashboard.overview.totalSubscribers),
+      detail: `Across ${dashboard.overview.totalSites} sites`,
+    },
+    {
+      label: "Delivered",
+      value: formatNumber(dashboard.overview.totalDelivered),
+      detail: "In the selected reporting window",
+    },
+    {
+      label: "Clicks",
+      value: formatNumber(dashboard.overview.totalClicked),
+      detail: `CTR ${formatPercent(dashboard.overview.clickThroughRate)}`,
+    },
+    {
+      label: "Failures",
+      value: formatNumber(dashboard.overview.totalFailed),
+      detail: "Queue and delivery exceptions",
+    },
+  ];
   const currentFilters = {
+    preset: dashboard.selectedPreset,
     days: dashboard.days,
+    ...(dashboard.selectedPreset === "custom" && dashboard.range.days > 1 ? { endDate: dashboard.range.endDate } : {}),
+    ...(dashboard.selectedPreset === "custom" ? { startDate: dashboard.range.startDate } : {}),
+    compareMode: dashboard.compareMode,
+    ...(dashboard.compareMode === "custom" && dashboard.comparisonRange
+      ? {
+          compareStartDate: dashboard.comparisonRange.startDate,
+          compareEndDate: dashboard.comparisonRange.endDate,
+        }
+      : {}),
     siteId: dashboard.selectedSite.id,
     ...(dashboard.selectedCampaign ? { campaignId: dashboard.selectedCampaign.id } : {}),
+    section: activeSection,
   };
 
-  const maxGrowth = Math.max(...dashboard.siteAnalytics.last30Days.subscriberGrowth.map((item) => item.newSubscribers), 1);
-  const maxCountrySubscribers = Math.max(...dashboard.countryPerformance.map((item) => item.totalSubscribers), 1);
-  const maxSiteSubscribers = Math.max(...dashboard.sitePerformance.map((item) => item.totalSubscribers), 1);
-  const maxHourVolume = Math.max(...dashboard.timePerformance.map((item) => item.totalDelivered + item.totalSent), 1);
-  const maxContentVolume = Math.max(...dashboard.contentPerformance.map((item) => item.totalDelivered + item.totalSent), 1);
+  const buildSeries = <T,>(
+    data: T[],
+    getLabel: (item: T) => string,
+    definitions: { key: string; label: string; color: string; getValue: (item: T) => number; format?: "number" | "percent" }[],
+  ) =>
+    definitions.map((definition) => ({
+      key: definition.key,
+      label: definition.label,
+      color: definition.color,
+      format: definition.format ?? "number",
+      points: data.map((item) => ({ label: getLabel(item), value: definition.getValue(item) })),
+    }));
+
+  const performanceSections: ExplorerSection[] = [
+    {
+      key: "site",
+      label: "Site",
+      eyebrow: "Site performance",
+      title: dashboard.selectedSite.name,
+      badge: dashboard.selectedSite.status,
+      metrics: buildSeries(dashboard.sitePerformance, (item) => item.siteName, [
+        { key: "subscribers", label: "Subscribers", color: "#ea580c", getValue: (item) => item.totalSubscribers, format: "number" },
+        { key: "delivery", label: "Delivery rate", color: "#16a34a", getValue: (item) => item.deliveryRate, format: "percent" },
+        { key: "ctr", label: "CTR", color: "#0ea5e9", getValue: (item) => item.clickThroughRate, format: "percent" },
+      ]),
+      summary: [
+        { label: "Total subscribers", value: formatNumber(dashboard.siteAnalytics.totalSubscribers) },
+        { label: "Active subscribers", value: formatNumber(dashboard.siteAnalytics.activeSubscribers) },
+        {
+          label: "Delivery rate",
+          value:
+            dashboard.siteAnalytics.last30Days.totalDelivered > 0
+              ? formatPercent(
+                  Math.round(
+                    (dashboard.siteAnalytics.last30Days.totalDelivered / Math.max(dashboard.siteAnalytics.last30Days.totalSent, 1)) * 10000,
+                  ) / 100,
+                )
+              : "0%",
+        },
+      ],
+      selector: {
+        action: "/analytics",
+        label: "Site",
+        submitLabel: "View site",
+        selectedValue: dashboard.selectedSite.id,
+        hiddenInputs: [
+          { name: "preset", value: dashboard.selectedPreset },
+          { name: "days", value: String(dashboard.days) },
+          ...(dashboard.selectedPreset === "custom" && dashboard.range.days > 1 ? [{ name: "endDate", value: dashboard.range.endDate }] : []),
+          ...(dashboard.selectedPreset === "custom" ? [{ name: "startDate", value: dashboard.range.startDate }] : []),
+          { name: "compareMode", value: dashboard.compareMode },
+          ...(dashboard.compareMode === "custom" && dashboard.comparisonRange
+            ? [
+                { name: "compareStartDate", value: dashboard.comparisonRange.startDate },
+                { name: "compareEndDate", value: dashboard.comparisonRange.endDate },
+              ]
+            : []),
+          { name: "campaignId", value: dashboard.selectedCampaign?.id ?? "" },
+        ],
+        options: dashboard.sites.map((site) => ({
+          value: site.id,
+          label: `${site.name} - ${site.country}`,
+        })),
+      },
+      rowColumns: ["Site", "Subscribers", "Delivery rate", "CTR"],
+      rows: dashboard.sitePerformance.map((item) => ({
+        primary: item.siteName,
+        secondary: item.siteId,
+        metrics: [
+          { label: "Subscribers", value: formatNumber(item.totalSubscribers) },
+          { label: "Delivery rate", value: formatPercent(item.deliveryRate) },
+          { label: "CTR", value: formatPercent(item.clickThroughRate) },
+        ],
+      })),
+    },
+    {
+      key: "country",
+      label: "Country",
+      eyebrow: "Country performance",
+      title: "Top regions by delivery volume",
+      badge: "Live",
+      metrics: buildSeries(dashboard.countryPerformance, (item) => item.country, [
+        { key: "subscribers", label: "Subscribers", color: "#ea580c", getValue: (item) => item.totalSubscribers, format: "number" },
+        { key: "delivery", label: "Delivery rate", color: "#16a34a", getValue: (item) => item.deliveryRate, format: "percent" },
+        { key: "ctr", label: "CTR", color: "#0ea5e9", getValue: (item) => item.clickThroughRate, format: "percent" },
+      ]),
+      rowColumns: ["Country", "Subscribers", "Delivery rate", "CTR"],
+      rows: dashboard.countryPerformance.map((item) => ({
+        primary: item.country,
+        secondary: `${formatNumber(item.totalSubscribers)} subscribers`,
+        metrics: [
+          { label: "Subscribers", value: formatNumber(item.totalSubscribers) },
+          { label: "Delivery rate", value: formatPercent(item.deliveryRate) },
+          { label: "CTR", value: formatPercent(item.clickThroughRate) },
+        ],
+      })),
+    },
+    {
+      key: "time",
+      label: "Time",
+      eyebrow: "Time performance",
+      title: "Delivery volume by hour",
+      badge: "UTC",
+      metrics: buildSeries(dashboard.timePerformance, (item) => `${String(item.hour).padStart(2, "0")}:00`, [
+        { key: "delivered", label: "Delivered", color: "#ea580c", getValue: (item) => item.totalDelivered, format: "number" },
+        { key: "sent", label: "Sent", color: "#0ea5e9", getValue: (item) => item.totalSent, format: "number" },
+        { key: "failed", label: "Failed", color: "#dc2626", getValue: (item) => item.totalFailed, format: "number" },
+        { key: "clicked", label: "Clicked", color: "#16a34a", getValue: (item) => item.totalClicked, format: "number" },
+        { key: "delivery-rate", label: "Delivery rate", color: "#16a34a", getValue: (item) => item.deliveryRate, format: "percent" },
+        { key: "ctr", label: "CTR", color: "#0ea5e9", getValue: (item) => item.clickThroughRate, format: "percent" },
+      ]),
+      rowColumns: ["Hour", "Sent", "Delivered", "CTR"],
+      rows: dashboard.timePerformance.map((item) => ({
+        primary: `${String(item.hour).padStart(2, "0")}:00`,
+        secondary: `${item.totalFailed} failed`,
+        metrics: [
+          { label: "Sent", value: formatNumber(item.totalSent) },
+          { label: "Delivered", value: formatNumber(item.totalDelivered) },
+          { label: "CTR", value: formatPercent(item.clickThroughRate) },
+        ],
+      })),
+    },
+    {
+      key: "content",
+      label: "Content",
+      eyebrow: "Content performance",
+      title: "Content performance by campaign type",
+      badge: "Campaign types",
+      metrics: buildSeries(dashboard.contentPerformance, (item) => item.contentType, [
+        { key: "campaigns", label: "Campaigns", color: "#ea580c", getValue: (item) => item.totalCampaigns, format: "number" },
+        { key: "delivered", label: "Delivered", color: "#0ea5e9", getValue: (item) => item.totalDelivered, format: "number" },
+        { key: "delivery", label: "Delivery rate", color: "#16a34a", getValue: (item) => item.deliveryRate, format: "percent" },
+        { key: "ctr", label: "CTR", color: "#0ea5e9", getValue: (item) => item.clickThroughRate, format: "percent" },
+      ]),
+      rowColumns: ["Type", "Campaigns", "Delivery rate", "CTR"],
+      rows: dashboard.contentPerformance.map((item) => ({
+        primary: item.contentType,
+        secondary: `${formatNumber(item.totalCampaigns)} campaigns`,
+        metrics: [
+          { label: "Campaigns", value: formatNumber(item.totalCampaigns) },
+          { label: "Delivery rate", value: formatPercent(item.deliveryRate) },
+          { label: "CTR", value: formatPercent(item.clickThroughRate) },
+        ],
+      })),
+    },
+  ];
 
   return (
     <DashboardShell
@@ -67,7 +268,7 @@ export default async function AnalyticsPage({
             Export overview CSV
           </Link>
           <Link className="button secondary" href={buildExportUrl({ days: dashboard.days, report: "content-performance" })}>
-            Export taxonomy CSV
+            Export content CSV
           </Link>
           <Link className="button secondary" href="/campaigns/new">
             New campaign
@@ -77,313 +278,164 @@ export default async function AnalyticsPage({
           </Link>
         </>
       }
-    >
-      <section className="card analytics-hero">
-        <div>
-          <p className="eyebrow" style={{ marginBottom: 10 }}>
-            Phase 7 foundation
-          </p>
-          <h2>Turn live delivery events into decisions.</h2>
-          <p>
-            This reporting surface is driven by delivery events, subscriber growth, and campaign outcomes. The current
-            window is <strong>{dashboard.rangeLabel}</strong>, and site scope plus campaign selection stay visible so the
-            numbers remain easy to trust.
-          </p>
-        </div>
-
-        <div className="analytics-range">
-          {rangeOptions.map((option) => (
-            <Link
-              key={option.days}
-              className={`analytics-range-chip ${dashboard.days === option.days ? "active" : ""}`}
-              href={buildQuery({ ...currentFilters, days: option.days })}
-            >
-              {option.label}
-            </Link>
+      >
+      <div className="analytics-page">
+        <section className="analytics-summary-grid">
+          {overviewCards.map((item) => (
+            <article key={item.label} className="card analytics-summary-card">
+              <p className="analytics-summary-label">{item.label}</p>
+              <p className="analytics-summary-value">{item.value}</p>
+              <p className="analytics-summary-detail">{item.detail}</p>
+            </article>
           ))}
-        </div>
-      </section>
-
-      <section className="grid cards-4" style={{ marginTop: 18 }}>
-        <article className="card">
-          <h3>Total subscribers</h3>
-          <p className="stat">{formatNumber(dashboard.overview.totalSubscribers)}</p>
-          <p className="subtle">Across {dashboard.overview.totalSites} sites</p>
-        </article>
-        <article className="card">
-          <h3>Delivered</h3>
-          <p className="stat">{formatNumber(dashboard.overview.totalDelivered)}</p>
-          <p className="subtle">Within the selected window</p>
-        </article>
-        <article className="card">
-          <h3>Clicks</h3>
-          <p className="stat">{formatNumber(dashboard.overview.totalClicked)}</p>
-          <p className="subtle">CTR {formatPercent(dashboard.overview.clickThroughRate)}</p>
-        </article>
-        <article className="card">
-          <h3>Failed</h3>
-          <p className="stat">{formatNumber(dashboard.overview.totalFailed)}</p>
-          <p className="subtle">Queue and delivery exceptions</p>
-        </article>
-      </section>
-
-      <section className="analytics-layout" style={{ marginTop: 18 }}>
-        <section className="card analytics-panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Site performance</p>
-              <h3>{dashboard.selectedSite.name}</h3>
-            </div>
-            <span className="badge active">{dashboard.selectedSite.status}</span>
-          </div>
-
-          <form className="analytics-selectors" action="/analytics" method="get">
-            <input type="hidden" name="days" value={String(dashboard.days)} />
-            <input type="hidden" name="campaignId" value={dashboard.selectedCampaign?.id ?? ""} />
-            <div className="field">
-              <label htmlFor="analytics-site">Site</label>
-              <select id="analytics-site" name="siteId" className="select" defaultValue={dashboard.selectedSite.id}>
-                {dashboard.sites.map((site) => (
-                  <option key={site.id} value={site.id}>
-                    {site.name} - {site.country}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button className="button secondary" type="submit">
-              View site
-            </button>
-          </form>
-
-          <div className="grid cards-3" style={{ marginTop: 16 }}>
-            <article className="card">
-              <p className="subtle">Total subscribers</p>
-              <p className="stat">{formatNumber(dashboard.siteAnalytics.totalSubscribers)}</p>
-            </article>
-            <article className="card">
-              <p className="subtle">Active subscribers</p>
-              <p className="stat">{formatNumber(dashboard.siteAnalytics.activeSubscribers)}</p>
-            </article>
-            <article className="card">
-              <p className="subtle">Delivery rate</p>
-              <p className="stat">
-                {dashboard.siteAnalytics.last30Days.totalDelivered > 0
-                  ? formatPercent(
-                      Math.round(
-                        (dashboard.siteAnalytics.last30Days.totalDelivered /
-                          Math.max(dashboard.siteAnalytics.last30Days.totalSent, 1)) *
-                          10000,
-                      ) / 100,
-                    )
-                  : "0%"}
-              </p>
-            </article>
-          </div>
-
-          <div className="analytics-growth">
-            {dashboard.siteAnalytics.last30Days.subscriberGrowth.map((item) => (
-              <div key={item.date} className="analytics-growth-row">
-                <span className="subtle">{item.date}</span>
-                <div className="analytics-growth-track">
-                  <div className="analytics-growth-fill" style={{ width: `${Math.max((item.newSubscribers / maxGrowth) * 100, 8)}%` }} />
-                </div>
-                <strong>{formatNumber(item.newSubscribers)}</strong>
-              </div>
-            ))}
-          </div>
         </section>
 
-        <aside className="analytics-sidebar">
-          <section className="card analytics-panel">
+        <AnalyticsPerformanceExplorer
+          sections={performanceSections}
+          initialSectionKey={activeSection}
+          controls={
+            <AnalyticsRangePicker
+              selectedPreset={dashboard.selectedPreset}
+              compareMode={dashboard.compareMode}
+              range={dashboard.range}
+              comparisonRange={dashboard.comparisonRange}
+              siteId={dashboard.selectedSite.id}
+              campaignId={dashboard.selectedCampaign?.id ?? null}
+              compact
+            />
+          }
+        />
+
+        {dashboard.comparisonOverview && dashboard.comparisonRange ? (
+          <section className="card analytics-comparison-card">
             <div className="panel-heading">
               <div>
-                <p className="eyebrow">Campaign performance</p>
-                <h3>{dashboard.selectedCampaign?.name ?? "No campaign selected"}</h3>
+                <p className="eyebrow">Range comparison</p>
+                <h3>
+                  {dashboard.rangeLabel} vs {dashboard.comparisonRange.label}
+                </h3>
               </div>
-              <span className={`badge ${dashboard.selectedCampaign?.status ?? "draft"}`}>{dashboard.selectedCampaign?.status ?? "draft"}</span>
+              <span className="badge active">Side by side</span>
             </div>
 
-            <form className="analytics-selectors" action="/analytics" method="get">
-              <input type="hidden" name="days" value={String(dashboard.days)} />
-              <input type="hidden" name="siteId" value={dashboard.selectedSite.id} />
-              <div className="field">
-                <label htmlFor="analytics-campaign">Campaign</label>
-                <select id="analytics-campaign" name="campaignId" className="select" defaultValue={dashboard.selectedCampaign?.id ?? ""}>
-                  {dashboard.campaigns.map((campaign) => (
-                    <option key={campaign.id} value={campaign.id}>
-                      {campaign.name} - {campaign.status}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <button className="button secondary" type="submit">
-                View campaign
-              </button>
-            </form>
-
-            {dashboard.selectedCampaign ? (
-              <div className="analytics-campaign-card">
-                <p className="subtle">{dashboard.selectedCampaign.site}</p>
-                <p>{dashboard.selectedCampaign.message}</p>
-                <div className="grid cards-2 analytics-mini-grid">
-                  <article className="card">
-                    <p className="subtle">Sent</p>
-                    <p className="stat">{dashboard.selectedCampaign.metrics.sent}</p>
-                  </article>
-                  <article className="card">
-                    <p className="subtle">Delivered</p>
-                    <p className="stat">{dashboard.selectedCampaign.metrics.delivered}</p>
-                  </article>
-                  <article className="card">
-                    <p className="subtle">Clicks</p>
-                    <p className="stat">{dashboard.selectedCampaign.metrics.clicks}</p>
-                  </article>
-                  <article className="card">
-                    <p className="subtle">CTR</p>
-                    <p className="stat">{dashboard.selectedCampaign.metrics.ctr}</p>
-                  </article>
-                </div>
-              </div>
-            ) : null}
-          </section>
-
-          <section className="card analytics-panel">
-            <p className="eyebrow">Controlled taxonomy</p>
-            <h3>UTM defaults stay consistent.</h3>
-            <p className="subtle">
-              Campaign content types should seed a default UTM template so reporting stays comparable across sites.
-              Overrides can remain controlled at the campaign level.
-            </p>
-            <div className="taxonomy-list">
-              <span className="badge sent">Content taxonomy</span>
-              <span className="badge scheduled">UTM defaults</span>
-              <span className="badge active">Export ready</span>
+            <div className="analytics-comparison-grid">
+              <article className="analytics-comparison-block">
+                <p className="subtle">Selected range</p>
+                <strong>{dashboard.rangeLabel}</strong>
+                <dl className="analytics-comparison-metrics">
+                  <div>
+                    <dt>Subscribers</dt>
+                    <dd>{formatNumber(dashboard.overview.totalSubscribers)}</dd>
+                  </div>
+                  <div>
+                    <dt>Delivered</dt>
+                    <dd>{formatNumber(dashboard.overview.totalDelivered)}</dd>
+                  </div>
+                  <div>
+                    <dt>Clicks</dt>
+                    <dd>{formatNumber(dashboard.overview.totalClicked)}</dd>
+                  </div>
+                  <div>
+                    <dt>CTR</dt>
+                    <dd>{formatPercent(dashboard.overview.clickThroughRate)}</dd>
+                  </div>
+                </dl>
+              </article>
+              <article className="analytics-comparison-block">
+                <p className="subtle">Comparison range</p>
+                <strong>{dashboard.comparisonRange.label}</strong>
+                <dl className="analytics-comparison-metrics">
+                  <div>
+                    <dt>Subscribers</dt>
+                    <dd>{formatNumber(dashboard.comparisonOverview.totalSubscribers)}</dd>
+                  </div>
+                  <div>
+                    <dt>Delivered</dt>
+                    <dd>{formatNumber(dashboard.comparisonOverview.totalDelivered)}</dd>
+                  </div>
+                  <div>
+                    <dt>Clicks</dt>
+                    <dd>{formatNumber(dashboard.comparisonOverview.totalClicked)}</dd>
+                  </div>
+                  <div>
+                    <dt>CTR</dt>
+                    <dd>{formatPercent(dashboard.comparisonOverview.clickThroughRate)}</dd>
+                  </div>
+                </dl>
+              </article>
             </div>
           </section>
-        </aside>
-      </section>
+        ) : null}
 
-      <section className="grid cards-2" style={{ marginTop: 18 }}>
-        <section className="card analytics-panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Country performance</p>
-              <h3>Top regions by delivery volume</h3>
-            </div>
-            <span className="badge sent">Live</span>
-          </div>
-
-          <div className="analytics-list">
-            {dashboard.countryPerformance.map((item) => (
-              <article key={item.country} className="analytics-list-row">
-                <div className="analytics-list-labels">
-                  <strong>{item.country}</strong>
-                  <span className="subtle">{formatNumber(item.totalSubscribers)} subscribers</span>
+        <section className="analytics-report-grid">
+          <aside className="analytics-sidebar">
+            <section className="card analytics-panel">
+              <div className="panel-heading">
+                <div>
+                  <p className="eyebrow">Campaign performance</p>
+                  <h3>{dashboard.selectedCampaign?.name ?? "No campaign selected"}</h3>
                 </div>
-                <div className="analytics-list-track">
-                  <div className="analytics-list-fill" style={{ width: `${Math.max((item.totalSubscribers / maxCountrySubscribers) * 100, 8)}%` }} />
-                </div>
-                <div className="analytics-list-metrics">
-                  <strong>{formatPercent(item.deliveryRate)} delivery</strong>
-                  <span className="subtle">CTR {formatPercent(item.clickThroughRate)}</span>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="card analytics-panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Time performance</p>
-              <h3>Delivery volume by hour</h3>
-            </div>
-            <span className="badge active">UTC</span>
-          </div>
-
-          <div className="analytics-list">
-            {dashboard.timePerformance.slice(0, 12).map((item) => {
-              const totalVolume = item.totalDelivered + item.totalSent;
-              return (
-                <article key={item.hour} className="analytics-list-row">
-                  <div className="analytics-list-labels">
-                    <strong>{String(item.hour).padStart(2, "0")}:00</strong>
-                    <span className="subtle">{formatNumber(totalVolume)} events</span>
-                  </div>
-                  <div className="analytics-list-track">
-                    <div className="analytics-list-fill" style={{ width: `${Math.max((totalVolume / maxHourVolume) * 100, 8)}%` }} />
-                  </div>
-                  <div className="analytics-list-metrics">
-                    <strong>{formatPercent(item.deliveryRate)} delivery</strong>
-                    <span className="subtle">CTR {formatPercent(item.clickThroughRate)}</span>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </section>
-      </section>
-
-      <section className="card analytics-panel" style={{ marginTop: 18 }}>
-        <div className="panel-heading">
-          <div>
-            <p className="eyebrow">Site performance</p>
-            <h3>Cross-site delivery comparison</h3>
-          </div>
-          <span className="badge scheduled">{dashboard.sitePerformance.length} sites</span>
-        </div>
-
-        <div className="analytics-table">
-          <div className="analytics-table-head">
-            <span>Site</span>
-            <span>Subscribers</span>
-            <span>Delivery rate</span>
-            <span>CTR</span>
-          </div>
-          {dashboard.sitePerformance.map((item) => (
-            <div key={item.siteId} className="analytics-table-row">
-              <div>
-                <strong>{item.siteName}</strong>
-                <p className="subtle">{item.siteId}</p>
+                <span className={`badge ${dashboard.selectedCampaign?.status ?? "draft"}`}>{dashboard.selectedCampaign?.status ?? "draft"}</span>
               </div>
-              <span>{formatNumber(item.totalSubscribers)}</span>
-              <span>{formatPercent(item.deliveryRate)}</span>
-              <span>{formatPercent(item.clickThroughRate)}</span>
-            </div>
-          ))}
-        </div>
-      </section>
 
-      <section className="card analytics-panel" style={{ marginTop: 18 }}>
-        <div className="panel-heading">
-          <div>
-            <p className="eyebrow">Content performance</p>
-            <h3>Taxonomy performance by campaign type</h3>
-          </div>
-          <span className="badge warning">Taxonomy driven</span>
-        </div>
+              <form className="analytics-selectors analytics-selectors--stacked" action="/analytics" method="get">
+                <input type="hidden" name="preset" value={dashboard.selectedPreset} />
+                <input type="hidden" name="days" value={String(dashboard.days)} />
+                {dashboard.selectedPreset === "custom" && dashboard.range.days > 1 ? (
+                  <input type="hidden" name="endDate" value={dashboard.range.endDate} />
+                ) : null}
+                {dashboard.selectedPreset === "custom" ? <input type="hidden" name="startDate" value={dashboard.range.startDate} /> : null}
+                <input type="hidden" name="compareMode" value={dashboard.compareMode} />
+                {dashboard.compareMode === "custom" && dashboard.comparisonRange ? (
+                  <>
+                    <input type="hidden" name="compareStartDate" value={dashboard.comparisonRange.startDate} />
+                    <input type="hidden" name="compareEndDate" value={dashboard.comparisonRange.endDate} />
+                  </>
+                ) : null}
+                <input type="hidden" name="siteId" value={dashboard.selectedSite.id} />
+                <div className="field">
+                  <label htmlFor="analytics-campaign">Campaign</label>
+                  <select id="analytics-campaign" name="campaignId" className="select" defaultValue={dashboard.selectedCampaign?.id ?? ""}>
+                    {dashboard.campaigns.map((campaign) => (
+                      <option key={campaign.id} value={campaign.id}>
+                        {campaign.name} - {campaign.status}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button className="button secondary" type="submit">
+                  View campaign
+                </button>
+              </form>
 
-        <div className="analytics-list">
-          {dashboard.contentPerformance.map((item) => {
-            const totalVolume = item.totalDelivered + item.totalSent;
-            return (
-              <article key={item.contentType} className="analytics-list-row">
-                <div className="analytics-list-labels">
-                  <strong>{item.contentType}</strong>
-                  <span className="subtle">{formatNumber(item.totalCampaigns)} campaigns</span>
+              {dashboard.selectedCampaign ? (
+                <div className="analytics-campaign-card">
+                  <p className="subtle">{dashboard.selectedCampaign.site}</p>
+                  <p>{dashboard.selectedCampaign.message}</p>
+                  <div className="analytics-mini-summary analytics-mini-summary--compact">
+                    <article className="analytics-mini-card">
+                      <span>Sent</span>
+                      <strong>{dashboard.selectedCampaign.metrics.sent}</strong>
+                    </article>
+                    <article className="analytics-mini-card">
+                      <span>Delivered</span>
+                      <strong>{dashboard.selectedCampaign.metrics.delivered}</strong>
+                    </article>
+                    <article className="analytics-mini-card">
+                      <span>Clicks</span>
+                      <strong>{dashboard.selectedCampaign.metrics.clicks}</strong>
+                    </article>
+                    <article className="analytics-mini-card">
+                      <span>CTR</span>
+                      <strong>{dashboard.selectedCampaign.metrics.ctr}</strong>
+                    </article>
+                  </div>
                 </div>
-                <div className="analytics-list-track">
-                  <div className="analytics-list-fill" style={{ width: `${Math.max((totalVolume / maxContentVolume) * 100, 8)}%` }} />
-                </div>
-                <div className="analytics-list-metrics">
-                  <strong>{formatPercent(item.deliveryRate)} delivery</strong>
-                  <span className="subtle">CTR {formatPercent(item.clickThroughRate)}</span>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </section>
+              ) : null}
+            </section>
+          </aside>
+        </section>
+      </div>
     </DashboardShell>
   );
 }
