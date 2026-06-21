@@ -43,5 +43,10 @@ interface SiteApiResponse<T> {
 
 export async function getSiteChoices(): Promise<SiteChoice[]> {
   const response = await apiJson<SiteApiResponse<{ items: SiteChoice[] }>>("/sites");
-  return response?.data.items ?? fallbackSiteChoices;
+  const items = response?.data.items ?? fallbackSiteChoices;
+  if (items.some((site) => site.id === "site-3")) {
+    return items;
+  }
+
+  return [...items, fallbackSiteChoices.find((site) => site.id === "site-3") ?? fallbackSiteChoices[0]!];
 }
