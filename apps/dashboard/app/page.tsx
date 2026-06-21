@@ -1,11 +1,22 @@
 import Link from "next/link";
 
 import { DashboardShell } from "./_components/dashboard-shell";
+import { getAnalyticsDashboardData } from "./_data/analytics";
 import { getCampaignList } from "./_data/campaigns";
 import { getDashboardOverview } from "./_data/overview";
+import { buildOverviewCards, buildPerformanceRankingCards } from "./_data/overview-summary-cards";
 
 export default async function DashboardHome() {
-  const [campaigns, overview] = await Promise.all([getCampaignList(), getDashboardOverview()]);
+  const [overview, analytics, campaigns] = await Promise.all([
+    getDashboardOverview(),
+    getAnalyticsDashboardData({ preset: "30d", days: "30" }),
+    getCampaignList(),
+  ]);
+  const overviewCards = buildOverviewCards(overview);
+  const rankingCards = buildPerformanceRankingCards({
+    sites: analytics.sitePerformance,
+    campaigns: campaigns.items,
+  });
 
   return (
     <DashboardShell
@@ -25,83 +36,69 @@ export default async function DashboardHome() {
           </Link>
         </>
       }
-    >
-      {overview.totalSites === 0 ? (
-        <section className="card" style={{ marginBottom: 18 }}>
-          <h3>No sites yet</h3>
-          <p className="subtle">
-            Add your first Exotic website to start collecting subscribers and sending campaigns.
-          </p>
-          <div className="actions" style={{ marginTop: 12 }}>
-            <Link className="button primary" href="/sites/new">
-              Add your first site
-            </Link>
-          </div>
-        </section>
-      ) : null}
-
-      <section className="grid cards-4">
-        <article className="card">
-          <h3>Total subscribers</h3>
-          <p className="stat">{overview.totalSubscribers.toLocaleString()}</p>
-          <p className="subtle">Across {overview.totalSites} Exotic {overview.totalSites === 1 ? "site" : "sites"}</p>
-        </article>
-        <article className="card">
-          <h3>Active campaigns</h3>
-          <p className="stat">{overview.activeCampaigns}</p>
-          <p className="subtle">{overview.totalCampaigns} total campaigns</p>
-        </article>
-        <article className="card">
-          <h3>30-day CTR</h3>
-          <p className="stat">{overview.clickThroughRate}%</p>
-          <p className="subtle">{overview.totalClicked.toLocaleString()} clicks tracked</p>
-        </article>
-        <article className="card">
-          <h3>Delivery rate</h3>
-          <p className="stat">{overview.deliveryRate}%</p>
-          <p className="subtle">Queue-backed browser and mobile delivery</p>
-        </article>
+      >
+      <section className="grid cards-3">
+        {overviewCards.map((item) => (
+          <Link key={item.label} className="card overview-summary-link" href={item.href} aria-label={`${item.label}: ${item.value}`}>
+            <p className="analytics-summary-label">{item.label}</p>
+            <p className="analytics-summary-value">{item.value}</p>
+            <p className="analytics-summary-detail">{item.detail}</p>
+            <span className="overview-summary-cta">Open report</span>
+          </Link>
+        ))}
       </section>
 
-      <section className="grid cards-3" style={{ marginTop: 18 }}>
-        <article className="card">
-          <h3>Queue health</h3>
-          <p className="subtle">Pending and failed deliveries over the last 30 days.</p>
-          <div className="kpi-bar">
-            <div className="kpi">
-              <strong>{overview.totalPending}</strong>
-              <span className="subtle">Pending deliveries</span>
+      <section className="grid cards-2 overview-ranking-grid">
+        {rankingCards.map((card) => (
+          <article key={card.title} className="card overview-ranking-card">
+            <div className="panel-heading">
+              <div>
+                <p className="eyebrow">{card.eyebrow}</p>
+                <h3>{card.title}</h3>
+              </div>
             </div>
-            <div className="kpi">
-              <strong>{overview.totalFailed}</strong>
-              <span className="subtle">Failed (30d)</span>
+
+            <div className="overview-ranking-columns">
+              <div className="overview-ranking-group">
+                <p className="overview-ranking-label">{card.highestLabel}</p>
+                <div className="overview-ranking-list">
+                  {card.highestItems.length ? (
+                    card.highestItems.map((item, index) => (
+                      <Link key={`${card.title}-${item.label}-${index}`} className="overview-ranking-item" href={item.href}>
+                        <span className="overview-ranking-rank">{index + 1}</span>
+                        <span className="overview-ranking-copy">
+                          <strong>{item.label}</strong>
+                          <small>{item.detail}</small>
+                        </span>
+                      </Link>
+                    ))
+                  ) : (
+                    <p className="subtle">No ranked items yet.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="overview-ranking-group">
+                <p className="overview-ranking-label">{card.lowestLabel}</p>
+                <div className="overview-ranking-list">
+                  {card.lowestItems.length ? (
+                    card.lowestItems.map((item, index) => (
+                      <Link key={`${card.title}-lowest-${item.label}-${index}`} className="overview-ranking-item" href={item.href}>
+                        <span className="overview-ranking-rank overview-ranking-rank--muted">{index + 1}</span>
+                        <span className="overview-ranking-copy">
+                          <strong>{item.label}</strong>
+                          <small>{item.detail}</small>
+                        </span>
+                      </Link>
+                    ))
+                  ) : (
+                    <p className="subtle">No ranked items yet.</p>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        </article>
-        <article className="card">
-          <h3>Mobile readiness</h3>
-          <p className="subtle">Browser push is mobile-capable on Android Chrome and iOS Safari 16.4+.</p>
-          <div className="badge sent">Enabled</div>
-        </article>
-        <article className="card">
-          <h3>Recent campaigns</h3>
-          {campaigns.items.length === 0 ? (
-            <p className="subtle">No campaigns yet.</p>
-          ) : (
-            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 12 }}>
-              {campaigns.items.slice(0, 3).map((campaign) => (
-                <li key={campaign.id} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                  <span>
-                    <strong>{campaign.name}</strong>
-                    <br />
-                    <span className="subtle">{campaign.site}</span>
-                  </span>
-                  <span className={`badge ${campaign.status}`}>{campaign.status}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </article>
+          </article>
+        ))}
       </section>
     </DashboardShell>
   );
