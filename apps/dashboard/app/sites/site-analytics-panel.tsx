@@ -1,5 +1,6 @@
 import type { SiteSummary } from "./sites.utils";
 import type { SiteAnalyticsSummary } from "../../lib/site-analytics";
+import { LineChart } from "../_components/charts/line-chart";
 
 function formatNumber(value: number): string {
   return new Intl.NumberFormat("en-US").format(value);
@@ -12,8 +13,6 @@ export function SiteAnalyticsPanel({
   site: SiteSummary;
   analytics: SiteAnalyticsSummary;
 }) {
-  const maxGrowth = Math.max(...analytics.last30Days.subscriberGrowth.map((item) => item.newSubscribers), 1);
-
   return (
     <section className="card" style={{ marginTop: 18 }}>
       <div className="actions" style={{ justifyContent: "space-between" }}>
@@ -40,19 +39,11 @@ export function SiteAnalyticsPanel({
         </article>
       </div>
 
-      <div style={{ display: "grid", gap: 10, marginTop: 18 }}>
-        {analytics.last30Days.subscriberGrowth.map((item) => (
-          <div key={item.date} style={{ display: "grid", gridTemplateColumns: "120px 1fr 72px", gap: 12, alignItems: "center" }}>
-            <span className="subtle">{item.date}</span>
-            <div className="growth-bar-track">
-              <div
-                className="growth-bar-fill"
-                style={{ width: `${Math.max((item.newSubscribers / maxGrowth) * 100, 8)}%` }}
-              />
-            </div>
-            <strong>{formatNumber(item.newSubscribers)}</strong>
-          </div>
-        ))}
+      <div style={{ marginTop: 18 }}>
+        <LineChart
+          points={analytics.last30Days.subscriberGrowth.map((item) => ({ label: item.date, value: item.newSubscribers }))}
+          formatValue={formatNumber}
+        />
       </div>
 
       <div className="grid cards-3" style={{ marginTop: 18 }}>
