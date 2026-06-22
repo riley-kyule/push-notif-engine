@@ -27,7 +27,7 @@ export default async function WorkflowPage() {
       <section className="hero-card">
         <div>
           <div className="eyebrow" style={{ marginBottom: 10 }}>
-            Phase 6 control plane
+            Automation overview
           </div>
           <h2>Trigger, route, and observe automation in one place.</h2>
           <p>
