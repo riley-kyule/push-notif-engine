@@ -130,7 +130,7 @@ A "site" is one Exotic-owned website. Each site has its own VAPID key pair — g
 - `POST /api/sites/:id/generate-vapid` — generates a new VAPID key pair via the `web-push` library and stores it on the site. Required before that site can register subscribers or receive pushes.
 - `POST /api/sites/:id/rest-api-credentials` — generates the site-scoped REST API key id and auth token for CRM integrations.
 - `GET/PATCH /api/sites/:id`, `GET /api/sites`.
-- No delete endpoint — sites aren't deletable through the API (campaigns and subscribers reference them by foreign key).
+- `DELETE /api/sites/:id` — super-admin only. The site must already be `inactive` (rejects with 400 otherwise) since campaigns and subscribers reference it by foreign key. Audit-logged. The dashboard exposes this as a "Delete Site" button on the site detail page.
 
 ### REST API credentials
 
@@ -338,5 +338,4 @@ Each service uses Node's built-in test runner (`node --import tsx --test`), not 
 - **Native mobile push (Phase 4) exists in code** (APNs/FCM credential storage, device registration, dispatch, click tracking endpoints) but is explicitly gated on Exotic having actual mobile apps to integrate with — nothing currently calls it.
 - **Magento has a scaffold; Node.js and Laravel integrations are starter packages** (`integrations/node`, `integrations/laravel`) that generate the bootstrap snippet/service worker/manifest — neither is a drop-in plugin the way WordPress and Magento are.
 - **The site editor's "Subscribers" field is a leftover manual number input** that doesn't map to anything real (subscriber count is derived from actual registrations) — the API silently ignores it, but the UI still shows it.
-- **No site deletion** — by design, not an oversight, since campaigns/subscribers reference sites by foreign key — but worth knowing if you go looking for a delete button that isn't there.
 - **No automated PM2 boot-persistence test** — `pm2 save` + `pm2 startup` are documented in the runbook but haven't been tested through an actual server reboot, since that requires the real VPS.
