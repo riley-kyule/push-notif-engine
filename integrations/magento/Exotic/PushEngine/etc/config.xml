@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Store:etc/config.xsd">
+    <default>
+        <epe_push_engine>
+            <general>
+                <api_url></api_url>
+                <site_key></site_key>
+                <app_name></app_name>
+                <icon_url></icon_url>
+                <theme_color>#1c1917</theme_color>
+            </general>
+        </epe_push_engine>
+    </default>
+</config>

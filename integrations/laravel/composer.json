@@ -1,0 +1,21 @@
+{
+  "name": "epe/laravel-starter",
+  "description": "Laravel starter package for Exotic Push Engine.",
+  "type": "library",
+  "license": "proprietary",
+  "autoload": {
+    "psr-4": {
+      "EPE\\LaravelStarter\\": "src/"
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "EPE\\LaravelStarter\\EpePushServiceProvider"
+      ]
+    }
+  },
+  "require": {
+    "php": "^8.2"
+  }
+}

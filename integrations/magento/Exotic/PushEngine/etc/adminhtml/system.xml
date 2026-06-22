@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Config:etc/system_file.xsd">
+    <system>
+        <section id="epe_push_engine" translate="label" sortOrder="900" showInDefault="1" showInWebsite="1" showInStore="0">
+            <label>EPE Push Engine</label>
+            <tab>general</tab>
+            <resource>Exotic_PushEngine::config</resource>
+            <group id="general" translate="label" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="0">
+                <label>General Settings</label>
+                <field id="api_url" translate="label" type="text" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="0">
+                    <label>API URL</label>
+                    <comment>Example: https://api.example.com/api</comment>
+                </field>
+                <field id="site_key" translate="label" type="text" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="0">
+                    <label>Site Key</label>
+                </field>
+                <field id="app_name" translate="label" type="text" sortOrder="30" showInDefault="1" showInWebsite="1" showInStore="0">
+                    <label>App Name</label>
+                </field>
+                <field id="icon_url" translate="label" type="text" sortOrder="40" showInDefault="1" showInWebsite="1" showInStore="0">
+                    <label>Icon URL</label>
+                </field>
+                <field id="theme_color" translate="label" type="text" sortOrder="50" showInDefault="1" showInWebsite="1" showInStore="0">
+                    <label>Theme Color</label>
+                </field>
+            </group>
+        </section>
+    </system>
+</config>

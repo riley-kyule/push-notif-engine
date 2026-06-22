@@ -1,0 +1,17 @@
+<?php
+/** @var \Exotic\PushEngine\Block\Config $block */
+
+$config = [
+    'apiUrl' => $block->getApiUrl(),
+    'siteKey' => $block->getSiteKey(),
+    'serviceWorkerUrl' => '/push-sw.js',
+    'manifestUrl' => '/manifest.json',
+    'iconUrl' => $block->getIconUrl(),
+    'appName' => $block->getAppName(),
+    'themeColor' => $block->getThemeColor(),
+];
+?>
+<script>
+  window.ExoticPushEngineConfig = <?= /* @noEscape */ json_encode($config, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>;
+</script>
+<script defer src="/assets/epe-sdk.js"></script>

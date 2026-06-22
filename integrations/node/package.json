@@ -1,0 +1,10 @@
+{
+  "name": "@epe/node-starter",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "node --import tsx --test ../../apps/dashboard/test/integration-starters.test.ts"
+  }
+}
