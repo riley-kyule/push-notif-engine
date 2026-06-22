@@ -39,6 +39,13 @@ export interface PlatformSiteHealth {
   totalFailed: number;
 }
 
+export interface PlatformHealthAlert {
+  key: string;
+  severity: "info" | "warning" | "critical";
+  title: string;
+  detail: string;
+}
+
 export interface PlatformHealthSummary {
   status: PlatformHealthStatus;
   score: number;
@@ -46,6 +53,7 @@ export interface PlatformHealthSummary {
   components: PlatformHealthComponent[];
   queueDepth: PlatformQueueDepth[];
   workerHeartbeats: PlatformWorkerHeartbeat[];
+  alerts: PlatformHealthAlert[];
   siteHealth: {
     highestDelivery: PlatformSiteHealth[];
     lowestDelivery: PlatformSiteHealth[];

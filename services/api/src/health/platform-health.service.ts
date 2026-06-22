@@ -17,6 +17,7 @@ import type {
   PlatformQueueDepth,
   PlatformSiteHealth,
   PlatformWorkerHeartbeat,
+  PlatformHealthAlert,
 } from "./platform-health.types";
 
 const PLATFORM_HEARTBEAT_HASH = "epe:worker-heartbeats";
@@ -89,6 +90,7 @@ export class PlatformHealthService {
     ];
 
     const score = components.reduce((total, component) => total + component.score, 0);
+    const alerts = this.buildAlerts(components, queueDepth, workerHeartbeats, siteHealth);
 
     return {
       status: computeOverallStatus(score),
@@ -97,6 +99,7 @@ export class PlatformHealthService {
       components,
       queueDepth,
       workerHeartbeats,
+      alerts,
       siteHealth,
     };
   }
@@ -231,6 +234,68 @@ export class PlatformHealthService {
         lowestDelivery: [],
       };
     }
+  }
+
+  private buildAlerts(
+    components: PlatformHealthComponent[],
+    queueDepth: PlatformQueueDepth[],
+    workerHeartbeats: PlatformWorkerHeartbeat[],
+    siteHealth: { highestDelivery: PlatformSiteHealth[]; lowestDelivery: PlatformSiteHealth[] },
+  ): PlatformHealthAlert[] {
+    const alerts: PlatformHealthAlert[] = [];
+
+    for (const component of components) {
+      if (component.status === "healthy") {
+        continue;
+      }
+
+      alerts.push({
+        key: `component:${component.key}`,
+        severity: component.key === "storage" ? "warning" : "critical",
+        title: `${component.label} is degraded`,
+        detail: component.detail,
+      });
+    }
+
+    const totalFailedJobs = queueDepth.reduce((total, queue) => total + queue.failed, 0);
+    const totalWaitingJobs = queueDepth.reduce((total, queue) => total + queue.waiting + queue.active + queue.delayed, 0);
+    if (totalFailedJobs > 0) {
+      alerts.push({
+        key: "queue:failed-jobs",
+        severity: "warning",
+        title: "Queue failures detected",
+        detail: `${totalFailedJobs} queued jobs have failed and should be reviewed.`,
+      });
+    } else if (totalWaitingJobs > 500) {
+      alerts.push({
+        key: "queue:backlog",
+        severity: "warning",
+        title: "Queue backlog is growing",
+        detail: `${totalWaitingJobs} jobs are waiting, active, or delayed across delivery queues.`,
+      });
+    }
+
+    const staleWorkers = workerHeartbeats.filter((worker) => worker.status !== "healthy");
+    if (staleWorkers.length > 0) {
+      alerts.push({
+        key: "workers:stale",
+        severity: staleWorkers.some((worker) => worker.status === "offline") ? "critical" : "warning",
+        title: "Worker heartbeats need attention",
+        detail: `${staleWorkers.length} worker(s) are stale or offline.`,
+      });
+    }
+
+    const weakestSite = siteHealth.lowestDelivery[0];
+    if (weakestSite && weakestSite.deliveryRate < 80) {
+      alerts.push({
+        key: `site:${weakestSite.siteId}`,
+        severity: "info",
+        title: "Lowest delivery site is under 80%",
+        detail: `${weakestSite.siteName} is at ${weakestSite.deliveryRate.toFixed(1)}% delivery rate.`,
+      });
+    }
+
+    return alerts;
   }
 }
 

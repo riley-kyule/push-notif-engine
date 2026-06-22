@@ -39,6 +39,13 @@ export interface PlatformSiteHealthSummary {
   totalFailed: number;
 }
 
+export interface PlatformHealthAlertSummary {
+  key: string;
+  severity: "info" | "warning" | "critical";
+  title: string;
+  detail: string;
+}
+
 export interface PlatformHealthSummary {
   source: "live" | "demo" | "unavailable";
   status: PlatformHealthStatus;
@@ -47,6 +54,7 @@ export interface PlatformHealthSummary {
   components: PlatformHealthComponentSummary[];
   queueDepth: PlatformQueueDepthSummary[];
   workerHeartbeats: PlatformWorkerHeartbeatSummary[];
+  alerts: PlatformHealthAlertSummary[];
   siteHealth: {
     highestDelivery: PlatformSiteHealthSummary[];
     lowestDelivery: PlatformSiteHealthSummary[];
@@ -67,6 +75,7 @@ interface PlatformHealthApiResponse {
     components: PlatformHealthComponentSummary[];
     queueDepth: PlatformQueueDepthSummary[];
     workerHeartbeats: PlatformWorkerHeartbeatSummary[];
+    alerts: PlatformHealthAlertSummary[];
     siteHealth: {
       highestDelivery: PlatformSiteHealthSummary[];
       lowestDelivery: PlatformSiteHealthSummary[];
@@ -110,6 +119,14 @@ const fallbackHealth: PlatformHealthSummary = {
     { key: "mobile-push", label: "Mobile push", waiting: 0, active: 0, delayed: 0, failed: 0, completed: 0 },
   ],
   workerHeartbeats: [],
+  alerts: [
+    {
+      key: "demo:queue",
+      severity: "info",
+      title: "Demo alert stream",
+      detail: "This is a demo snapshot with realistic alert data for local development.",
+    },
+  ],
   siteHealth: {
     highestDelivery: [],
     lowestDelivery: [],
@@ -167,6 +184,14 @@ const demoHealth: PlatformHealthSummary = {
       uptimeMs: 3_740_000,
       redisLatencyMs: 4,
       status: "healthy",
+    },
+  ],
+  alerts: [
+    {
+      key: "demo:queue",
+      severity: "info",
+      title: "Demo alert stream",
+      detail: "This is a demo snapshot with realistic alert data for local development.",
     },
   ],
   siteHealth: {
@@ -231,6 +256,7 @@ export async function getPlatformHealthSummary(): Promise<PlatformHealthSummary>
       components: response.data.components,
       queueDepth: response.data.queueDepth,
       workerHeartbeats: response.data.workerHeartbeats,
+      alerts: response.data.alerts,
       siteHealth: response.data.siteHealth,
     };
   } catch {
