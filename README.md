@@ -86,6 +86,7 @@ BROWSER_PUSH_ACK_BASE_URL=http://127.0.0.1:3001/api   # used to build delivery/c
 # apps/dashboard
 NEXT_PUBLIC_API_URL=http://127.0.0.1:3001/api
 DASHBOARD_API_BASE_URL=http://127.0.0.1:3001/api
+NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID=
 ```
 
 Run each service from its own directory:
@@ -104,16 +105,22 @@ If you ever add a new `@nestjs/*` package to `services/api` and the API starts c
 
 ## Authentication & roles
 
-JWT-based, with refresh token rotation.
+JWT-based, with refresh token rotation and Google sign-in support.
 
 - `POST /api/auth/login` → `{ accessToken (15min), refreshToken (30 days) }`. Refresh tokens are stored hashed (SHA-256) in `refresh_tokens`, rotated on every refresh.
+- `POST /api/auth/google` → accepts a Google ID token, verifies it against Google's tokeninfo endpoint, links the Google subject to the existing Exotic user record, and issues the same JWT pair.
 - `POST /api/auth/refresh` → issues a new pair, revokes the old refresh token.
 - Roles, most to least privileged: `super-admin > admin > editor > analyst`. Enforced via `@Roles(...)` + `RolesGuard` on each controller/route.
-- All auth events (`auth.login.success`, `auth.login.failure`, `auth.token.refreshed`) are written to `audit_logs`.
+- All auth events (`auth.login.success`, `auth.login.failure`, `auth.google.login.success`, `auth.google.login.failure`, `auth.token.refreshed`) are written to `audit_logs`.
 - Passwords hashed with Argon2.
 - A custom Redis-backed rate limiter (`services/api/src/rate-limit/`) guards every route — default 120 req/min per IP, overridden per-route with `@RateLimit({ limit, ttl })` (login: 10/min, refresh: 30/min).
 
-The dashboard stores the access/refresh tokens in HTTP-only cookies (`epe_access_token`, `epe_refresh_token`) set by `/api/dashboard/auth/login`. `middleware.ts` redirects any request without `epe_access_token` to `/login`.
+The dashboard stores the access/refresh tokens in HTTP-only cookies (`epe_access_token`, `epe_refresh_token`) set by `/api/dashboard/auth/login` and `/api/dashboard/auth/google`. `middleware.ts` redirects any request without `epe_access_token` to `/login`.
+
+Google sign-in is the only supported SSO provider in the dashboard login UI. It uses the Google Identity Services button and only links to pre-provisioned Exotic user accounts whose email is already present in the system.
+
+The dashboard includes `/audit-logs` for reviewing authenticated actions, linked actor identity, target information, and metadata payloads.
+Backup operations live at `/platform/backup-config`, where admins can connect Dropbox or Google Drive, toggle automatic backups, inspect recent runs, and copy the recovery command for a manual restore.
 
 ## Sites
 
@@ -134,13 +141,14 @@ Each site can issue one REST API credential pair for CRM-driven actions and sche
 
 The dashboard exposes this under `Site Settings -> Integrations -> REST API`. The API also exposes `GET /api/sites/:id/rest-api/identity` as a protected verification endpoint for CRM systems that need to confirm the credentials before using downstream site-scoped actions.
 
-Dashboard: `/sites` (list, with an "Add Site" button), `/sites/new`, `/sites/:id` (detail — VAPID keys, SDK snippet, downloadable service worker + manifest), `/sites/:id/edit`, `/platform-health` (platform score ring plus database, queue broker, storage, queue depth, worker heartbeat, and delivery drilldowns).
+Dashboard: `/sites` (list, with an "Add Site" button), `/sites/new`, `/sites/:id` (detail — VAPID keys, SDK snippet, downloadable service worker + manifest), `/sites/:id/edit`, `/platform-health` (platform score ring plus database, queue broker, storage, queue depth, worker heartbeat, and delivery drilldowns), `/platform/backup-config` (backup provider setup, schedules, history, and restore guidance).
+The platform health page also surfaces active alerts derived from queue backlog, worker heartbeat freshness, and component health.
 
 ## Subscribers
 
 A subscriber is one browser's push subscription for one site.
 
-- `POST /api/subscribers/register` — **public, no auth.** Called directly by the browser SDK after the user grants notification permission. Body: `siteId, subscriptionEndpoint, p256dhKey, authKey, browser, deviceType, language`. `country` is optional — there's no geo-IP enrichment yet, so it defaults to `"Unknown"`.
+- `POST /api/subscribers/register` — **public, no auth.** Called directly by the browser SDK after the user grants notification permission. Body: `siteId, subscriptionEndpoint, p256dhKey, authKey, browser, deviceType, language`. `country` is optional — the API resolves it from the `cf-ipcountry` header when available and falls back to `"Unknown"`.
 - `GET /api/subscribers`, `GET /api/subscribers/:id`, `PATCH /api/subscribers/:id/status` — all require auth.
 - Status values: `active | inactive | unsubscribed | expired`. A subscriber is auto-marked `expired` if a push to it returns HTTP 404/410 (the browser unsubscribed or the push service rejects it permanently).
 
@@ -254,16 +262,32 @@ All read from `push_delivery_events`, `subscribers`, and `campaigns` — no sepa
 - `GET /api/analytics/sites-performance?days=30` — cross-site delivery comparison with subscriber counts.
 - `GET /api/analytics/time-performance?days=30` — hour-by-hour delivery and click volume in UTC.
 - `GET /api/analytics/content-performance?days=30` — campaign performance grouped by controlled content taxonomy.
-- `GET /api/analytics/export?report=content-performance&days=30` — CSV export for the current analytics views.
-- The dashboard now has a dedicated `/analytics` reporting page with date-range controls, site scope selection, campaign performance panels, country/site/time reporting, controlled taxonomy reporting, and CSV export links.
+- `GET /api/analytics/export?report=content-performance&days=30&format=csv|xlsx|pdf` — export for the current analytics views.
+- The export menu on the analytics performance card (the icon next to the report tabs) also offers **Export to Google Sheets**, which pushes the active report straight into a new spreadsheet instead of downloading a file.
+- The dashboard now has dedicated `/analytics`, `/segments`, `/automations`, and `/workflow` surfaces covering reporting, audience targeting, event-driven rules, and RSS management.
+- The analytics command center uses a full-width performance card with interactive line charts, compact date presets plus custom ranges, and comparison mode. Chart hover and keyboard navigation reveal the exact point being inspected.
+- Reporting drilldowns stay scoped to the selected site unless `All Sites` is selected, and the campaign panel lets editors switch campaign context without leaving the page.
 
 **Click-through rate is computed against successfully handed-off pushes (`sent + delivered`), not against total attempts.** A push that failed or expired was never shown to anyone, so it shouldn't dilute the CTR denominator.
 
-This is still a staged analytics layer — country, site, time-of-day, and controlled content-taxonomy reporting are live, while richer export formats remain next. See [Known gaps](#known-gaps).
+This is still a staged analytics layer — country, site, time-of-day, and controlled content-taxonomy reporting are live, and export formats now include CSV, Excel, PDF, and Google Sheets. See [Known gaps](#known-gaps).
+
+### Setting up "Export to Google Sheets"
+
+This reuses the same OAuth client as Google sign-in and the Drive backup connection (`GOOGLE_OAUTH_CLIENT_ID`/`GOOGLE_OAUTH_CLIENT_SECRET`), but requests Sheets write access instead of Drive or identity, so Google requires its own registered redirect URI. One-time setup in [Google Cloud Console](https://console.cloud.google.com/apis/credentials):
+
+1. Enable the **Google Sheets API** on the same project used for sign-in/backups (the Drive API enabled for backups is a separate API and doesn't cover this).
+2. Open the existing OAuth 2.0 Client ID (the one already used for `GOOGLE_OAUTH_CLIENT_ID`) and add this exact URL to **Authorized redirect URIs**:
+   ```
+   https://your-dashboard-domain/api/dashboard/analytics/export/google-sheets/callback
+   ```
+3. Set `GOOGLE_SHEETS_OAUTH_REDIRECT_URI` to that same URL in `services/api/.env` (see `.env.example`).
+
+Until that redirect URI is registered and the env var is set, the export menu still shows "Export to Google Sheets" but disables it with a "Not set up for this server yet" note rather than failing silently.
 
 ## Dashboard
 
-Next.js 15 App Router. Pages: `/` (overview), `/analytics`, `/sites`, `/sites/new`, `/sites/:id`, `/sites/:id/edit`, `/campaigns`, `/campaigns/new`, `/campaigns/:id`, `/subscribers`, `/subscribers/:id`, `/workflow`, `/login`.
+Next.js 15 App Router. Pages: `/` (overview), `/analytics`, `/sites`, `/sites/new`, `/sites/:id`, `/sites/:id/edit`, `/campaigns`, `/campaigns/new`, `/campaigns/:id`, `/campaign-taxonomies`, `/subscribers`, `/subscribers/:id`, `/segments`, `/automations`, `/workflow`, `/audit-logs`, `/platform-health`, `/platform/backup-config`, `/login`.
 
 - **Auth:** `middleware.ts` gates every route except `/login` and `/api/dashboard/auth/*` on the presence of the `epe_access_token` cookie.
 - **Data fetching:** server components call the real NestJS API directly via `lib/server-api.ts`'s `apiFetch`/`apiJson`, which attach the Bearer token from the cookie automatically.
@@ -286,7 +310,7 @@ To onboard a new WordPress site: create the site in EPE, set the branding and VA
 
 ## Other platform integrations
 
-`docs/phase-2-6-*.md` contain integration guides for Magento, Node.js, and Laravel — these are documentation only, no actual plugin/package code has been written for them. WordPress is the only platform with a working, installable integration today.
+`docs/phase-2-6-*.md` contain integration guides for Magento, Node.js, and Laravel. WordPress has a working installable plugin, Magento has a production scaffold under `integrations/magento/Exotic/PushEngine/`, and Node.js/Laravel now have starter packages under `integrations/node/` and `integrations/laravel/`.
 
 Phase 7 is next and will expand the analytics surface with time, country, content, site, and export reporting.
 
@@ -311,10 +335,8 @@ Each service uses Node's built-in test runner (`node --import tsx --test`), not 
 
 ## Known gaps
 
-- **No geo-IP enrichment** — subscriber `country` is whatever the browser SDK sends (nothing, currently), defaults to `"Unknown"`.
-- **Analytics is still expanding** — country, site, time-of-day, and controlled content taxonomy reporting exist, but Excel/PDF exports still need to be built.
 - **Native mobile push (Phase 4) exists in code** (APNs/FCM credential storage, device registration, dispatch, click tracking endpoints) but is explicitly gated on Exotic having actual mobile apps to integrate with — nothing currently calls it.
-- **Magento, Node.js, and Laravel integrations are docs-only.**
+- **Magento has a scaffold; Node.js and Laravel integrations are starter packages** (`integrations/node`, `integrations/laravel`) that generate the bootstrap snippet/service worker/manifest — neither is a drop-in plugin the way WordPress and Magento are.
 - **The site editor's "Subscribers" field is a leftover manual number input** that doesn't map to anything real (subscriber count is derived from actual registrations) — the API silently ignores it, but the UI still shows it.
 - **No site deletion** — by design, not an oversight, since campaigns/subscribers reference sites by foreign key — but worth knowing if you go looking for a delete button that isn't there.
 - **No automated PM2 boot-persistence test** — `pm2 save` + `pm2 startup` are documented in the runbook but haven't been tested through an actual server reboot, since that requires the real VPS.
