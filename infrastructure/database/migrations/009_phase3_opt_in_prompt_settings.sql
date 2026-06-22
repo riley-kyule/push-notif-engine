@@ -1,0 +1,31 @@
+ALTER TABLE sites
+ADD COLUMN IF NOT EXISTS opt_in_prompt_type text NOT NULL DEFAULT 'lightbox-1',
+ADD COLUMN IF NOT EXISTS opt_in_prompt_animation text NOT NULL DEFAULT 'slide-in',
+ADD COLUMN IF NOT EXISTS opt_in_prompt_background_color text NULL,
+ADD COLUMN IF NOT EXISTS opt_in_prompt_headline text NULL,
+ADD COLUMN IF NOT EXISTS opt_in_prompt_headline_text_color text NULL,
+ADD COLUMN IF NOT EXISTS opt_in_prompt_text text NULL,
+ADD COLUMN IF NOT EXISTS opt_in_prompt_text_color text NULL,
+ADD COLUMN IF NOT EXISTS opt_in_prompt_icon_url text NULL,
+ADD COLUMN IF NOT EXISTS opt_in_prompt_cancel_button_label text NULL,
+ADD COLUMN IF NOT EXISTS opt_in_prompt_cancel_button_text_color text NULL,
+ADD COLUMN IF NOT EXISTS opt_in_prompt_cancel_button_background_color text NULL,
+ADD COLUMN IF NOT EXISTS opt_in_prompt_approve_button_label text NULL,
+ADD COLUMN IF NOT EXISTS opt_in_prompt_approve_button_text_color text NULL,
+ADD COLUMN IF NOT EXISTS opt_in_prompt_approve_button_background_color text NULL,
+ADD COLUMN IF NOT EXISTS opt_in_prompt_reprompt_delay_days integer NOT NULL DEFAULT 30;
+
+UPDATE sites
+SET opt_in_prompt_background_color = COALESCE(NULLIF(opt_in_prompt_background_color, ''), '#ffffff'),
+    opt_in_prompt_headline = COALESCE(NULLIF(opt_in_prompt_headline, ''), 'Stay in the loop'),
+    opt_in_prompt_headline_text_color = COALESCE(NULLIF(opt_in_prompt_headline_text_color, ''), '#111111'),
+    opt_in_prompt_text = COALESCE(NULLIF(opt_in_prompt_text, ''), 'Get important updates delivered to your browser.'),
+    opt_in_prompt_text_color = COALESCE(NULLIF(opt_in_prompt_text_color, ''), '#444444'),
+    opt_in_prompt_icon_url = COALESCE(NULLIF(opt_in_prompt_icon_url, ''), icon_url),
+    opt_in_prompt_cancel_button_label = COALESCE(NULLIF(opt_in_prompt_cancel_button_label, ''), 'Not now'),
+    opt_in_prompt_cancel_button_text_color = COALESCE(NULLIF(opt_in_prompt_cancel_button_text_color, ''), '#ffffff'),
+    opt_in_prompt_cancel_button_background_color = COALESCE(NULLIF(opt_in_prompt_cancel_button_background_color, ''), '#111111'),
+    opt_in_prompt_approve_button_label = COALESCE(NULLIF(opt_in_prompt_approve_button_label, ''), 'Enable'),
+    opt_in_prompt_approve_button_text_color = COALESCE(NULLIF(opt_in_prompt_approve_button_text_color, ''), '#ffffff'),
+    opt_in_prompt_approve_button_background_color = COALESCE(NULLIF(opt_in_prompt_approve_button_background_color, ''), '#ea580c'),
+    opt_in_prompt_reprompt_delay_days = COALESCE(opt_in_prompt_reprompt_delay_days, 30);

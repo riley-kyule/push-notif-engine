@@ -1,16 +1,23 @@
 import crypto from "node:crypto";
 
 import type { SitesRepository, CreateSiteInput, UpdateSiteInput } from "./sites.repository";
-import type { SiteListFilters, SiteListResult, SiteRecord } from "./sites.types";
+import type { SiteListFilters, SiteListResult, SiteRecord, SiteRestApiCredentialsRecord } from "./sites.types";
 
 export class InMemorySitesRepository implements SitesRepository {
-  private readonly sites = new Map<string, SiteRecord>();
+  private readonly sites = new Map<string, SiteRecord & { restApiAuthTokenHash: string | null }>();
 
   async create(input: CreateSiteInput): Promise<SiteRecord> {
     const now = new Date();
-    const site: SiteRecord = {
+    const site = {
       id: crypto.randomUUID(),
       ...input,
+      appName: input.appName,
+      iconUrl: input.iconUrl,
+      themeColor: input.themeColor,
+      restApiKeyId: input.restApiKeyId ?? null,
+      restApiAuthTokenHash: input.restApiAuthTokenHash ?? null,
+      restApiAuthTokenLast4: input.restApiAuthTokenLast4 ?? null,
+      restApiCredentialsGeneratedAt: input.restApiCredentialsGeneratedAt ?? null,
       vapidSubject: input.vapidSubject,
       vapidPublicKey: input.vapidPublicKey,
       vapidPrivateKey: input.vapidPrivateKey,
@@ -18,7 +25,8 @@ export class InMemorySitesRepository implements SitesRepository {
       updatedAt: now,
     };
     this.sites.set(site.id, site);
-    return site;
+    const { restApiAuthTokenHash: _restApiAuthTokenHash, ...publicSite } = site;
+    return publicSite;
   }
 
   async update(id: string, input: UpdateSiteInput): Promise<SiteRecord | null> {
@@ -27,17 +35,41 @@ export class InMemorySitesRepository implements SitesRepository {
       return null;
     }
 
-    const updated: SiteRecord = {
+    const updated = {
       ...existing,
       ...input,
       updatedAt: new Date(),
     };
     this.sites.set(id, updated);
-    return updated;
+    const { restApiAuthTokenHash: _restApiAuthTokenHash, ...publicSite } = updated;
+    return publicSite;
   }
 
   async findById(id: string): Promise<SiteRecord | null> {
-    return this.sites.get(id) ?? null;
+    const site = this.sites.get(id);
+    if (!site) {
+      return null;
+    }
+
+    const { restApiAuthTokenHash: _restApiAuthTokenHash, ...publicSite } = site;
+    return publicSite;
+  }
+
+  async findByIdWithRestApiCredentials(id: string): Promise<SiteRestApiCredentialsRecord | null> {
+    const site = this.sites.get(id);
+    if (!site) {
+      return null;
+    }
+
+    return {
+      id: site.id,
+      restApiKeyId: site.restApiKeyId,
+      restApiAuthTokenHash: site.restApiAuthTokenHash,
+    };
+  }
+
+  async delete(id: string): Promise<boolean> {
+    return this.sites.delete(id);
   }
 
   async list(filters: SiteListFilters): Promise<SiteListResult> {

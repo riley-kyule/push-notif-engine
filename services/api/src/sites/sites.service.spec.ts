@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { createFakeAuditService } from "../audit/audit.service.fake";
 import { InMemorySitesRepository } from "./in-memory-sites.repository";
 import { SitesService } from "./sites.service";
 
 test("sites service creates and lists sites", async () => {
   const repository = new InMemorySitesRepository();
-  const service = new SitesService(repository);
+  const service = new SitesService(repository, createFakeAuditService());
 
   const site = await service.createSite({
     name: "Exotic News",
@@ -15,6 +16,24 @@ test("sites service creates and lists sites", async () => {
     language: "en",
     platform: "WordPress",
     logoUrl: null,
+    appName: "Exotic News",
+    iconUrl: "https://news.example.com/icon.png",
+    themeColor: "#111111",
+    optInPromptType: "lightbox-1",
+    optInPromptAnimation: "slide-in",
+    optInPromptBackgroundColor: "#ffffff",
+    optInPromptHeadline: "Stay in the loop",
+    optInPromptHeadlineTextColor: "#111111",
+    optInPromptText: "Get important updates delivered to your browser.",
+    optInPromptTextColor: "#444444",
+    optInPromptIconUrl: "https://news.example.com/icon.png",
+    optInPromptCancelButtonLabel: "Not now",
+    optInPromptCancelButtonTextColor: "#ffffff",
+    optInPromptCancelButtonBackgroundColor: "#111111",
+    optInPromptApproveButtonLabel: "Enable",
+    optInPromptApproveButtonTextColor: "#ffffff",
+    optInPromptApproveButtonBackgroundColor: "#ea580c",
+    optInPromptRepromptDelayDays: 30,
     vapidSubject: null,
     vapidPublicKey: null,
     vapidPrivateKey: null,
@@ -22,9 +41,179 @@ test("sites service creates and lists sites", async () => {
   });
 
   assert.equal(site.name, "Exotic News");
+  assert.equal(site.appName, "Exotic News");
+  assert.equal(site.iconUrl, "https://news.example.com/icon.png");
+  assert.equal(site.themeColor, "#111111");
+  assert.equal(site.optInPromptRecentNotificationsLimit, 3);
   assert.equal(site.status, "active");
 
   const result = await service.listSites({ search: "news", limit: 10, offset: 0 });
   assert.equal(result.total, 1);
   assert.equal(result.items[0]?.id, site.id);
+});
+
+test("sites service rejects deleting an active site", async () => {
+  const repository = new InMemorySitesRepository();
+  const service = new SitesService(repository, createFakeAuditService());
+
+  const site = await service.createSite({
+    name: "Exotic News",
+    url: "https://news.example.com",
+    country: "US",
+    language: "en",
+    platform: "WordPress",
+    logoUrl: null,
+    appName: "Exotic News",
+    iconUrl: null,
+    themeColor: "#1c1917",
+    optInPromptType: "lightbox-1",
+    optInPromptAnimation: "slide-in",
+    optInPromptBackgroundColor: "#ffffff",
+    optInPromptHeadline: "Stay in the loop",
+    optInPromptHeadlineTextColor: "#111111",
+    optInPromptText: "Get important updates delivered to your browser.",
+    optInPromptTextColor: "#444444",
+    optInPromptIconUrl: null,
+    optInPromptCancelButtonLabel: "Not now",
+    optInPromptCancelButtonTextColor: "#ffffff",
+    optInPromptCancelButtonBackgroundColor: "#111111",
+    optInPromptApproveButtonLabel: "Enable",
+    optInPromptApproveButtonTextColor: "#ffffff",
+    optInPromptApproveButtonBackgroundColor: "#ea580c",
+    optInPromptRepromptDelayDays: 30,
+    vapidSubject: null,
+    vapidPublicKey: null,
+    vapidPrivateKey: null,
+    status: "active",
+  });
+
+  await assert.rejects(() => service.deleteSite(site.id));
+});
+
+test("sites service deletes an inactive site", async () => {
+  const repository = new InMemorySitesRepository();
+  const service = new SitesService(repository, createFakeAuditService());
+
+  const site = await service.createSite({
+    name: "Exotic News",
+    url: "https://news.example.com",
+    country: "US",
+    language: "en",
+    platform: "WordPress",
+    logoUrl: null,
+    appName: "Exotic News",
+    iconUrl: null,
+    themeColor: "#1c1917",
+    optInPromptType: "lightbox-1",
+    optInPromptAnimation: "slide-in",
+    optInPromptBackgroundColor: "#ffffff",
+    optInPromptHeadline: "Stay in the loop",
+    optInPromptHeadlineTextColor: "#111111",
+    optInPromptText: "Get important updates delivered to your browser.",
+    optInPromptTextColor: "#444444",
+    optInPromptIconUrl: null,
+    optInPromptCancelButtonLabel: "Not now",
+    optInPromptCancelButtonTextColor: "#ffffff",
+    optInPromptCancelButtonBackgroundColor: "#111111",
+    optInPromptApproveButtonLabel: "Enable",
+    optInPromptApproveButtonTextColor: "#ffffff",
+    optInPromptApproveButtonBackgroundColor: "#ea580c",
+    optInPromptRepromptDelayDays: 30,
+    vapidSubject: null,
+    vapidPublicKey: null,
+    vapidPrivateKey: null,
+    status: "inactive",
+  });
+
+  await service.deleteSite(site.id);
+  await assert.rejects(() => service.getSite(site.id));
+});
+
+test("sites service updates branding fields", async () => {
+  const repository = new InMemorySitesRepository();
+  const service = new SitesService(repository, createFakeAuditService());
+
+  const site = await service.createSite({
+    name: "Exotic News",
+    url: "https://news.example.com",
+    country: "US",
+    language: "en",
+    platform: "WordPress",
+    logoUrl: null,
+    appName: "Exotic News",
+    iconUrl: null,
+    themeColor: "#1c1917",
+    optInPromptType: "lightbox-1",
+    optInPromptAnimation: "slide-in",
+    optInPromptBackgroundColor: "#ffffff",
+    optInPromptHeadline: "Stay in the loop",
+    optInPromptHeadlineTextColor: "#111111",
+    optInPromptText: "Get important updates delivered to your browser.",
+    optInPromptTextColor: "#444444",
+    optInPromptIconUrl: null,
+    optInPromptCancelButtonLabel: "Not now",
+    optInPromptCancelButtonTextColor: "#ffffff",
+    optInPromptCancelButtonBackgroundColor: "#111111",
+    optInPromptApproveButtonLabel: "Enable",
+    optInPromptApproveButtonTextColor: "#ffffff",
+    optInPromptApproveButtonBackgroundColor: "#ea580c",
+    optInPromptRepromptDelayDays: 30,
+    vapidSubject: null,
+    vapidPublicKey: null,
+    vapidPrivateKey: null,
+    status: "active",
+  });
+
+  const updated = await service.updateSite(site.id, {
+    appName: "Exotic News Live",
+    iconUrl: "https://news.example.com/brand.png",
+    themeColor: "#222222",
+  });
+
+  assert.equal(updated.appName, "Exotic News Live");
+  assert.equal(updated.iconUrl, "https://news.example.com/brand.png");
+  assert.equal(updated.themeColor, "#222222");
+});
+
+test("sites service generates rest api credentials", async () => {
+  const repository = new InMemorySitesRepository();
+  const service = new SitesService(repository, createFakeAuditService());
+
+  const site = await service.createSite({
+    name: "Exotic News",
+    url: "https://news.example.com",
+    country: "US",
+    language: "en",
+    platform: "WordPress",
+    logoUrl: null,
+    appName: "Exotic News",
+    iconUrl: null,
+    themeColor: "#1c1917",
+    optInPromptType: "lightbox-1",
+    optInPromptAnimation: "slide-in",
+    optInPromptBackgroundColor: "#ffffff",
+    optInPromptHeadline: "Stay in the loop",
+    optInPromptHeadlineTextColor: "#111111",
+    optInPromptText: "Get important updates delivered to your browser.",
+    optInPromptTextColor: "#444444",
+    optInPromptIconUrl: null,
+    optInPromptCancelButtonLabel: "Not now",
+    optInPromptCancelButtonTextColor: "#ffffff",
+    optInPromptCancelButtonBackgroundColor: "#111111",
+    optInPromptApproveButtonLabel: "Enable",
+    optInPromptApproveButtonTextColor: "#ffffff",
+    optInPromptApproveButtonBackgroundColor: "#ea580c",
+    optInPromptRepromptDelayDays: 30,
+    optInPromptRecentNotificationsLimit: 3,
+    vapidSubject: null,
+    vapidPublicKey: null,
+    vapidPrivateKey: null,
+    status: "active",
+  });
+
+  const credentials = await service.generateRestApiCredentials(site.id);
+
+  assert.equal(credentials.site.restApiKeyId?.startsWith("rest_"), true);
+  assert.equal(credentials.authToken.length > 10, true);
+  assert.equal(credentials.site.restApiAuthTokenLast4, credentials.authToken.slice(-4));
 });
