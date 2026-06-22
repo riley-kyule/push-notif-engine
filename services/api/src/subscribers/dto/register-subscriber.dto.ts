@@ -16,7 +16,7 @@ export class RegisterSubscriberDto {
   deviceType!: string;
 
   // Country is optional — the browser SDK cannot determine country without geolocation.
-  // Defaults to 'Unknown' in the service layer. Server-side geo-enrichment is a future enhancement.
+  // The controller falls back to the cf-ipcountry header (see geo-ip.util.ts); 'Unknown' is the final fallback.
   @IsOptional()
   @IsString()
   country?: string;

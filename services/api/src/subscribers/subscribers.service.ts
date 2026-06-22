@@ -6,6 +6,7 @@ import type { SubscriberListFilters, SubscriberListResult, SubscriberRecord } fr
 import { RegisterSubscriberDto } from "./dto/register-subscriber.dto";
 import { ListSubscribersQueryDto } from "./dto/list-subscribers-query.dto";
 import { UpdateSubscriberStatusDto } from "./dto/update-subscriber-status.dto";
+import { UnsubscribeSubscriberDto } from "./dto/unsubscribe-subscriber.dto";
 import { WorkflowService } from "../workflows/workflow.service";
 
 @Injectable()
@@ -17,12 +18,12 @@ export class SubscribersService {
     private readonly workflowService: WorkflowService,
   ) {}
 
-  async registerSubscriber(dto: RegisterSubscriberDto): Promise<SubscriberRecord> {
+  async registerSubscriber(dto: RegisterSubscriberDto, detectedCountry?: string): Promise<SubscriberRecord> {
     const { subscriber, isNew } = await this.subscribersRepository.upsert({
       siteId: dto.siteId,
       browser: dto.browser,
       deviceType: dto.deviceType,
-      country: dto.country ?? "Unknown",
+      country: dto.country ?? detectedCountry ?? "Unknown",
       language: dto.language,
       subscriptionEndpoint: dto.subscriptionEndpoint,
       p256dhKey: dto.p256dhKey ?? null,
@@ -80,5 +81,17 @@ export class SubscribersService {
     }
 
     return updated;
+  }
+
+  async unsubscribeSubscriber(dto: UnsubscribeSubscriberDto): Promise<SubscriberRecord | null> {
+    const subscriber = await this.subscribersRepository.findBySiteAndEndpoint(dto.siteId, dto.subscriptionEndpoint);
+    if (!subscriber) {
+      return null;
+    }
+
+    return this.subscribersRepository.updateStatus(subscriber.id, {
+      status: "unsubscribed",
+      lastSeenAt: new Date(),
+    });
   }
 }
