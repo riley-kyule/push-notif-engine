@@ -11,7 +11,7 @@ export default async function BackupConfigPage({
   return (
     <DashboardShell
       eyebrow="Platform"
-      title="Backup Config"
+      title="System backup connections"
       description="Connect Dropbox or Google Drive and EPE handles the rest — full system backups on a schedule, or on demand."
     >
       <BackupConfigPanel connectedNotice={params.connected} errorNotice={params.error} />

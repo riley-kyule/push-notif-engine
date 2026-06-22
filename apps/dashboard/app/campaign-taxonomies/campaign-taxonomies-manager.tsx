@@ -179,7 +179,7 @@ export function CampaignTaxonomiesManager({ initialTaxonomies }: { initialTaxono
                   <div className="subtle">{taxonomy.slug}</div>
                   {taxonomy.description ? <div className="subtle">{taxonomy.description}</div> : null}
                 </div>
-                <span className={`badge ${taxonomy.isActive ? "sent" : "failed"}`}>{taxonomy.isActive ? "Active" : "Inactive"}</span>
+                <span className={`badge ${taxonomy.isActive ? "active" : "inactive"}`}>{taxonomy.isActive ? "Active" : "Inactive"}</span>
               </div>
               <div className="actions" style={{ marginTop: 12 }}>
                 <button className="button secondary" type="button" onClick={() => beginEdit(taxonomy)}>

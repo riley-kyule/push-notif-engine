@@ -239,10 +239,7 @@ export function BackupConfigPanel({
         ) : (
           <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
             {runs.map((run) => (
-              <div
-                key={run.id}
-                style={{ display: "grid", gridTemplateColumns: "120px 100px 90px 1fr 90px 180px", gap: 12, alignItems: "center" }}
-              >
+              <div key={run.id} className="backup-run-row">
                 <span>{PROVIDER_LABELS[run.provider]}</span>
                 <span className={`badge ${run.status === "completed" ? "active" : run.status === "failed" ? "failed" : "pending"}`}>
                   {run.status}

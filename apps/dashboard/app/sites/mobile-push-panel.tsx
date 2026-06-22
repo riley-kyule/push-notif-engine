@@ -172,37 +172,58 @@ export function MobilePushPanel({ site }: { site: SiteSummary }) {
         </p>
       ) : null}
 
-      <div className="grid cards-2" style={{ marginTop: 18, gap: 16 }}>
+      <div className="grid cards-2" style={{ marginTop: 18 }}>
         <div>
           <p className="subtle" style={{ marginBottom: 8 }}>
             <strong>APNs</strong>
           </p>
-          <input className="input" placeholder="Key ID" value={form.apnsKeyId} onChange={handleFieldChange("apnsKeyId")} style={{ marginBottom: 8, width: "100%" }} />
-          <input className="input" placeholder="Team ID" value={form.apnsTeamId} onChange={handleFieldChange("apnsTeamId")} style={{ marginBottom: 8, width: "100%" }} />
-          <input className="input" placeholder="Bundle ID" value={form.apnsBundleId} onChange={handleFieldChange("apnsBundleId")} style={{ marginBottom: 8, width: "100%" }} />
-          <textarea
-            className="input"
-            placeholder={credentials?.apnsConfigured ? "Private key (leave blank to keep existing)" : "Private key (.p8 contents)"}
-            value={form.apnsPrivateKey}
-            onChange={handleFieldChange("apnsPrivateKey")}
-            rows={3}
-            style={{ width: "100%" }}
-          />
+          <div className="field">
+            <label htmlFor={`apns-key-id-${site.id}`}>Key ID</label>
+            <input className="input" id={`apns-key-id-${site.id}`} value={form.apnsKeyId} onChange={handleFieldChange("apnsKeyId")} />
+          </div>
+          <div className="field">
+            <label htmlFor={`apns-team-id-${site.id}`}>Team ID</label>
+            <input className="input" id={`apns-team-id-${site.id}`} value={form.apnsTeamId} onChange={handleFieldChange("apnsTeamId")} />
+          </div>
+          <div className="field">
+            <label htmlFor={`apns-bundle-id-${site.id}`}>Bundle ID</label>
+            <input className="input" id={`apns-bundle-id-${site.id}`} value={form.apnsBundleId} onChange={handleFieldChange("apnsBundleId")} />
+          </div>
+          <div className="field">
+            <label htmlFor={`apns-private-key-${site.id}`}>Private key</label>
+            <textarea
+              className="input"
+              id={`apns-private-key-${site.id}`}
+              placeholder={credentials?.apnsConfigured ? "Leave blank to keep existing" : ".p8 contents"}
+              value={form.apnsPrivateKey}
+              onChange={handleFieldChange("apnsPrivateKey")}
+              rows={3}
+            />
+          </div>
         </div>
         <div>
           <p className="subtle" style={{ marginBottom: 8 }}>
             <strong>FCM</strong>
           </p>
-          <input className="input" placeholder="Project ID" value={form.fcmProjectId} onChange={handleFieldChange("fcmProjectId")} style={{ marginBottom: 8, width: "100%" }} />
-          <input className="input" placeholder="Client email" value={form.fcmClientEmail} onChange={handleFieldChange("fcmClientEmail")} style={{ marginBottom: 8, width: "100%" }} />
-          <textarea
-            className="input"
-            placeholder={credentials?.fcmConfigured ? "Private key (leave blank to keep existing)" : "Service account private key"}
-            value={form.fcmPrivateKey}
-            onChange={handleFieldChange("fcmPrivateKey")}
-            rows={3}
-            style={{ width: "100%" }}
-          />
+          <div className="field">
+            <label htmlFor={`fcm-project-id-${site.id}`}>Project ID</label>
+            <input className="input" id={`fcm-project-id-${site.id}`} value={form.fcmProjectId} onChange={handleFieldChange("fcmProjectId")} />
+          </div>
+          <div className="field">
+            <label htmlFor={`fcm-client-email-${site.id}`}>Client email</label>
+            <input className="input" id={`fcm-client-email-${site.id}`} value={form.fcmClientEmail} onChange={handleFieldChange("fcmClientEmail")} />
+          </div>
+          <div className="field">
+            <label htmlFor={`fcm-private-key-${site.id}`}>Private key</label>
+            <textarea
+              className="input"
+              id={`fcm-private-key-${site.id}`}
+              placeholder={credentials?.fcmConfigured ? "Leave blank to keep existing" : "Service account private key"}
+              value={form.fcmPrivateKey}
+              onChange={handleFieldChange("fcmPrivateKey")}
+              rows={3}
+            />
+          </div>
         </div>
       </div>
 

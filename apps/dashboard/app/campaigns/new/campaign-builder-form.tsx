@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { buildUrl, parseDateTime } from "./campaign-builder.utils";
@@ -59,16 +60,16 @@ async function uploadMedia(siteId: string, kind: "image" | "icon", file: File): 
 export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBuilderFormProps) {
   const [siteId, setSiteId] = useState(sites[0]?.id ?? "site-1");
   const [segmentId, setSegmentId] = useState<string>("");
-  const [name, setName] = useState("Launch Week");
-  const [title, setTitle] = useState("Big Safari Sale");
-  const [message, setMessage] = useState("Save 30% on last-minute wilderness stays.");
-  const [destination, setDestination] = useState("https://example.com/safari-sale");
+  const [name, setName] = useState("");
+  const [title, setTitle] = useState("");
+  const [message, setMessage] = useState("");
+  const [destination, setDestination] = useState("");
   const [channel, setChannel] = useState<CampaignChannel>("web");
   const [type, setType] = useState<CampaignType>("scheduled");
   const [contentType, setContentType] = useState(taxonomies.find((taxonomy) => taxonomy.slug === "promotion")?.slug ?? taxonomies[0]?.slug ?? "promotion");
-  const [schedule, setSchedule] = useState("2026-06-18T09:00");
-  const [imageUrl, setImageUrl] = useState("https://example.com/hero.png");
-  const [iconUrl, setIconUrl] = useState("https://example.com/icon.png");
+  const [schedule, setSchedule] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [iconUrl, setIconUrl] = useState("");
   const [imageAssetId, setImageAssetId] = useState<string | null>(null);
   const [iconAssetId, setIconAssetId] = useState<string | null>(null);
   const [imageFileName, setImageFileName] = useState<string | null>(null);
@@ -104,8 +105,8 @@ export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBui
     }
     setImageAssetId(null);
     setIconAssetId(null);
-    setImageUrl("https://example.com/hero.png");
-    setIconUrl("https://example.com/icon.png");
+    setImageUrl("");
+    setIconUrl("");
     setImageFileName(null);
     setIconFileName(null);
   }
@@ -263,7 +264,7 @@ export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBui
 
         <div className="field">
           <label htmlFor="name">Campaign name</label>
-          <input className="input" id="name" value={name} onChange={(event) => setName(event.target.value)} />
+          <input className="input" id="name" placeholder="e.g. Launch Week" value={name} onChange={(event) => setName(event.target.value)} />
         </div>
 
         <div className="field">
@@ -297,23 +298,23 @@ export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBui
 
         <div className="field">
           <label htmlFor="title">Title</label>
-          <input className="input" id="title" value={title} onChange={(event) => setTitle(event.target.value)} />
+          <input className="input" id="title" placeholder="e.g. Big Safari Sale" value={title} onChange={(event) => setTitle(event.target.value)} />
         </div>
 
         <div className="field">
           <label htmlFor="message">Message</label>
-          <textarea className="textarea" id="message" value={message} onChange={(event) => setMessage(event.target.value)} />
+          <textarea className="textarea" id="message" placeholder="Save 30% on last-minute wilderness stays." value={message} onChange={(event) => setMessage(event.target.value)} />
         </div>
 
         <div className="field">
           <label htmlFor="destination">Destination URL</label>
-          <input className="input" id="destination" value={destination} onChange={(event) => setDestination(event.target.value)} />
+          <input className="input" id="destination" placeholder="https://yoursite.com/landing-page" value={destination} onChange={(event) => setDestination(event.target.value)} />
         </div>
 
         <div className="grid cards-3">
           <div className="field">
             <label htmlFor="image">Image</label>
-            <input className="input" id="image" value={imageUrl} onChange={(event) => {
+            <input className="input" id="image" placeholder="https://yoursite.com/hero.png" value={imageUrl} onChange={(event) => {
               setImageUrl(event.target.value);
               setImageAssetId(null);
             }} />
@@ -325,7 +326,7 @@ export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBui
           </div>
           <div className="field">
             <label htmlFor="icon">Icon</label>
-            <input className="input" id="icon" value={iconUrl} onChange={(event) => {
+            <input className="input" id="icon" placeholder="https://yoursite.com/icon.png" value={iconUrl} onChange={(event) => {
               setIconUrl(event.target.value);
               setIconAssetId(null);
             }} />
@@ -389,9 +390,9 @@ export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBui
         <div className="actions" style={{ justifyContent: "space-between", marginTop: 24 }}>
           <span className="subtle">{statusMessage ?? "Save as draft or schedule when ready."}</span>
           <div className="actions">
-            <button className="button secondary" type="button" disabled={isSavingDraft || isScheduling}>
-              Back
-            </button>
+            <Link href="/campaigns" className="button secondary">
+              Back to campaigns
+            </Link>
             <button className="button secondary" type="button" onClick={saveDraft} disabled={isSavingDraft || isScheduling}>
               {isSavingDraft ? "Saving..." : "Save Draft"}
             </button>
