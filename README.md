@@ -121,10 +121,20 @@ A "site" is one Exotic-owned website. Each site has its own VAPID key pair — g
 
 - `POST /api/sites` — create. `platform` is one of `WordPress | Magento | Node.js | Laravel | Other`.
 - `POST /api/sites/:id/generate-vapid` — generates a new VAPID key pair via the `web-push` library and stores it on the site. Required before that site can register subscribers or receive pushes.
+- `POST /api/sites/:id/rest-api-credentials` — generates the site-scoped REST API key id and auth token for CRM integrations.
 - `GET/PATCH /api/sites/:id`, `GET /api/sites`.
 - No delete endpoint — sites aren't deletable through the API (campaigns and subscribers reference them by foreign key).
 
-Dashboard: `/sites` (list, with an "Add Site" button), `/sites/new`, `/sites/:id` (detail — VAPID keys, SDK snippet, downloadable service worker + manifest), `/sites/:id/edit`.
+### REST API credentials
+
+Each site can issue one REST API credential pair for CRM-driven actions and scheduling:
+
+- `X-EPE-Site-Key: <rest_api_key_id>`
+- `Authorization: Bearer <rest_api_auth_token>`
+
+The dashboard exposes this under `Site Settings -> Integrations -> REST API`. The API also exposes `GET /api/sites/:id/rest-api/identity` as a protected verification endpoint for CRM systems that need to confirm the credentials before using downstream site-scoped actions.
+
+Dashboard: `/sites` (list, with an "Add Site" button), `/sites/new`, `/sites/:id` (detail — VAPID keys, SDK snippet, downloadable service worker + manifest), `/sites/:id/edit`, `/platform-health` (platform score ring plus database, queue broker, storage, queue depth, worker heartbeat, and delivery drilldowns).
 
 ## Subscribers
 
@@ -169,8 +179,26 @@ Full CRUD plus a dispatch pipeline.
 - `POST /api/campaigns/:id/preview` — returns the rendered title/body/buttons for UI preview, no side effects.
 - `POST /api/campaigns/:id/schedule` — sets `status: scheduled`, `scheduledAt`, and optional recurrence (`recurrenceType: daily|weekly|monthly`, `recurrenceInterval`, `recurrenceUntilAt`).
 - `POST /api/campaigns/:id/send` — dispatches immediately. Rejects with 409 if the campaign is already `sending` or `sent`.
+- `POST /api/campaign-media` — uploads a campaign image or icon and returns a temporary asset URL plus asset ID.
+- `GET /api/campaign-media/:id/file` — streams the uploaded image back for previews and push payloads.
+- `GET /api/health/storage` — checks that the campaign media bucket is reachable.
+- `GET /api/health/platform` — returns the weighted platform health summary used by the dashboard Platform Health page, including queue depth, worker heartbeat freshness, and top/bottom delivery drilldowns.
+  The dashboard home page surfaces this status as a top-bar badge so storage issues are visible without opening the API directly.
 
 A campaign can optionally target a `segmentId` (see below) instead of every active subscriber on the site. The API validates the segment belongs to the same site as the campaign — passing a segment from a different site returns 400.
+
+Campaign action buttons are stored as a JSON array of `{ label, url }`. The dashboard campaign builder lets editors toggle the buttons on or off and edit both button labels and destinations before saving.
+
+Uploaded campaign media is stored in object storage via the API layer, not on the API host's local disk. The database tracks only metadata and object keys. Media is automatically purged three days after the associated campaign push has been marked delivered. If a campaign is cloned, its attached media is duplicated so the retention rule on the original campaign does not break the clone.
+
+The API expects these environment variables for campaign media storage:
+
+- `CAMPAIGN_MEDIA_STORAGE_BUCKET`
+- `CAMPAIGN_MEDIA_STORAGE_REGION`
+- `CAMPAIGN_MEDIA_STORAGE_ENDPOINT`
+- `CAMPAIGN_MEDIA_STORAGE_ACCESS_KEY_ID`
+- `CAMPAIGN_MEDIA_STORAGE_SECRET_ACCESS_KEY`
+- `CAMPAIGN_MEDIA_STORAGE_FORCE_PATH_STYLE`
 
 ### The scheduler
 
@@ -196,6 +224,15 @@ A segment definition is `{ matchMode: "all" | "any", rules: [...] }`. Each rule 
 - **Operators:** `is | isNot | in | notIn` (for most fields), `withinDays | olderThanDays` (for `lastSeenAt` only, value is a number of days)
 
 `matchMode: "all"` ANDs the rules together; `"any"` ORs them. The same rule-to-SQL builder exists twice — once in `services/api/src/segments/postgres-segments.repository.ts` (for reach estimation) and once in `services/worker/src/segment.util.ts` (for actually filtering subscribers at send time). If you add a new field or operator, update both.
+
+## Content taxonomies
+
+Campaign content labels are managed centrally instead of being hard-coded in the builder.
+
+- `GET/POST/PATCH/DELETE /api/campaign-taxonomies(/:id)` — manage the controlled taxonomy list.
+- `GET /api/campaign-taxonomies` powers the dashboard campaign builder dropdown and the taxonomy management page.
+- The dashboard includes `/campaign-taxonomies` for adding, editing, deactivating, and deleting taxonomy labels.
+- Campaigns continue storing the taxonomy slug in `content_type`, so reporting stays stable even if a label is renamed.
 
 ## Workflow automation
 
@@ -239,10 +276,13 @@ Next.js 15 App Router. Pages: `/` (overview), `/analytics`, `/sites`, `/sites/ne
 
 - Serves the service worker at `/push-sw.js` and a web app manifest at `/manifest.json` (both via rewrite rules + `template_redirect`, not real files — see `serve_service_worker()`/`serve_manifest()` in `epe-push.php`).
 - Injects the SDK (`assets/epe-sdk.js`) on every page via `wp_enqueue_scripts`.
-- Admin settings page (`Settings → EPE Push`): API URL, Site Key, VAPID Public Key, Icon URL, App Name, Theme Color.
+- Admin settings page (`Settings → EPE Push`): API URL and Site Key only. Branding and opt-in prompt settings live in the EPE site settings and are fetched automatically.
+- The SDK renders the custom EPE opt-in prompt, so sites do not rely on the native browser permission prompt as the primary user-facing experience.
+- Once a browser is subscribed, the SDK shows a bottom-left bell launcher with recent notifications and an unsubscribe action. The tray count is controlled per site in EPE.
 - The SDK handles the full subscribe flow: register the service worker → request notification permission → `PushManager.subscribe()` with the site's VAPID key → POST the resulting subscription to `/api/subscribers/register`.
+- Site Settings → Integrations → REST API provides per-site API key and auth token credentials for CRM-managed push and scheduling use cases. The auth token is shown only once when generated.
 
-To onboard a new WordPress site: create the site in EPE, generate its VAPID keys, install the plugin, paste the API URL + Site Key + VAPID public key into the plugin settings.
+To onboard a new WordPress site: create the site in EPE, set the branding and VAPID details in the site record, install the plugin, then paste the API URL + Site Key into the plugin settings.
 
 ## Other platform integrations
 
