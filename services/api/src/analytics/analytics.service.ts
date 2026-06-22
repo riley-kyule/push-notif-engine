@@ -1,4 +1,6 @@
 import { Injectable } from "@nestjs/common";
+import ExcelJS from "exceljs";
+import PDFDocument from "pdfkit";
 
 import { AnalyticsRepository } from "./analytics.repository";
 
@@ -53,13 +55,59 @@ export class AnalyticsService {
   async exportReport(input: {
     report: "overview" | "countries" | "sites-performance" | "time-performance" | "content-performance";
     days: number;
-  }): Promise<{ filename: string; csv: string }> {
+    format?: "csv" | "xlsx" | "pdf";
+  }): Promise<{ filename: string; contentType: string; body: string | Buffer }> {
     const rows = await this.resolveExportRows(input);
+    const format = input.format ?? "csv";
+
+    if (format === "xlsx") {
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = "Exotic Push Engine";
+      workbook.created = new Date();
+
+      const worksheet = workbook.addWorksheet(this.buildWorksheetName(input.report));
+      worksheet.columns = rows.headers.map((header) => ({ header, key: header, width: Math.max(14, header.length + 4) }));
+      for (const row of rows.rows) {
+        worksheet.addRow(
+          rows.headers.reduce<Record<string, string | number>>((accumulator, header, index) => {
+            accumulator[header] = row[index] ?? "";
+            return accumulator;
+          }, {}),
+        );
+      }
+      worksheet.getRow(1).font = { bold: true };
+      worksheet.views = [{ state: "frozen", ySplit: 1 }];
+      const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+
+      return {
+        filename: `analytics-${input.report}-${input.days}d.xlsx`,
+        contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        body: buffer,
+      };
+    }
+
+    if (format === "pdf") {
+      const buffer = await this.toPdfBuffer(rows.headers, rows.rows, input);
+      return {
+        filename: `analytics-${input.report}-${input.days}d.pdf`,
+        contentType: "application/pdf",
+        body: buffer,
+      };
+    }
+
     const csv = this.toCsv(rows.headers, rows.rows);
     return {
       filename: `analytics-${input.report}-${input.days}d.csv`,
-      csv,
+      contentType: "text/csv; charset=utf-8",
+      body: csv,
     };
+  }
+
+  async getReportRows(input: {
+    report: "overview" | "countries" | "sites-performance" | "time-performance" | "content-performance";
+    days: number;
+  }): Promise<{ headers: string[]; rows: Array<Array<string | number>> }> {
+    return this.resolveExportRows(input);
   }
 
   private async resolveExportRows(input: {
@@ -116,5 +164,70 @@ export class AnalyticsService {
     };
 
     return [headers.map(escape).join(","), ...rows.map((row) => row.map(escape).join(","))].join("\n");
+  }
+
+  private buildWorksheetName(report: string): string {
+    return report.replaceAll(/[^A-Za-z0-9]/g, " ").slice(0, 31) || "Analytics";
+  }
+
+  private async toPdfBuffer(
+    headers: string[],
+    rows: Array<Array<string | number>>,
+    input: { report: string; days: number },
+  ): Promise<Buffer> {
+    const chunks: Buffer[] = [];
+    const doc = new PDFDocument({ size: "A4", margin: 40, autoFirstPage: true });
+
+    doc.on("data", (chunk: Buffer) => chunks.push(chunk));
+
+    const done = new Promise<Buffer>((resolve, reject) => {
+      doc.on("end", () => resolve(Buffer.concat(chunks)));
+      doc.on("error", reject);
+    });
+
+    doc.fontSize(18).text(`Analytics ${input.report}`, { underline: false });
+    doc.moveDown(0.5);
+    doc.fontSize(10).fillColor("#666666").text(`Reporting window: last ${input.days} days`);
+    doc.moveDown();
+    doc.fillColor("#111111");
+
+    const columnCount = headers.length;
+    const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+    const columnWidth = Math.max(Math.floor(usableWidth / Math.max(columnCount, 1)), 72);
+
+    const drawRow = (values: Array<string | number>, bold = false) => {
+      let x = doc.page.margins.left;
+      let maxHeight = 0;
+      values.forEach((value) => {
+        const text = String(value);
+        const height = doc.heightOfString(text, { width: columnWidth - 8 });
+        maxHeight = Math.max(maxHeight, height);
+      });
+
+      if (doc.y + maxHeight + 12 > doc.page.height - doc.page.margins.bottom) {
+        doc.addPage();
+        doc.y = doc.page.margins.top;
+        x = doc.page.margins.left;
+      }
+
+      values.forEach((value, index) => {
+        const text = String(value);
+        doc.font(bold ? "Helvetica-Bold" : "Helvetica")
+          .fontSize(9)
+          .text(text, x, doc.y, { width: columnWidth - 8, align: "left" });
+        x += columnWidth;
+        if (index < values.length - 1) {
+          doc.moveTo(x - 4, doc.y).lineTo(x - 4, doc.y + maxHeight + 6).strokeColor("#E5E7EB").stroke();
+        }
+      });
+
+      doc.moveDown(Math.max(1, Math.ceil((maxHeight + 10) / 12)));
+    };
+
+    drawRow(headers, true);
+    rows.forEach((row) => drawRow(row));
+
+    doc.end();
+    return done;
   }
 }

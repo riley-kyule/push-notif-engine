@@ -44,7 +44,7 @@ function createService(overrides: Partial<Record<string, (...args: never[]) => u
     },
     async exportReport(...args: never[]) {
       calls.push({ method: "exportReport", args });
-      return overrides.exportReport ? overrides.exportReport(...args) : { filename: "analytics-overview-7d.csv", csv: "metric,value" };
+      return overrides.exportReport ? overrides.exportReport(...args) : { filename: "analytics-overview-7d.csv", contentType: "text/csv; charset=utf-8", body: "metric,value" };
     },
   };
 
@@ -81,5 +81,24 @@ test("analytics service exports csv reports", async () => {
   const result = await service.exportReport({ report: "content-performance", days: 7 });
 
   assert.equal(result.filename, "analytics-content-performance-7d.csv");
-  assert.match(result.csv, /contentType/);
+  assert.equal(result.contentType, "text/csv; charset=utf-8");
+  assert.match(String(result.body), /contentType/);
+});
+
+test("analytics service exports xlsx reports", async () => {
+  const { service } = createService();
+  const result = await service.exportReport({ report: "overview", days: 30, format: "xlsx" });
+
+  assert.equal(result.filename, "analytics-overview-30d.xlsx");
+  assert.equal(result.contentType, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  assert.ok(Buffer.isBuffer(result.body));
+});
+
+test("analytics service exports pdf reports", async () => {
+  const { service } = createService();
+  const result = await service.exportReport({ report: "overview", days: 30, format: "pdf" });
+
+  assert.equal(result.filename, "analytics-overview-30d.pdf");
+  assert.equal(result.contentType, "application/pdf");
+  assert.ok(Buffer.isBuffer(result.body));
 });

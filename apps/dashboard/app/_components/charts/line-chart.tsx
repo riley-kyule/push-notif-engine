@@ -1,3 +1,7 @@
+"use client";
+
+import { useMemo, useState } from "react";
+
 export interface LineChartPoint {
   label: string;
   value: number;
@@ -15,11 +19,16 @@ export function LineChart({
   height?: number;
 }) {
   const width = 720;
+  const previewFormatter = formatValue ?? ((value: number) => new Intl.NumberFormat("en-US").format(value));
+  const yAxisPreview = useMemo(() => points.map((point) => previewFormatter(point.value)), [points, previewFormatter]);
+  const maxLabelLength = yAxisPreview.reduce((length, value) => Math.max(length, value.length), 0);
+  const leftPadding = Math.max(64, Math.min(108, maxLabelLength * 8 + 20));
   const padTop = 18;
-  const padBottom = 46;
-  const padLeft = 52;
-  const padRight = 10;
+  const padBottom = 54;
+  const padLeft = leftPadding;
+  const padRight = 14;
   const innerHeight = height - padTop - padBottom;
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
   if (points.length === 0) {
     return (
@@ -55,54 +64,147 @@ export function LineChart({
   const labelStride = Math.max(1, Math.ceil(points.length / 8));
   const gradientId = `line-fill-${points.length}-${Math.round(max)}-${Math.round(min)}`;
   const formatAxisValue = (value: number): string => (formatValue ? formatValue(value) : new Intl.NumberFormat("en-US").format(value));
+  const activePoint = activeIndex === null ? null : coords[activeIndex] ?? null;
+  const activeValue = activePoint ? formatAxisValue(activePoint.point.value) : "Hover a point";
+
+  function setActiveFromClientX(clientX: number, currentTarget: HTMLElement) {
+    if (coords.length === 0) {
+      return;
+    }
+
+    const rect = currentTarget.getBoundingClientRect();
+    const ratio = rect.width > 0 ? (clientX - rect.left) / rect.width : 0;
+    const chartX = padLeft + Math.min(Math.max(ratio, 0), 1) * (width - padLeft - padRight);
+    let closestIndex = 0;
+    let closestDistance = Number.POSITIVE_INFINITY;
+
+    coords.forEach((coord, index) => {
+      const distance = Math.abs(coord.x - chartX);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestIndex = index;
+      }
+    });
+
+    setActiveIndex(closestIndex);
+  }
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="line-chart" role="img" aria-label="Line chart">
-      <defs>
-        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.28" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
+    <div
+      className="line-chart-shell"
+      tabIndex={0}
+      onBlur={() => setActiveIndex(null)}
+      onKeyDown={(event) => {
+        if (event.key === "ArrowRight") {
+          event.preventDefault();
+          setActiveIndex((current) => Math.min((current ?? 0) + 1, coords.length - 1));
+        }
+        if (event.key === "ArrowLeft") {
+          event.preventDefault();
+          setActiveIndex((current) => Math.max((current ?? coords.length - 1) - 1, 0));
+        }
+        if (event.key === "Home") {
+          event.preventDefault();
+          setActiveIndex(0);
+        }
+        if (event.key === "End") {
+          event.preventDefault();
+          setActiveIndex(coords.length - 1);
+        }
+      }}
+    >
+      <div className="line-chart-summary">
+        <strong>Hover data</strong>
+        <span>{activePoint ? `${activePoint.point.label} · ${activeValue}` : activeValue}</span>
+      </div>
 
-      {gridLines.map((fraction) => {
-        const y = padTop + innerHeight * fraction;
-        const value = max - (max - min) * fraction;
-        return (
-          <g key={fraction}>
-            <line x1={padLeft} x2={width - padRight} y1={y} y2={y} className="line-chart-grid" />
-            <text x={padLeft - 12} y={y} textAnchor="end" dominantBaseline="middle" className="line-chart-axis-label line-chart-axis-label--y">
-              {formatAxisValue(value)}
-            </text>
-          </g>
-        );
-      })}
+      <div
+        className="line-chart-canvas"
+        onPointerLeave={() => setActiveIndex(null)}
+        onPointerMove={(event) => setActiveFromClientX(event.clientX, event.currentTarget)}
+      >
+        <svg viewBox={`0 0 ${width} ${height}`} className="line-chart" role="img" aria-label="Line chart">
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={color} stopOpacity="0.28" />
+              <stop offset="100%" stopColor={color} stopOpacity="0" />
+            </linearGradient>
+          </defs>
 
-      {areaPath ? <path d={areaPath} fill={`url(#${gradientId})`} stroke="none" /> : null}
-      {linePath ? <path d={linePath} fill="none" stroke={color} strokeWidth="2.25" strokeLinejoin="round" strokeLinecap="round" /> : null}
+          {gridLines.map((fraction) => {
+            const y = padTop + innerHeight * fraction;
+            const value = max - (max - min) * fraction;
+            return (
+              <g key={fraction}>
+                <line x1={padLeft} x2={width - padRight} y1={y} y2={y} className="line-chart-grid" />
+                <text x={padLeft - 12} y={y} textAnchor="end" dominantBaseline="middle" className="line-chart-axis-label line-chart-axis-label--y">
+                  {formatAxisValue(value)}
+                </text>
+              </g>
+            );
+          })}
 
-      {coords.map((coord, index) => (
-        <circle key={`${coord.point.label}-${index}`} cx={coord.x} cy={coord.y} r="3.4" fill={color} stroke="white" strokeWidth="1.4">
-          <title>
-            {coord.point.label}: {formatValue ? formatValue(coord.point.value) : coord.point.value}
-          </title>
-        </circle>
-      ))}
+          {areaPath ? <path d={areaPath} fill={`url(#${gradientId})`} stroke="none" /> : null}
+          {linePath ? <path d={linePath} fill="none" stroke={color} strokeWidth="2.25" strokeLinejoin="round" strokeLinecap="round" /> : null}
 
-      {coords.map((coord, index) =>
-        index % labelStride === 0 || index === coords.length - 1 ? (
-          <text
-            key={`label-${index}`}
-            x={coord.x}
-            y={height - 8}
-            textAnchor="middle"
-            dominantBaseline="hanging"
-            className="line-chart-axis-label"
+          {activePoint ? (
+            <line
+              x1={activePoint.x}
+              x2={activePoint.x}
+              y1={padTop}
+              y2={padTop + innerHeight}
+              className="line-chart-active-line"
+            />
+          ) : null}
+
+          {coords.map((coord, index) => {
+            const isActive = index === activeIndex;
+            return (
+              <circle
+                key={`${coord.point.label}-${index}`}
+                cx={coord.x}
+                cy={coord.y}
+                r={isActive ? "5.2" : "3.4"}
+                fill={color}
+                stroke="white"
+                strokeWidth={isActive ? "1.8" : "1.4"}
+              >
+                <title>
+                  {coord.point.label}: {formatAxisValue(coord.point.value)}
+                </title>
+              </circle>
+            );
+          })}
+
+          {coords.map((coord, index) =>
+            index % labelStride === 0 || index === coords.length - 1 ? (
+              <text
+                key={`label-${index}`}
+                x={coord.x}
+                y={height - 12}
+                textAnchor="middle"
+                dominantBaseline="hanging"
+                className="line-chart-axis-label"
+              >
+                {coord.point.label}
+              </text>
+            ) : null,
+          )}
+        </svg>
+
+        {activePoint ? (
+          <div
+            className="line-chart-tooltip"
+            style={{
+              left: `${(activePoint.x / width) * 100}%`,
+              top: `${(Math.max(activePoint.y - 14, 10) / height) * 100}%`,
+            }}
           >
-            {coord.point.label}
-          </text>
-        ) : null,
-      )}
-    </svg>
+            <strong>{activePoint.point.label}</strong>
+            <span>{activeValue}</span>
+          </div>
+        ) : null}
+      </div>
+    </div>
   );
 }

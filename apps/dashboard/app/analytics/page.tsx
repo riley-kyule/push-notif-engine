@@ -3,7 +3,7 @@ import Link from "next/link";
 import { DashboardShell } from "../_components/dashboard-shell";
 import { getAnalyticsDashboardData } from "../_data/analytics";
 import { AnalyticsRangePicker } from "./analytics-range-picker";
-import { AnalyticsPerformanceExplorer, type ExplorerSection } from "./analytics-performance-explorer";
+import { AnalyticsPerformanceExplorer, type ExplorerSection, type ExportSectionOptions } from "./analytics-performance-explorer";
 
 function buildQuery(params: {
   preset: string;
@@ -47,11 +47,18 @@ function buildQuery(params: {
   return `/analytics?${search.toString()}`;
 }
 
-function buildExportUrl(params: { days: number; report: "overview" | "countries" | "sites-performance" | "time-performance" | "content-performance" }): string {
+function buildExportUrl(params: {
+  days: number;
+  report: "overview" | "countries" | "sites-performance" | "time-performance" | "content-performance";
+  format?: "csv" | "xlsx" | "pdf";
+}): string {
   const search = new URLSearchParams({
     days: String(params.days),
     report: params.report,
   });
+  if (params.format) {
+    search.set("format", params.format);
+  }
   return `/api/dashboard/analytics/export?${search.toString()}`;
 }
 
@@ -153,7 +160,6 @@ export default async function AnalyticsPage({
       selector: {
         action: "/analytics",
         label: "Site",
-        submitLabel: "View site",
         selectedValue: dashboard.selectedSite.id,
         hiddenInputs: [
           { name: "preset", value: dashboard.selectedPreset },
@@ -257,6 +263,25 @@ export default async function AnalyticsPage({
     },
   ];
 
+  const sectionReportKeys: Record<string, "sites-performance" | "countries" | "time-performance" | "content-performance"> = {
+    site: "sites-performance",
+    country: "countries",
+    time: "time-performance",
+    content: "content-performance",
+  };
+
+  const exportOptions: Record<string, ExportSectionOptions> = Object.fromEntries(
+    Object.entries(sectionReportKeys).map(([sectionKey, report]) => [
+      sectionKey,
+      {
+        csv: buildExportUrl({ days: dashboard.days, report, format: "csv" }),
+        xlsx: buildExportUrl({ days: dashboard.days, report, format: "xlsx" }),
+        pdf: buildExportUrl({ days: dashboard.days, report, format: "pdf" }),
+        googleSheetsAuthorizeUrl: `/api/dashboard/analytics/export/google-sheets/authorize?report=${report}&days=${dashboard.days}`,
+      },
+    ]),
+  );
+
   return (
     <DashboardShell
       eyebrow="Analytics"
@@ -264,12 +289,6 @@ export default async function AnalyticsPage({
       description="Track delivery health, subscriber growth, and campaign performance from a single reporting surface."
       actions={
         <>
-          <Link className="button secondary" href={buildExportUrl({ days: dashboard.days, report: "overview" })}>
-            Export overview CSV
-          </Link>
-          <Link className="button secondary" href={buildExportUrl({ days: dashboard.days, report: "content-performance" })}>
-            Export content CSV
-          </Link>
           <Link className="button secondary" href="/campaigns/new">
             New campaign
           </Link>
@@ -293,6 +312,7 @@ export default async function AnalyticsPage({
         <AnalyticsPerformanceExplorer
           sections={performanceSections}
           initialSectionKey={activeSection}
+          exportOptions={exportOptions}
           controls={
             <AnalyticsRangePicker
               selectedPreset={dashboard.selectedPreset}
@@ -368,71 +388,113 @@ export default async function AnalyticsPage({
         ) : null}
 
         <section className="analytics-report-grid">
-          <aside className="analytics-sidebar">
-            <section className="card analytics-panel">
-              <div className="panel-heading">
-                <div>
-                  <p className="eyebrow">Campaign performance</p>
-                  <h3>{dashboard.selectedCampaign?.name ?? "No campaign selected"}</h3>
-                </div>
-                <span className={`badge ${dashboard.selectedCampaign?.status ?? "draft"}`}>{dashboard.selectedCampaign?.status ?? "draft"}</span>
+          <section className="card analytics-panel analytics-report-main">
+            <div className="panel-heading">
+              <div>
+                <p className="eyebrow">Campaign performance</p>
+                <h3>{dashboard.selectedCampaign?.name ?? "No campaign selected"}</h3>
               </div>
+              <span className={`badge ${dashboard.selectedCampaign?.status ?? "draft"}`}>{dashboard.selectedCampaign?.status ?? "draft"}</span>
+            </div>
 
-              <form className="analytics-selectors analytics-selectors--stacked" action="/analytics" method="get">
-                <input type="hidden" name="preset" value={dashboard.selectedPreset} />
-                <input type="hidden" name="days" value={String(dashboard.days)} />
-                {dashboard.selectedPreset === "custom" && dashboard.range.days > 1 ? (
-                  <input type="hidden" name="endDate" value={dashboard.range.endDate} />
-                ) : null}
-                {dashboard.selectedPreset === "custom" ? <input type="hidden" name="startDate" value={dashboard.range.startDate} /> : null}
-                <input type="hidden" name="compareMode" value={dashboard.compareMode} />
-                {dashboard.compareMode === "custom" && dashboard.comparisonRange ? (
-                  <>
-                    <input type="hidden" name="compareStartDate" value={dashboard.comparisonRange.startDate} />
-                    <input type="hidden" name="compareEndDate" value={dashboard.comparisonRange.endDate} />
-                  </>
-                ) : null}
-                <input type="hidden" name="siteId" value={dashboard.selectedSite.id} />
-                <div className="field">
-                  <label htmlFor="analytics-campaign">Campaign</label>
-                  <select id="analytics-campaign" name="campaignId" className="select" defaultValue={dashboard.selectedCampaign?.id ?? ""}>
-                    {dashboard.campaigns.map((campaign) => (
-                      <option key={campaign.id} value={campaign.id}>
-                        {campaign.name} - {campaign.status}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <button className="button secondary" type="submit">
-                  View campaign
-                </button>
-              </form>
-
-              {dashboard.selectedCampaign ? (
-                <div className="analytics-campaign-card">
-                  <p className="subtle">{dashboard.selectedCampaign.site}</p>
-                  <p>{dashboard.selectedCampaign.message}</p>
-                  <div className="analytics-mini-summary analytics-mini-summary--compact">
-                    <article className="analytics-mini-card">
-                      <span>Sent</span>
-                      <strong>{dashboard.selectedCampaign.metrics.sent}</strong>
-                    </article>
-                    <article className="analytics-mini-card">
-                      <span>Delivered</span>
-                      <strong>{dashboard.selectedCampaign.metrics.delivered}</strong>
-                    </article>
-                    <article className="analytics-mini-card">
-                      <span>Clicks</span>
-                      <strong>{dashboard.selectedCampaign.metrics.clicks}</strong>
-                    </article>
-                    <article className="analytics-mini-card">
-                      <span>CTR</span>
-                      <strong>{dashboard.selectedCampaign.metrics.ctr}</strong>
-                    </article>
-                  </div>
-                </div>
+            <form className="analytics-selectors analytics-selectors--stacked" action="/analytics" method="get">
+              <input type="hidden" name="preset" value={dashboard.selectedPreset} />
+              <input type="hidden" name="days" value={String(dashboard.days)} />
+              {dashboard.selectedPreset === "custom" && dashboard.range.days > 1 ? (
+                <input type="hidden" name="endDate" value={dashboard.range.endDate} />
               ) : null}
-            </section>
+              {dashboard.selectedPreset === "custom" ? <input type="hidden" name="startDate" value={dashboard.range.startDate} /> : null}
+              <input type="hidden" name="compareMode" value={dashboard.compareMode} />
+              {dashboard.compareMode === "custom" && dashboard.comparisonRange ? (
+                <>
+                  <input type="hidden" name="compareStartDate" value={dashboard.comparisonRange.startDate} />
+                  <input type="hidden" name="compareEndDate" value={dashboard.comparisonRange.endDate} />
+                </>
+              ) : null}
+              <input type="hidden" name="siteId" value={dashboard.selectedSite.id} />
+              <div className="field">
+                <label htmlFor="analytics-campaign">Campaign</label>
+                <select id="analytics-campaign" name="campaignId" className="select" defaultValue={dashboard.selectedCampaign?.id ?? ""}>
+                  {dashboard.campaigns.map((campaign) => (
+                    <option key={campaign.id} value={campaign.id}>
+                      {campaign.name} - {campaign.status}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button className="button secondary" type="submit">
+                View campaign
+              </button>
+            </form>
+
+            {dashboard.selectedCampaign ? (
+              <div className="analytics-campaign-card">
+                <p className="subtle">{dashboard.selectedCampaign.site}</p>
+                <p>{dashboard.selectedCampaign.message}</p>
+                <div className="analytics-mini-summary analytics-mini-summary--compact">
+                  <article className="analytics-mini-card">
+                    <span>Sent</span>
+                    <strong>{dashboard.selectedCampaign.metrics.sent}</strong>
+                  </article>
+                  <article className="analytics-mini-card">
+                    <span>Delivered</span>
+                    <strong>{dashboard.selectedCampaign.metrics.delivered}</strong>
+                  </article>
+                  <article className="analytics-mini-card">
+                    <span>Clicks</span>
+                    <strong>{dashboard.selectedCampaign.metrics.clicks}</strong>
+                  </article>
+                  <article className="analytics-mini-card">
+                    <span>CTR</span>
+                    <strong>{dashboard.selectedCampaign.metrics.ctr}</strong>
+                  </article>
+                </div>
+              </div>
+            ) : null}
+          </section>
+
+          <aside className="card analytics-panel analytics-report-side">
+            <div className="panel-heading">
+              <div>
+                <p className="eyebrow">Selected site</p>
+                <h3>{dashboard.selectedSite.name}</h3>
+              </div>
+              <span className="badge active">{dashboard.selectedSite.status}</span>
+            </div>
+
+            <div className="analytics-site-summary">
+              <article className="analytics-site-summary-card">
+                <span>Subscribers</span>
+                <strong>{formatNumber(dashboard.siteAnalytics.totalSubscribers)}</strong>
+              </article>
+              <article className="analytics-site-summary-card">
+                <span>Active</span>
+                <strong>{formatNumber(dashboard.siteAnalytics.activeSubscribers)}</strong>
+              </article>
+              <article className="analytics-site-summary-card">
+                <span>Delivered 30d</span>
+                <strong>{formatNumber(dashboard.siteAnalytics.last30Days.totalDelivered)}</strong>
+              </article>
+              <article className="analytics-site-summary-card">
+                <span>Failures 30d</span>
+                <strong>{formatNumber(dashboard.siteAnalytics.last30Days.totalFailed)}</strong>
+              </article>
+            </div>
+
+            <div className="analytics-drilldown-links">
+              <Link className="button secondary" href={`/sites/${dashboard.selectedSite.id}`}>
+                Open site
+              </Link>
+              <Link className="button secondary" href="/segments">
+                Segments
+              </Link>
+              <Link className="button secondary" href="/workflow">
+                Workflow
+              </Link>
+              <Link className="button secondary" href="/analytics?section=site&days=30&preset=30d">
+                Site report
+              </Link>
+            </div>
           </aside>
         </section>
       </div>

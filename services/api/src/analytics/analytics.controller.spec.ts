@@ -40,11 +40,11 @@ function createController(overrides: Partial<Record<string, (...args: never[]) =
     },
     async exportReport(...args: never[]) {
       calls.push({ method: "exportReport", args });
-      return overrides.exportReport ? overrides.exportReport(...args) : { filename: "analytics-overview-30d.csv", csv: "metric,value" };
+      return overrides.exportReport ? overrides.exportReport(...args) : { filename: "analytics-overview-30d.csv", contentType: "text/csv; charset=utf-8", body: "metric,value" };
     },
   };
 
-  return { controller: new AnalyticsController(service as never), calls };
+  return { controller: new AnalyticsController(service as never, {} as never), calls };
 }
 
 test("analytics controller returns overview data with default day window", async () => {
@@ -117,6 +117,79 @@ test("analytics controller exports csv reports", async () => {
   const response = { setHeader() {} };
   const csv = await controller.exportReport(response as never, "7", "content-performance");
 
-  assert.match(csv, /metric|contentType/);
+  assert.match(String(csv), /metric|contentType/);
   assert.deepEqual(calls, [{ method: "exportReport", args: [{ days: 7, report: "content-performance" }] }]);
+});
+
+test("analytics controller exports xlsx and pdf reports", async () => {
+  const calls: Array<{ method: string; args: unknown[] }> = [];
+  const controller = new AnalyticsController(
+    {
+      async exportReport(...args: never[]) {
+        calls.push({ method: "exportReport", args });
+        return { filename: "analytics-overview-7d.xlsx", contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", body: Buffer.from("xlsx") };
+      },
+    } as never,
+    {} as never,
+  );
+
+  const response = { setHeader() {} };
+  const xlsx = await controller.exportReport(response as never, "7", "overview", "xlsx");
+  assert.ok(Buffer.isBuffer(xlsx));
+  assert.deepEqual(calls, [{ method: "exportReport", args: [{ days: 7, report: "overview", format: "xlsx" }] }]);
+});
+
+test("analytics controller builds a Google Sheets authorize URL embedding report and days in state", () => {
+  const sheetsClient = { buildAuthorizeUrl: (state: string) => `https://accounts.google.com/auth?state=${state}` };
+  const controller = new AnalyticsController({} as never, sheetsClient as never);
+
+  const result = controller.getGoogleSheetsAuthorizeUrl("content-performance", "14");
+
+  assert.equal(result.success, true);
+  assert.match(result.data.authorizeUrl, /^https:\/\/accounts\.google\.com\/auth\?state=/);
+  const encoded = result.data.state.split(".")[1] ?? "";
+  const payload = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
+  assert.deepEqual(payload, { report: "content-performance", days: 14 });
+});
+
+test("analytics controller exchanges a Google Sheets code and returns the created spreadsheet URL", async () => {
+  const calls: Array<{ method: string; args: unknown[] }> = [];
+  const reportRows = { headers: ["metric", "value"], rows: [["totalSubscribers", 10]] };
+  const service = {
+    async getReportRows(...args: never[]) {
+      calls.push({ method: "getReportRows", args });
+      return reportRows;
+    },
+  };
+  const sheetsClient = {
+    async exchangeCode(...args: never[]) {
+      calls.push({ method: "exchangeCode", args });
+      return "access-token";
+    },
+    async createSpreadsheet(...args: never[]) {
+      calls.push({ method: "createSpreadsheet", args });
+      return "https://docs.google.com/spreadsheets/d/abc123";
+    },
+  };
+  const controller = new AnalyticsController(service as never, sheetsClient as never);
+
+  const encodedState = Buffer.from(JSON.stringify({ report: "overview", days: 30 })).toString("base64url");
+  const result = await controller.exchangeGoogleSheetsCode("auth-code", `nonce123.${encodedState}`);
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.spreadsheetUrl, "https://docs.google.com/spreadsheets/d/abc123");
+  const [exchangeCall, reportCall, createCall] = calls;
+  assert.deepEqual(exchangeCall, { method: "exchangeCode", args: ["auth-code"] });
+  assert.deepEqual(reportCall, { method: "getReportRows", args: [{ report: "overview", days: 30 }] });
+  assert.equal(createCall?.method, "createSpreadsheet");
+  assert.equal(createCall?.args[0], "access-token");
+  assert.deepEqual(createCall?.args[2], reportRows.headers);
+  assert.deepEqual(createCall?.args[3], reportRows.rows);
+});
+
+test("analytics controller rejects a Google Sheets exchange missing code or state", async () => {
+  const controller = new AnalyticsController({} as never, {} as never);
+
+  await assert.rejects(() => controller.exchangeGoogleSheetsCode("", "state"));
+  await assert.rejects(() => controller.exchangeGoogleSheetsCode("code", ""));
 });

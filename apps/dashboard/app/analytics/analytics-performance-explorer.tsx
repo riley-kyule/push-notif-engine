@@ -1,10 +1,105 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { LineChart } from "../_components/charts/line-chart";
 import type { MetricSeries } from "../_components/charts/metric-line-card";
+
+export type ExportSectionOptions = {
+  csv: string;
+  xlsx: string;
+  pdf: string;
+  googleSheetsAuthorizeUrl: string;
+};
+
+function ExportMenu({ label, options }: { label: string; options: ExportSectionOptions }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [sheetsConfigured, setSheetsConfigured] = useState<boolean | null>(null);
+  const [sheetsStatus, setSheetsStatus] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen || sheetsConfigured !== null) {
+      return;
+    }
+
+    void fetch("/api/dashboard/analytics/export/google-sheets/status")
+      .then((response) => response.json())
+      .then((payload: { data?: { configured?: boolean } }) => setSheetsConfigured(Boolean(payload.data?.configured)))
+      .catch(() => setSheetsConfigured(false));
+  }, [isOpen, sheetsConfigured]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  function handleGoogleSheetsExport() {
+    setIsOpen(false);
+    setSheetsStatus("Opening Google sign-in...");
+    void fetch(options.googleSheetsAuthorizeUrl)
+      .then((response) => response.json())
+      .then((payload: { success?: boolean; data?: { authorizeUrl?: string } }) => {
+        if (!payload.success || !payload.data?.authorizeUrl) {
+          throw new Error("Unable to start the export");
+        }
+        window.location.href = payload.data.authorizeUrl;
+      })
+      .catch(() => setSheetsStatus("Unable to start the Google Sheets export. Try again."));
+  }
+
+  return (
+    <div className="analytics-export-menu" ref={containerRef}>
+      <button
+        type="button"
+        className="analytics-export-button"
+        aria-label={`Export ${label} report`}
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        title="Export"
+        onClick={() => setIsOpen((open) => !open)}
+      >
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 3.5v11.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+          <path d="M8 11.5 12 15.5 16 11.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M5 16.5v2A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {isOpen ? (
+        <div className="analytics-export-dropdown" role="menu" aria-label={`Export ${label} report`}>
+          <a className="analytics-export-option" role="menuitem" href={options.csv} onClick={() => setIsOpen(false)}>
+            Export as CSV
+          </a>
+          <a className="analytics-export-option" role="menuitem" href={options.xlsx} onClick={() => setIsOpen(false)}>
+            Export as Excel
+          </a>
+          <a className="analytics-export-option" role="menuitem" href={options.pdf} onClick={() => setIsOpen(false)}>
+            Export as PDF
+          </a>
+          <button
+            type="button"
+            role="menuitem"
+            className="analytics-export-option"
+            disabled={sheetsConfigured === false}
+            onClick={handleGoogleSheetsExport}
+          >
+            Export to Google Sheets
+          </button>
+          {sheetsConfigured === false ? <p className="analytics-export-note">Not set up for this server yet.</p> : null}
+          {sheetsStatus ? <p className="analytics-export-note">{sheetsStatus}</p> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 type ExplorerRow = {
   primary: string;
@@ -26,7 +121,6 @@ type ExplorerSelectorOption = {
 type ExplorerSelector = {
   action: string;
   label: string;
-  submitLabel: string;
   selectedValue: string;
   options: ExplorerSelectorOption[];
   hiddenInputs: Array<{ name: string; value: string }>;
@@ -57,10 +151,12 @@ export function AnalyticsPerformanceExplorer({
   sections,
   controls,
   initialSectionKey,
+  exportOptions,
 }: {
   sections: ExplorerSection[];
   controls?: ReactNode;
   initialSectionKey?: string;
+  exportOptions?: Record<string, ExportSectionOptions>;
 }) {
   const [activeSectionKey, setActiveSectionKey] = useState(initialSectionKey && sections.some((section) => section.key === initialSectionKey) ? initialSectionKey : sections[0]?.key ?? "");
   const [activeMetricKeys, setActiveMetricKeys] = useState<Record<string, string>>({});
@@ -82,6 +178,8 @@ export function AnalyticsPerformanceExplorer({
     return null;
   }
 
+  const activeExportOptions = exportOptions?.[activeSection.key];
+
   return (
     <section className="card analytics-panel analytics-performance-explorer">
       <div className="analytics-performance-toolbar">
@@ -96,30 +194,40 @@ export function AnalyticsPerformanceExplorer({
         {controls ? <div className="analytics-performance-controls">{controls}</div> : null}
       </div>
 
-      <div className="analytics-performance-tabs" role="tablist" aria-label="Performance type">
-        {sections.map((section) => (
-          <button
-            key={section.key}
-            type="button"
-            role="tab"
-            aria-selected={section.key === activeSection.key}
-            className={`analytics-performance-tab ${section.key === activeSection.key ? "active" : ""}`}
-            onClick={() => setActiveSectionKey(section.key)}
-          >
-            {section.label}
-          </button>
-        ))}
+      <div className="analytics-performance-tabs-row">
+        <div className="analytics-performance-tabs" role="tablist" aria-label="Performance type">
+          {sections.map((section) => (
+            <button
+              key={section.key}
+              type="button"
+              role="tab"
+              aria-selected={section.key === activeSection.key}
+              className={`analytics-performance-tab ${section.key === activeSection.key ? "active" : ""}`}
+              onClick={() => setActiveSectionKey(section.key)}
+            >
+              {section.label}
+            </button>
+          ))}
+        </div>
+
+        {activeExportOptions ? <ExportMenu label={activeSection.label} options={activeExportOptions} /> : null}
       </div>
 
       <div className="analytics-performance-body">
         {activeSection.selector ? (
-          <form className="analytics-site-selector" action={activeSection.selector.action} method="get">
+          <form className="analytics-site-selector analytics-site-selector--auto" action={activeSection.selector.action} method="get">
             {activeSection.selector.hiddenInputs.map((input) => (
               <input key={input.name} type="hidden" name={input.name} value={input.value} />
             ))}
             <div className="field">
               <label htmlFor="analytics-site">{activeSection.selector.label}</label>
-              <select id="analytics-site" name="siteId" className="select" defaultValue={activeSection.selector.selectedValue}>
+              <select
+                id="analytics-site"
+                name="siteId"
+                className="select"
+                defaultValue={activeSection.selector.selectedValue}
+                onChange={(event) => event.currentTarget.form?.requestSubmit()}
+              >
                 {activeSection.selector.options.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
@@ -127,9 +235,6 @@ export function AnalyticsPerformanceExplorer({
                 ))}
               </select>
             </div>
-            <button className="button secondary analytics-mini-button" type="submit">
-              {activeSection.selector.submitLabel}
-            </button>
           </form>
         ) : null}
 
