@@ -83,14 +83,36 @@ export default async function PlatformHealthPage() {
         </article>
       </section>
 
-      <section className="card platform-health-components">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Service checks</p>
-              <h3>Breakdown by platform component</h3>
-            </div>
-          <span className={`badge ${toneClass}`}>{health.components.filter((component) => component.status === "healthy").length}/{health.components.length} healthy</span>
+      <section className="card platform-health-alerts">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">Alerts</p>
+            <h3>What needs attention</h3>
           </div>
+          <span className={`badge ${health.alerts.length ? "warn" : "good"}`}>{health.alerts.length} active</span>
+        </div>
+        {health.alerts.length ? (
+          <div className="platform-health-alert-list">
+            {health.alerts.map((alert) => (
+              <article key={alert.key} className={`platform-health-alert platform-health-alert--${alert.severity}`}>
+                <strong>{alert.title}</strong>
+                <span>{alert.detail}</span>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="subtle">No active alerts. The platform is healthy across the currently monitored signals.</p>
+        )}
+      </section>
+
+      <section className="card platform-health-components">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">Service checks</p>
+            <h3>Breakdown by platform component</h3>
+          </div>
+          <span className={`badge ${toneClass}`}>{health.components.filter((component) => component.status === "healthy").length}/{health.components.length} healthy</span>
+        </div>
 
         <div className="platform-health-grid">
           {health.components.map((component) => (

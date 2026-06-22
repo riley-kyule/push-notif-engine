@@ -56,6 +56,7 @@ export function BackupConfigPanel({
 }) {
   const [providers, setProviders] = useState<ProviderStatus[] | null>(null);
   const [runs, setRuns] = useState<BackupRun[]>([]);
+  const [copyStatus, setCopyStatus] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(
     connectedNotice
       ? `${PROVIDER_LABELS[connectedNotice as BackupProvider] ?? connectedNotice} connected.`
@@ -141,8 +142,32 @@ export function BackupConfigPanel({
           setMessage(`${PROVIDER_LABELS[provider]} backup started — check the history below for progress.`);
           refresh();
         })
-        .catch((error) => setMessage(error instanceof Error ? error.message : "Unable to start the backup"));
+      .catch((error) => setMessage(error instanceof Error ? error.message : "Unable to start the backup"));
     });
+  }
+
+  const connectedProviders = (providers ?? []).filter((provider) => provider.connected);
+  const activeSchedules = connectedProviders.filter((provider) => provider.autoBackupEnabled).length;
+  const latestSuccessfulRun = [...runs].find((run) => run.status === "completed");
+
+  async function handleCopyRestoreCommand(command: string) {
+    try {
+      await navigator.clipboard.writeText(command);
+      setCopyStatus("Restore command copied.");
+      window.setTimeout(() => setCopyStatus(null), 1800);
+    } catch {
+      setCopyStatus("Copying failed. Select the command manually.");
+    }
+  }
+
+  function buildRestoreCommand(run: BackupRun | null | undefined): string {
+    const fileName = run?.fileName ?? "epe-backup-latest.tar.gz";
+    return [
+      "# Restore the latest EPE backup archive",
+      `tar -xzf ${fileName}`,
+      'pg_restore --clean --if-exists --no-owner --dbname="$DATABASE_URL" database.dump',
+      "# Restore campaign media files from the extracted media/ directory",
+    ].join("\n");
   }
 
   return (
@@ -152,6 +177,21 @@ export function BackupConfigPanel({
           <p>{message}</p>
         </section>
       ) : null}
+
+      <section className="grid cards-3" style={{ marginTop: 18 }}>
+        <article className="card backup-summary-card">
+          <p className="subtle">Connected providers</p>
+          <p className="stat">{connectedProviders.length}</p>
+        </article>
+        <article className="card backup-summary-card">
+          <p className="subtle">Automatic schedules</p>
+          <p className="stat">{activeSchedules}</p>
+        </article>
+        <article className="card backup-summary-card">
+          <p className="subtle">Latest successful backup</p>
+          <p className="stat">{latestSuccessfulRun ? new Date(latestSuccessfulRun.startedAt).toLocaleDateString() : "—"}</p>
+        </article>
+      </section>
 
       <section className="grid cards-2" style={{ marginTop: 18 }}>
         {(providers ?? []).map((provider) => (
@@ -233,7 +273,13 @@ export function BackupConfigPanel({
       </section>
 
       <section className="card" style={{ marginTop: 18 }}>
-        <h3>Backup history</h3>
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">Backup history</p>
+            <h3>Recent runs and outcomes</h3>
+          </div>
+          <span className="badge active">{runs.length} recorded</span>
+        </div>
         {runs.length === 0 ? (
           <p className="subtle">No backups have run yet.</p>
         ) : (
@@ -254,14 +300,49 @@ export function BackupConfigPanel({
         )}
       </section>
 
-      <section className="card" style={{ marginTop: 18 }}>
-        <h3>What's included</h3>
-        <p className="subtle">
-          Each backup is a single archive containing a full PostgreSQL dump (sites, subscribers, campaigns, segments,
-          automations, audit logs — everything needed to restore or migrate the system) plus every campaign media file.
-          Deployment secrets (.env files, API keys) are intentionally excluded and must be recreated manually on a
-          target server.
-        </p>
+      <section className="grid cards-2" style={{ marginTop: 18 }}>
+        <section className="card backup-restore-card">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Restore toolkit</p>
+              <h3>Manual recovery steps</h3>
+            </div>
+            <span className="badge">Server-side</span>
+          </div>
+
+          <p className="subtle">
+            EPE keeps the recovery workflow explicit: restore the database with `pg_restore`, then rehydrate media
+            objects. Secrets and environment files are intentionally not included.
+          </p>
+
+          <pre className="backup-command"><code>{buildRestoreCommand(latestSuccessfulRun)}</code></pre>
+
+          <div className="actions">
+            <button className="button secondary" type="button" onClick={() => void handleCopyRestoreCommand(buildRestoreCommand(latestSuccessfulRun))}>
+              Copy restore command
+            </button>
+            {copyStatus ? <span className="subtle">{copyStatus}</span> : null}
+          </div>
+        </section>
+
+        <section className="card backup-restore-card">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Archive contents</p>
+              <h3>What every backup includes</h3>
+            </div>
+          </div>
+          <ul className="backup-checklist">
+            <li>Full PostgreSQL dump of sites, subscribers, campaigns, segments, automations, audits, and backup metadata</li>
+            <li>All campaign media objects stored under their original object keys</li>
+            <li>Manifest with archive timestamp and media count for recovery validation</li>
+            <li>Excludes `.env` files, API keys, and other deployment secrets</li>
+          </ul>
+          <p className="subtle">
+            Use the latest completed run as the recovery starting point. If a provider is disconnected, reconnect it
+            before scheduling the next backup.
+          </p>
+        </section>
       </section>
     </>
   );
