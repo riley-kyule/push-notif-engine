@@ -11,9 +11,10 @@ This is the WordPress integration scaffold for Exotic Push Engine.
 - Provides an admin settings page for:
   - API URL
   - Site key
-  - Icon URL
-  - App name
-  - Theme color
+- Reads branding and opt-in prompt settings from the EPE site record so app name, icon, theme color, and custom prompt copy are managed centrally in EPE
+- Renders the custom EPE opt-in prompt before falling back to the browser permission dialog
+- Shows a subscriber bell at the bottom-left once push is enabled, with recent notifications and an unsubscribe action
+- Uses the site-level recent-notification limit configured in EPE for the tray
 - Works in multisite by using normal WordPress option storage per site
 
 ## Installation
@@ -21,7 +22,7 @@ This is the WordPress integration scaffold for Exotic Push Engine.
 1. Copy this folder into `wp-content/plugins/exotic-push-engine`.
 2. Activate the plugin in WordPress admin.
 3. Open `Settings > Exotic Push Engine`.
-4. Configure the API URL, site key, and icon URL.
+4. Configure the API URL and site key. Branding is pulled from the EPE site settings automatically.
 
 ## CSP guidance
 

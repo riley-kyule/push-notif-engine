@@ -21,6 +21,8 @@ final class Exotic_Push_Engine_Plugin {
         add_filter('query_vars', [__CLASS__, 'register_query_vars']);
         add_action('template_redirect', [__CLASS__, 'maybe_serve_assets']);
         add_action('wp_enqueue_scripts', [__CLASS__, 'enqueue_sdk']);
+        add_filter('wp_inline_script_attributes', [__CLASS__, 'add_inline_script_nonce'], 10, 2);
+        add_filter('script_loader_tag', [__CLASS__, 'add_script_tag_nonce'], 10, 2);
         add_action('wp_head', [__CLASS__, 'inject_manifest_link']);
         add_action('admin_menu', [__CLASS__, 'register_admin_menu']);
         add_action('admin_init', [__CLASS__, 'register_settings']);
@@ -62,10 +64,6 @@ final class Exotic_Push_Engine_Plugin {
         $defaults = [
             'api_url'         => '',
             'site_key'        => '',
-            'vapid_public_key' => '',
-            'icon_url'        => '',
-            'app_name'        => get_bloginfo('name'),
-            'theme_color'     => '#1c1917',
         ];
 
         $stored = get_option(self::OPTION_KEY, []);
@@ -81,7 +79,7 @@ final class Exotic_Push_Engine_Plugin {
     }
 
     public static function enqueue_sdk(): void {
-        $settings = self::get_settings();
+        $config = self::get_site_config();
         $script_url = plugins_url('assets/epe-sdk.js', __FILE__);
 
         wp_register_script('exotic-push-engine-sdk', $script_url, [], '0.1.0', true);
@@ -90,16 +88,59 @@ final class Exotic_Push_Engine_Plugin {
         wp_add_inline_script(
             'exotic-push-engine-sdk',
             'window.ExoticPushEngineConfig = ' . wp_json_encode([
-                'apiUrl'           => esc_url_raw((string) $settings['api_url']),
-                'siteKey'          => sanitize_text_field((string) $settings['site_key']),
-                'vapidPublicKey'   => sanitize_text_field((string) $settings['vapid_public_key']),
+                'apiUrl'           => esc_url_raw((string) $config['api_url']),
+                'siteKey'          => sanitize_text_field((string) $config['site_key']),
+                'vapidPublicKey'   => sanitize_text_field((string) $config['vapid_public_key']),
                 'serviceWorkerUrl' => home_url('/push-sw.js'),
                 'manifestUrl'      => home_url('/manifest.json'),
-                'iconUrl'          => esc_url_raw((string) $settings['icon_url']),
-                'appName'          => sanitize_text_field((string) $settings['app_name']),
+                'iconUrl'          => esc_url_raw((string) $config['icon_url']),
+                'appName'          => sanitize_text_field((string) $config['app_name']),
+                'themeColor'       => sanitize_hex_color((string) $config['theme_color']) ?: '#1c1917',
+                'optInPromptType'  => sanitize_text_field((string) $config['opt_in_prompt_type']),
+                'optInPromptAnimation' => sanitize_text_field((string) $config['opt_in_prompt_animation']),
+                'optInPromptBackgroundColor' => sanitize_text_field((string) $config['opt_in_prompt_background_color']),
+                'optInPromptHeadline' => sanitize_text_field((string) $config['opt_in_prompt_headline']),
+                'optInPromptHeadlineTextColor' => sanitize_text_field((string) $config['opt_in_prompt_headline_text_color']),
+                'optInPromptText' => sanitize_text_field((string) $config['opt_in_prompt_text']),
+                'optInPromptTextColor' => sanitize_text_field((string) $config['opt_in_prompt_text_color']),
+                'optInPromptIconUrl' => esc_url_raw((string) $config['opt_in_prompt_icon_url']),
+                'optInPromptCancelButtonLabel' => sanitize_text_field((string) $config['opt_in_prompt_cancel_button_label']),
+                'optInPromptCancelButtonTextColor' => sanitize_text_field((string) $config['opt_in_prompt_cancel_button_text_color']),
+                'optInPromptCancelButtonBackgroundColor' => sanitize_text_field((string) $config['opt_in_prompt_cancel_button_background_color']),
+                'optInPromptApproveButtonLabel' => sanitize_text_field((string) $config['opt_in_prompt_approve_button_label']),
+                'optInPromptApproveButtonTextColor' => sanitize_text_field((string) $config['opt_in_prompt_approve_button_text_color']),
+                'optInPromptApproveButtonBackgroundColor' => sanitize_text_field((string) $config['opt_in_prompt_approve_button_background_color']),
+                'optInPromptRepromptDelayDays' => (int) $config['opt_in_prompt_reprompt_delay_days'],
+                'optInPromptRecentNotificationsLimit' => (int) $config['opt_in_prompt_recent_notifications_limit'],
             ]) . ';',
             'before'
         );
+    }
+
+    // Hosts running a strict Content-Security-Policy without 'unsafe-inline' must
+    // supply their per-request nonce via this filter so our inline config script
+    // (and the SDK <script> tag that loads alongside it) are allowed to execute.
+    private static function get_csp_nonce(): string {
+        $nonce = apply_filters('epe_push_engine_csp_nonce', '');
+        return is_string($nonce) ? $nonce : '';
+    }
+
+    public static function add_inline_script_nonce(array $attributes, string $data): array {
+        $nonce = self::get_csp_nonce();
+        if ($nonce !== '' && str_contains($data, 'ExoticPushEngineConfig')) {
+            $attributes['nonce'] = $nonce;
+        }
+
+        return $attributes;
+    }
+
+    public static function add_script_tag_nonce(string $tag, string $handle): string {
+        $nonce = self::get_csp_nonce();
+        if ($nonce === '' || $handle !== 'exotic-push-engine-sdk' || str_contains($tag, 'nonce=')) {
+            return $tag;
+        }
+
+        return str_replace(' src=', ' nonce="' . esc_attr($nonce) . '" src=', $tag);
     }
 
     public static function inject_manifest_link(): void {
@@ -107,14 +148,14 @@ final class Exotic_Push_Engine_Plugin {
     }
 
     private static function serve_service_worker(): void {
-        $settings = self::get_settings();
+        $config = self::get_site_config();
         status_header(200);
         nocache_headers();
         header('Content-Type: application/javascript; charset=utf-8');
         header('Service-Worker-Allowed: /');
 
-        $icon_url = wp_json_encode(esc_url_raw((string) $settings['icon_url']));
-        $app_name = wp_json_encode(sanitize_text_field((string) $settings['app_name']));
+        $icon_url = wp_json_encode(esc_url_raw((string) $config['icon_url']));
+        $app_name = wp_json_encode(sanitize_text_field((string) $config['app_name']));
 
         echo <<<JS
 self.addEventListener('install', (event) => {
@@ -193,22 +234,22 @@ JS;
     }
 
     private static function serve_manifest(): void {
-        $settings = self::get_settings();
+        $config = self::get_site_config();
         status_header(200);
         nocache_headers();
         header('Content-Type: application/manifest+json; charset=utf-8');
 
         $manifest = [
-            'name' => sanitize_text_field((string) $settings['app_name']),
-            'short_name' => sanitize_text_field((string) $settings['app_name']),
+            'name' => sanitize_text_field((string) $config['app_name']),
+            'short_name' => sanitize_text_field((string) $config['app_name']),
             'start_url' => home_url('/'),
             'scope' => home_url('/'),
             'display' => 'standalone',
-            'theme_color' => sanitize_hex_color((string) $settings['theme_color']) ?: '#1c1917',
+            'theme_color' => sanitize_hex_color((string) $config['theme_color']) ?: '#1c1917',
             'background_color' => '#fafaf9',
             'icons' => array_values(array_filter([
-                $settings['icon_url'] ? [
-                    'src' => esc_url_raw((string) $settings['icon_url']),
+                $config['icon_url'] ? [
+                    'src' => esc_url_raw((string) $config['icon_url']),
                     'sizes' => '192x192',
                     'type' => 'image/png',
                 ] : null,
@@ -240,17 +281,13 @@ JS;
             'epe_push_engine_main',
             'Site Integration',
             static function (): void {
-                echo '<p>Configure the site-specific push integration details.</p>';
+                echo '<p>Configure the API endpoint and site key. Branding is managed in the EPE site settings and synced automatically.</p>';
             },
             'epe-push-engine'
         );
 
         self::add_setting_field('api_url',          'API URL',          'url',  'Backend API URL for this site (e.g. https://push.example.com).');
         self::add_setting_field('site_key',         'Site Key',         'text', 'Unique site ID from the EPE dashboard.');
-        self::add_setting_field('vapid_public_key', 'VAPID Public Key', 'text', 'Base64url VAPID public key — copy from EPE dashboard → site → Generate VAPID Keys.');
-        self::add_setting_field('icon_url',         'Icon URL',         'url',  'Icon used in the service worker and manifest (192×192 PNG recommended).');
-        self::add_setting_field('app_name',         'App Name',         'text', 'Display name shown in the push permission prompt.');
-        self::add_setting_field('theme_color',      'Theme Color',      'text', 'Manifest theme color in hex format (e.g. #1c1917).');
     }
 
     private static function add_setting_field(string $key, string $label, string $type, string $help): void {
@@ -276,13 +313,96 @@ JS;
 
     public static function sanitize_settings(array $input): array {
         return [
-            'api_url'          => isset($input['api_url'])          ? esc_url_raw((string) $input['api_url'])                                           : '',
-            'site_key'         => isset($input['site_key'])         ? sanitize_text_field((string) $input['site_key'])                                   : '',
-            'vapid_public_key' => isset($input['vapid_public_key']) ? sanitize_text_field((string) $input['vapid_public_key'])                           : '',
-            'icon_url'         => isset($input['icon_url'])         ? esc_url_raw((string) $input['icon_url'])                                           : '',
-            'app_name'         => isset($input['app_name'])         ? sanitize_text_field((string) $input['app_name'])                                   : get_bloginfo('name'),
-            'theme_color'      => isset($input['theme_color'])      ? sanitize_hex_color((string) $input['theme_color']) ?: '#1c1917'                    : '#1c1917',
+            'api_url'  => isset($input['api_url'])  ? esc_url_raw((string) $input['api_url'])                 : '',
+            'site_key' => isset($input['site_key']) ? sanitize_text_field((string) $input['site_key']) : '',
         ];
+    }
+
+    private static function get_site_config(): array {
+        $settings = self::get_settings();
+        $defaults = [
+            'api_url' => '',
+            'site_key' => '',
+            'vapid_public_key' => '',
+            'app_name' => get_bloginfo('name'),
+            'icon_url' => '',
+            'theme_color' => '#1c1917',
+            'opt_in_prompt_type' => 'lightbox-1',
+            'opt_in_prompt_animation' => 'slide-in',
+            'opt_in_prompt_background_color' => '#ffffff',
+            'opt_in_prompt_headline' => 'Stay in the loop',
+            'opt_in_prompt_headline_text_color' => '#111111',
+            'opt_in_prompt_text' => 'Get important updates delivered to your browser.',
+            'opt_in_prompt_text_color' => '#444444',
+            'opt_in_prompt_icon_url' => '',
+            'opt_in_prompt_cancel_button_label' => 'Not now',
+            'opt_in_prompt_cancel_button_text_color' => '#ffffff',
+            'opt_in_prompt_cancel_button_background_color' => '#111111',
+            'opt_in_prompt_approve_button_label' => 'Enable',
+            'opt_in_prompt_approve_button_text_color' => '#ffffff',
+            'opt_in_prompt_approve_button_background_color' => '#ea580c',
+            'opt_in_prompt_reprompt_delay_days' => 30,
+        ];
+
+        if ($settings['api_url'] === '' || $settings['site_key'] === '') {
+            return $defaults;
+        }
+
+        $cache_key = 'epe_push_engine_site_config_' . md5((string) $settings['api_url'] . '|' . (string) $settings['site_key']);
+        $cached = get_transient($cache_key);
+        if (is_array($cached)) {
+            return array_merge($defaults, $cached);
+        }
+
+        $endpoint = rtrim((string) $settings['api_url'], '/') . '/sites/public/' . rawurlencode((string) $settings['site_key']);
+        $response = wp_remote_get($endpoint, [
+            'timeout' => 5,
+            'headers' => [
+                'Accept' => 'application/json',
+            ],
+        ]);
+
+        if (is_wp_error($response)) {
+            return $defaults;
+        }
+
+        $status = wp_remote_retrieve_response_code($response);
+        $body = wp_remote_retrieve_body($response);
+        $decoded = json_decode($body, true);
+
+        if ($status !== 200 || !is_array($decoded) || !isset($decoded['data']) || !is_array($decoded['data'])) {
+            return $defaults;
+        }
+
+        $data = $decoded['data'];
+        $config = [
+            'api_url' => (string) $settings['api_url'],
+            'site_key' => (string) $settings['site_key'],
+            'vapid_public_key' => isset($data['vapidPublicKey']) ? sanitize_text_field((string) $data['vapidPublicKey']) : '',
+            'app_name' => isset($data['appName']) ? sanitize_text_field((string) $data['appName']) : get_bloginfo('name'),
+            'icon_url' => isset($data['iconUrl']) ? esc_url_raw((string) $data['iconUrl']) : '',
+            'theme_color' => isset($data['themeColor']) ? sanitize_hex_color((string) $data['themeColor']) ?: '#1c1917' : '#1c1917',
+            'opt_in_prompt_type' => isset($data['optInPromptType']) ? sanitize_text_field((string) $data['optInPromptType']) : 'lightbox-1',
+            'opt_in_prompt_animation' => isset($data['optInPromptAnimation']) ? sanitize_text_field((string) $data['optInPromptAnimation']) : 'slide-in',
+            'opt_in_prompt_background_color' => isset($data['optInPromptBackgroundColor']) ? sanitize_text_field((string) $data['optInPromptBackgroundColor']) : '#ffffff',
+            'opt_in_prompt_headline' => isset($data['optInPromptHeadline']) ? sanitize_text_field((string) $data['optInPromptHeadline']) : 'Stay in the loop',
+            'opt_in_prompt_headline_text_color' => isset($data['optInPromptHeadlineTextColor']) ? sanitize_text_field((string) $data['optInPromptHeadlineTextColor']) : '#111111',
+            'opt_in_prompt_text' => isset($data['optInPromptText']) ? sanitize_text_field((string) $data['optInPromptText']) : 'Get important updates delivered to your browser.',
+            'opt_in_prompt_text_color' => isset($data['optInPromptTextColor']) ? sanitize_text_field((string) $data['optInPromptTextColor']) : '#444444',
+            'opt_in_prompt_icon_url' => isset($data['optInPromptIconUrl']) ? esc_url_raw((string) $data['optInPromptIconUrl']) : '',
+            'opt_in_prompt_cancel_button_label' => isset($data['optInPromptCancelButtonLabel']) ? sanitize_text_field((string) $data['optInPromptCancelButtonLabel']) : 'Not now',
+            'opt_in_prompt_cancel_button_text_color' => isset($data['optInPromptCancelButtonTextColor']) ? sanitize_text_field((string) $data['optInPromptCancelButtonTextColor']) : '#ffffff',
+            'opt_in_prompt_cancel_button_background_color' => isset($data['optInPromptCancelButtonBackgroundColor']) ? sanitize_text_field((string) $data['optInPromptCancelButtonBackgroundColor']) : '#111111',
+            'opt_in_prompt_approve_button_label' => isset($data['optInPromptApproveButtonLabel']) ? sanitize_text_field((string) $data['optInPromptApproveButtonLabel']) : 'Enable',
+            'opt_in_prompt_approve_button_text_color' => isset($data['optInPromptApproveButtonTextColor']) ? sanitize_text_field((string) $data['optInPromptApproveButtonTextColor']) : '#ffffff',
+            'opt_in_prompt_approve_button_background_color' => isset($data['optInPromptApproveButtonBackgroundColor']) ? sanitize_text_field((string) $data['optInPromptApproveButtonBackgroundColor']) : '#ea580c',
+            'opt_in_prompt_reprompt_delay_days' => isset($data['optInPromptRepromptDelayDays']) ? (int) $data['optInPromptRepromptDelayDays'] : 30,
+            'opt_in_prompt_recent_notifications_limit' => isset($data['optInPromptRecentNotificationsLimit']) ? (int) $data['optInPromptRecentNotificationsLimit'] : 3,
+        ];
+
+        set_transient($cache_key, $config, 15 * MINUTE_IN_SECONDS);
+
+        return array_merge($defaults, $config);
     }
 
     public static function render_settings_page(): void {
@@ -292,7 +412,7 @@ JS;
 
         echo '<div class="wrap">';
         echo '<h1>Exotic Push Engine</h1>';
-        echo '<p>Browser push is served from the WordPress origin at <code>/push-sw.js</code> and <code>/manifest.json</code>.</p>';
+        echo '<p>Browser push is served from the WordPress origin at <code>/push-sw.js</code> and <code>/manifest.json</code>. Branding is read from the EPE site record.</p>';
         echo '<form method="post" action="options.php">';
         settings_fields('epe_push_engine_group');
         do_settings_sections('epe-push-engine');
