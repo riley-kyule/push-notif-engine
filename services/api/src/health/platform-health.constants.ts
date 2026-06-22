@@ -1,0 +1,1 @@
+export const PLATFORM_HEALTH_REDIS = Symbol("PLATFORM_HEALTH_REDIS");
