@@ -19,6 +19,7 @@ export type DashboardNavIcon =
   | "platform"
   | "health"
   | "auth"
+  | "logout"
   | "planned";
 
 export interface DashboardNavItem {
@@ -34,7 +35,7 @@ export interface DashboardNavSection {
   items: DashboardNavItem[];
 }
 
-function SidebarIcon({ name }: { name: DashboardNavIcon }) {
+export function SidebarIcon({ name }: { name: DashboardNavIcon }) {
   const common = {
     viewBox: "0 0 24 24",
     fill: "none",
@@ -144,9 +145,13 @@ function SidebarIcon({ name }: { name: DashboardNavIcon }) {
     case "health":
       return (
         <svg {...common}>
-          <circle cx="12" cy="12" r="8.2" stroke="currentColor" strokeWidth="1.7" />
-          <path d="M12 7.2v4.8l3.4 2.1" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-          <path d="M12 3.8v2.2M20.2 12H18M12 20.2V18M5.8 12H4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          <path
+            d="M3 12.5h3.4l1.8-4 2.8 8 2.2-6 1.6 2h6.2"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       );
     case "auth":
@@ -154,6 +159,13 @@ function SidebarIcon({ name }: { name: DashboardNavIcon }) {
         <svg {...common}>
           <path d="M8.5 11V8.5a3.5 3.5 0 1 1 7 0V11" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
           <path d="M7 11h10v8H7z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+        </svg>
+      );
+    case "logout":
+      return (
+        <svg {...common}>
+          <path d="M15 4.5H7.5A1.5 1.5 0 0 0 6 6v12a1.5 1.5 0 0 0 1.5 1.5H15" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M10.5 12H20.5M20.5 12 17.2 8.7M20.5 12 17.2 15.3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       );
     case "planned":
@@ -197,7 +209,7 @@ export function DashboardNav({ sections, collapsed }: { sections: DashboardNavSe
                     <span className="nav-item-label">{item.label}</span>
                     {item.description ? <span className="nav-item-description">{item.description}</span> : null}
                   </div>
-                  <span className={`nav-pill nav-pill--${status}`}>{status}</span>
+                  {status === "planned" ? <span className="nav-pill nav-pill--planned">Coming soon</span> : null}
                 </div>
               );
             }
@@ -217,7 +229,6 @@ export function DashboardNav({ sections, collapsed }: { sections: DashboardNavSe
                   <span className="nav-item-label">{item.label}</span>
                   {item.description ? <span className="nav-item-description">{item.description}</span> : null}
                 </div>
-                <span className={`nav-pill nav-pill--${status}`}>{status}</span>
               </Link>
             );
           })}

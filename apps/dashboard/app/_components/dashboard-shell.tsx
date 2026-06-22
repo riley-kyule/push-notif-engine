@@ -1,65 +1,41 @@
 "use client";
 
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { useState, useTransition, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
-import { DashboardNav, type DashboardNavSection } from "./dashboard-nav";
+import { DashboardNav, SidebarIcon, type DashboardNavSection } from "./dashboard-nav";
 
 export const dashboardNavigationSections: DashboardNavSection[] = [
   {
-    label: "Core",
+    label: "Dashboard",
     items: [
-      { href: "/", label: "Overview", description: "Operational summary", icon: "overview" },
-      { href: "/analytics", label: "Analytics", description: "Reporting command center", icon: "analytics" },
-      { href: "/subscribers", label: "Subscribers", description: "Audience registry", icon: "subscribers" },
+      { href: "/", label: "Overview", description: "Your at-a-glance summary", icon: "overview" },
+      { href: "/analytics", label: "Analytics", description: "See how your campaigns and sites are performing", icon: "analytics" },
+      { href: "/subscribers", label: "Subscribers", description: "Everyone who can receive your notifications", icon: "subscribers" },
     ],
   },
   {
-    label: "Publishing",
+    label: "Sites & Campaigns",
     items: [
-      { href: "/sites", label: "Sites", description: "Exotic website registry", icon: "sites" },
-      { href: "/sites/new", label: "Add Site", description: "Onboard a new origin", icon: "create" },
-      { href: "/campaigns", label: "Campaigns", description: "Lifecycle and delivery", icon: "campaigns" },
-      { href: "/campaigns/new", label: "Create Campaign", description: "Build a push message", icon: "create" },
-      { href: "/campaign-taxonomies", label: "Taxonomies", description: "Managed content labels", icon: "campaigns" },
+      { href: "/sites", label: "Sites", description: "The websites connected to Exotic Push Engine", icon: "sites" },
+      { href: "/campaigns", label: "Campaigns", description: "Create and send push notifications", icon: "campaigns" },
+      { href: "/campaign-taxonomies", label: "Categories", description: "Organize campaigns by topic for reporting", icon: "campaigns" },
     ],
   },
   {
     label: "Automation",
     items: [
-      { href: "/workflow", label: "Workflow & RSS", description: "Triggers, actions, and feed automation", icon: "workflow" },
-      { label: "Segments", description: "Audience targeting", status: "planned", icon: "segments" },
-      { label: "Automation Rules", description: "Event-driven journeys", status: "planned", icon: "automation" },
+      { href: "/segments", label: "Audience Groups", description: "Target specific groups of subscribers", icon: "segments" },
+      { href: "/automations", label: "Automations", description: "Send notifications automatically based on activity", icon: "automation" },
     ],
   },
   {
-    label: "Integrations",
+    label: "System",
     items: [
-      { label: "Browser Push", description: "Configured per site, under Sites", status: "live", icon: "integration" },
-      { label: "WordPress Plugin", description: "Bundled SDK for WP sites", status: "live", icon: "integration" },
-      { label: "Magento Module", description: "Commerce integration", status: "planned", icon: "integration" },
-      { label: "Service Worker + Manifest", description: "Mobile web push support", status: "planned", icon: "integration" },
-    ],
-  },
-  {
-    label: "Reporting",
-    items: [
-      { href: "/analytics#country-performance", label: "Country Performance", description: "Regional delivery analysis", icon: "reporting" },
-      { href: "/analytics#site-performance", label: "Site Performance", description: "Cross-site comparison", icon: "reporting" },
-      { href: "/analytics#time-performance", label: "Time Performance", description: "UTC hourly delivery", icon: "reporting" },
-      { href: "/analytics#content-performance", label: "Content Performance", description: "Taxonomy-driven reporting", icon: "reporting" },
-    ],
-  },
-  {
-    label: "Platform",
-    items: [
-      { href: "/login", label: "Auth", description: "Session and credential entry", icon: "auth" },
-      { href: "/platform-health", label: "Platform Health", description: "Service status and uptime checks", icon: "health" },
-      { href: "/platform/backup-config", label: "Backup Config", description: "Dropbox/Google Drive system backups", icon: "platform" },
-      { label: "RBAC", description: "Role-based access control", status: "planned", icon: "platform" },
-      { label: "Audit Logs", description: "Security history", status: "planned", icon: "platform" },
-      { label: "Monitoring", description: "Metrics and alerting", status: "planned", icon: "platform" },
-      { label: "Deployment", description: "cPanel VPS runtime", status: "planned", icon: "platform" },
+      { href: "/audit-logs", label: "Activity Log", description: "See who did what, and when", icon: "platform" },
+      { href: "/platform-health", label: "System Health", description: "Check that everything is running smoothly", icon: "health" },
+      { href: "/platform/backup-config", label: "Backups", description: "Manage automatic backups of your data", icon: "platform" },
     ],
   },
 ];
@@ -77,11 +53,24 @@ export function DashboardShell({
   actions?: ReactNode;
   children: ReactNode;
 }) {
+  const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  const [isLoggingOut, startLogout] = useTransition();
 
   const shellStyle: CSSProperties & { [key: `--${string}`]: string } = {
     "--sidebar-width": collapsed ? "96px" : "284px",
   };
+
+  function handleLogout() {
+    startLogout(() => {
+      void fetch("/api/dashboard/auth/logout", { method: "POST" })
+        .catch(() => undefined)
+        .finally(() => {
+          router.push("/login");
+          router.refresh();
+        });
+    });
+  }
 
   return (
     <div className={`dashboard-shell ${collapsed ? "is-collapsed" : ""}`} style={shellStyle}>
@@ -117,6 +106,17 @@ export function DashboardShell({
         </div>
 
         <DashboardNav sections={dashboardNavigationSections} collapsed={collapsed} />
+
+        <div className="sidebar-footer">
+          <button className="nav-item nav-item--logout" type="button" onClick={handleLogout} disabled={isLoggingOut} title="Log out">
+            <span className="nav-icon">
+              <SidebarIcon name="logout" />
+            </span>
+            <div className="nav-item-copy">
+              <span className="nav-item-label">{isLoggingOut ? "Logging out..." : "Log out"}</span>
+            </div>
+          </button>
+        </div>
       </aside>
 
       <main className="main">
