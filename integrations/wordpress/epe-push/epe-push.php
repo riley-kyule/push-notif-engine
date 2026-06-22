@@ -413,12 +413,33 @@ JS;
         echo '<div class="wrap">';
         echo '<h1>Exotic Push Engine</h1>';
         echo '<p>Browser push is served from the WordPress origin at <code>/push-sw.js</code> and <code>/manifest.json</code>. Branding is read from the EPE site record.</p>';
+        self::render_connection_status();
         echo '<form method="post" action="options.php">';
         settings_fields('epe_push_engine_group');
         do_settings_sections('epe-push-engine');
         submit_button();
         echo '</form>';
         echo '</div>';
+    }
+
+    private static function render_connection_status(): void {
+        $settings = self::get_settings();
+        $api_url = isset($settings['api_url']) ? (string) $settings['api_url'] : '';
+        $site_key = isset($settings['site_key']) ? (string) $settings['site_key'] : '';
+
+        if ($api_url === '' || $site_key === '') {
+            echo '<div class="notice notice-warning inline"><p>Enter an API URL and Site Key below to connect this site to Exotic Push Engine.</p></div>';
+            return;
+        }
+
+        $config = self::get_site_config();
+        $connected = $config['api_url'] === $api_url && $config['site_key'] === $site_key && $config['app_name'] !== '';
+
+        if ($connected) {
+            echo '<div class="notice notice-success inline"><p>Connected — branding and opt-in prompt settings are syncing from the EPE dashboard.</p></div>';
+        } else {
+            echo '<div class="notice notice-error inline"><p>Unable to reach the EPE API with these credentials. Double-check the API URL and Site Key, then save again.</p></div>';
+        }
     }
 }
 

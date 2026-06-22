@@ -295,6 +295,15 @@
         cursor: pointer;
         font-weight: 700;
         letter-spacing: 0.01em;
+        font-size: 0.95rem;
+        line-height: 1;
+      }
+      .epe-optin-button:focus-visible,
+      .epe-optin-close:focus-visible,
+      .epe-optin-launcher:focus-visible,
+      .epe-notification-tray__unsubscribe:focus-visible {
+        outline: 2px solid #2563eb;
+        outline-offset: 2px;
       }
       .epe-optin-close {
         position: absolute;
@@ -302,11 +311,18 @@
         right: 14px;
         width: 36px;
         height: 36px;
+        display: grid;
+        place-items: center;
         border: 0;
         border-radius: 999px;
-        background: rgba(15, 23, 42, 0.06);
+        background: rgba(15, 23, 42, 0.45);
+        color: #ffffff;
         cursor: pointer;
         font-size: 18px;
+        line-height: 1;
+      }
+      .epe-optin-close:hover {
+        background: rgba(15, 23, 42, 0.6);
       }
       .epe-optin-launcher {
         position: fixed;
@@ -389,6 +405,7 @@
         background: transparent;
         color: #b91c1c;
         font-weight: 700;
+        font-size: 0.85rem;
         cursor: pointer;
         padding: 0;
       }
@@ -489,6 +506,7 @@
   function closePrompt(backdrop) {
     markPromptDismissed();
     backdrop.remove();
+    document.removeEventListener("keydown", backdrop._epeKeydownHandler);
   }
 
   function showPrompt(registration) {
@@ -598,6 +616,14 @@
     panel.appendChild(shell);
     backdrop.appendChild(panel);
     document.body.appendChild(backdrop);
+
+    backdrop._epeKeydownHandler = function (event) {
+      if (event.key === "Escape") {
+        closePrompt(backdrop);
+      }
+    };
+    document.addEventListener("keydown", backdrop._epeKeydownHandler);
+    close.focus();
   }
 
   function removeLauncher() {
