@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString, IsInt, Min } from "class-validator";
+import { IsIn, IsOptional, IsString, IsInt, Max, Min } from "class-validator";
 import type { CampaignContentType, CampaignStatus, CampaignType } from "../campaigns.types";
 
 const CAMPAIGN_TYPES = ["instant", "scheduled", "recurring"] as const;
@@ -25,6 +25,7 @@ export class ListCampaignsQueryDto {
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(100)
   limit?: number;
 
   @IsOptional()

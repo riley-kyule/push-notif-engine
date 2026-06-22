@@ -32,7 +32,10 @@ export class HealthController {
   async getStorageHealth(): Promise<{ success: true; data: { status: string } }> {
     const healthy = await this.campaignMediaStorage.ping();
     if (!healthy) {
-      throw new HttpException("Campaign media storage unreachable", HttpStatus.SERVICE_UNAVAILABLE);
+      throw new HttpException(
+        { success: false, error: { message: "Campaign media storage unreachable" } },
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
     }
 
     return { success: true, data: { status: "ok" } };

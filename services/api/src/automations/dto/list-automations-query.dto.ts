@@ -1,4 +1,4 @@
-import { IsIn, IsInt, IsOptional, IsString, Min } from "class-validator";
+import { IsIn, IsInt, IsOptional, IsString, Max, Min } from "class-validator";
 import type { AutomationStatus, AutomationTriggerEvent } from "../automations.types";
 
 const AUTOMATION_TRIGGER_EVENTS = ["subscriber_registered", "page_visit", "click", "api_event", "rss_item_published"] as const;
@@ -20,6 +20,7 @@ export class ListAutomationsQueryDto {
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(100)
   limit?: number;
 
   @IsOptional()

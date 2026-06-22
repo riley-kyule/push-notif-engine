@@ -1,4 +1,4 @@
-import { IsIn, IsInt, IsOptional, IsString, Min } from "class-validator";
+import { IsIn, IsInt, IsOptional, IsString, Max, Min } from "class-validator";
 import { Type } from "class-transformer";
 
 const SEGMENT_STATUSES = ["active", "archived"] as const;
@@ -15,6 +15,7 @@ export class ListSegmentsQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(100)
   limit = 20;
 
   @Type(() => Number)

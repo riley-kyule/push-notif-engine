@@ -64,7 +64,10 @@ test("health controller rejects when storage is unreachable", async () => {
     } as never,
   );
 
-  await assert.rejects(() => controller.getStorageHealth(), /Campaign media storage unreachable/);
+  await assert.rejects(() => controller.getStorageHealth(), (error: unknown) => {
+    const response = (error as { getResponse: () => { error?: { message?: string } } }).getResponse();
+    return response.error?.message === "Campaign media storage unreachable";
+  });
 });
 
 test("health controller returns platform summary", async () => {

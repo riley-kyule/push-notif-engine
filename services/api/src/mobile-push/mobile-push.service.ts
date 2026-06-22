@@ -1,4 +1,4 @@
-import { Inject, Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { Queue } from "bullmq";
 
 import { SitesService } from "../sites/sites.service";
@@ -101,7 +101,7 @@ export class MobilePushService {
       dto.nextDeviceToken,
     );
     if (!updated) {
-      throw new ServiceUnavailableException("Mobile device token not found");
+      throw new NotFoundException("Mobile device token not found");
     }
 
     return updated;
@@ -110,12 +110,12 @@ export class MobilePushService {
   async invalidateDevice(dto: InvalidateMobileDeviceDto): Promise<MobileDeviceRecord> {
     const device = await this.devicesRepository.findBySiteAndToken(dto.siteId, dto.platform, dto.deviceToken);
     if (!device) {
-      throw new ServiceUnavailableException("Mobile device not found");
+      throw new NotFoundException("Mobile device not found");
     }
 
     const updated = await this.devicesRepository.updateStatus(device.id, { status: "invalid", lastSeenAt: new Date() });
     if (!updated) {
-      throw new ServiceUnavailableException("Mobile device not found");
+      throw new NotFoundException("Mobile device not found");
     }
 
     return updated;
@@ -124,12 +124,12 @@ export class MobilePushService {
   async dispatch(dto: CreateMobilePushDispatchDto): Promise<{ jobId: string | undefined; queued: true }> {
     const site = await this.sitesService.getSite(dto.siteId);
     if (!site) {
-      throw new ServiceUnavailableException("Site unavailable");
+      throw new NotFoundException("Site not found");
     }
 
     const credentials = await this.credentialsRepository.findBySiteId(site.id);
     if (!credentials) {
-      throw new ServiceUnavailableException("Mobile credentials are not configured for this site");
+      throw new BadRequestException("Mobile credentials are not configured for this site");
     }
 
     const job = await this.queue.add(MOBILE_PUSH_JOB_NAME, {
