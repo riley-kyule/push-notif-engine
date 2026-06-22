@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { GoogleSignInButton } from "./google-sign-in";
+
 export default function LoginPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +33,32 @@ export default function LoginPage() {
         const data = await res.json().catch(() => null) as { error?: string } | null;
         setError(data?.error ?? "Invalid email or password");
       }
+    } catch {
+      setError("Cannot connect to server. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleGoogleCredential(idToken: string) {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/dashboard/auth/google", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ idToken }),
+      });
+
+      if (res.ok) {
+        router.replace("/");
+        router.refresh();
+        return;
+      }
+
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      setError(data?.error ?? "Google sign-in failed");
     } catch {
       setError("Cannot connect to server. Please try again.");
     } finally {
@@ -78,6 +106,12 @@ export default function LoginPage() {
             <button type="submit" className="button primary login-submit" disabled={loading}>
               {loading ? "Signing in..." : "Sign in"}
             </button>
+
+            <div className="login-divider">
+              <span>or</span>
+            </div>
+
+            <GoogleSignInButton onCredential={handleGoogleCredential} onError={setError} disabled={loading} />
           </form>
         </section>
       </div>

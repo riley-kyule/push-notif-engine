@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import { AUTH_REPOSITORY, PASSWORD_SERVICE, TOKEN_SERVICE } from "./auth.constants";
 import type { AuthRepository } from "./auth.repository";
 import type { AuthenticatedUser, LoginResult } from "./auth.types";
+import { GoogleIdentityService } from "./google-identity.service";
 import { PasswordService } from "./password.service";
 import { TokenService } from "./token.service";
 import { AuditService } from "../audit/audit.service";
@@ -14,6 +15,7 @@ export class AuthService {
     @Inject(AUTH_REPOSITORY) private readonly authRepository: AuthRepository,
     @Inject(PASSWORD_SERVICE) private readonly passwordService: PasswordService,
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
+    private readonly googleIdentityService: GoogleIdentityService,
     private readonly auditService: AuditService,
   ) {}
 
@@ -25,6 +27,15 @@ export class AuthService {
         metadata: { reason: "user_not_found_or_inactive", email },
       });
       throw new UnauthorizedException("Invalid credentials");
+    }
+
+    if (!user.passwordHash) {
+      await this.auditService.log({
+        actorUserId: user.id,
+        action: "auth.login.failure",
+        metadata: { reason: "password_login_disabled", email },
+      });
+      throw new UnauthorizedException("Password sign-in is disabled for this account");
     }
 
     const passwordMatches = await this.passwordService.verify(user.passwordHash, password);
@@ -44,10 +55,56 @@ export class AuthService {
       role: user.role,
     });
 
+    await this.authRepository.recordLastLogin(user.id, new Date());
+
     await this.auditService.log({
       actorUserId: user.id,
       action: "auth.login.success",
       metadata: { email },
+    });
+
+    return result;
+  }
+
+  async loginWithGoogle(idToken: string): Promise<LoginResult> {
+    const profile = await this.googleIdentityService.verifyIdToken(idToken);
+    const existingBySubject = await this.authRepository.findUserByGoogleSubject(profile.subject);
+    const existingByEmail = existingBySubject ?? (await this.authRepository.findUserByEmail(profile.email));
+
+    if (!existingByEmail || !existingByEmail.isActive) {
+      await this.auditService.log({
+        action: "auth.google.login.failure",
+        metadata: { reason: "user_not_found_or_inactive", email: profile.email },
+      });
+      throw new UnauthorizedException("Google account is not linked to an active user");
+    }
+
+    if (existingByEmail.googleSubject && existingByEmail.googleSubject !== profile.subject) {
+      await this.auditService.log({
+        actorUserId: existingByEmail.id,
+        action: "auth.google.login.failure",
+        metadata: { reason: "subject_mismatch", email: profile.email },
+      });
+      throw new UnauthorizedException("Google identity mismatch");
+    }
+
+    if (!existingBySubject && !existingByEmail.googleSubject) {
+      await this.authRepository.linkGoogleIdentity(existingByEmail.id, profile.subject, new Date());
+    }
+
+    await this.authRepository.recordLastLogin(existingByEmail.id, new Date());
+
+    const result = await this.issueSession({
+      id: existingByEmail.id,
+      email: existingByEmail.email,
+      name: existingByEmail.name,
+      role: existingByEmail.role,
+    });
+
+    await this.auditService.log({
+      actorUserId: existingByEmail.id,
+      action: "auth.google.login.success",
+      metadata: { email: profile.email },
     });
 
     return result;
@@ -90,6 +147,8 @@ export class AuthService {
       actorUserId: user.id,
       action: "auth.token.refreshed",
     });
+
+    await this.authRepository.recordLastLogin(user.id, new Date());
 
     return result;
   }

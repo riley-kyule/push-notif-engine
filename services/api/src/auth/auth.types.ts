@@ -22,6 +22,7 @@ export interface LoginResult {
 export interface JwtPayload {
   sub: string;
   email: string;
+  name?: string;
   role: RoleSlug;
   jti?: string;
   type: "access" | "refresh";

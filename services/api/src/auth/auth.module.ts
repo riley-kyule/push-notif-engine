@@ -3,6 +3,7 @@ import { Module } from "@nestjs/common";
 import { AUTH_REPOSITORY, PASSWORD_SERVICE, TOKEN_SERVICE } from "./auth.constants";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
+import { GoogleIdentityService } from "./google-identity.service";
 import { PasswordService } from "./password.service";
 import { PostgresAuthRepository } from "./postgres-auth.repository";
 import { TokenService } from "./token.service";
@@ -22,6 +23,7 @@ import { AuditModule } from "../audit/audit.module";
     AuthService,
     PasswordService,
     TokenService,
+    GoogleIdentityService,
     JwtAuthGuard,
     RolesGuard,
     {

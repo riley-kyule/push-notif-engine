@@ -15,9 +15,13 @@ interface DbUserRow {
   id: string;
   email: string;
   name: string;
-  password_hash: string;
+  password_hash: string | null;
   role_slug: RoleSlug;
   is_active: boolean;
+  auth_provider: "local" | "google";
+  google_subject: string | null;
+  email_verified_at: string | null;
+  last_login_at: string | null;
 }
 
 interface DbRefreshTokenRow {
@@ -37,7 +41,17 @@ export class PostgresAuthRepository implements AuthRepository {
   async findUserByEmail(email: string): Promise<AuthUserRecord | null> {
     const { rows } = await this.pool.query<DbUserRow>(
       `
-      SELECT u.id, u.email, u.name, u.password_hash, r.slug AS role_slug, u.is_active
+      SELECT
+        u.id,
+        u.email,
+        u.name,
+        u.password_hash,
+        r.slug AS role_slug,
+        u.is_active,
+        u.auth_provider,
+        u.google_subject,
+        u.email_verified_at,
+        u.last_login_at
       FROM users u
       INNER JOIN roles r ON r.id = u.role_id
       WHERE lower(u.email) = lower($1)
@@ -58,13 +72,27 @@ export class PostgresAuthRepository implements AuthRepository {
       passwordHash: row.password_hash,
       role: row.role_slug,
       isActive: row.is_active,
+      authProvider: row.auth_provider,
+      googleSubject: row.google_subject,
+      emailVerifiedAt: row.email_verified_at ? new Date(row.email_verified_at) : null,
+      lastLoginAt: row.last_login_at ? new Date(row.last_login_at) : null,
     };
   }
 
   async findUserById(id: string): Promise<AuthUserRecord | null> {
     const { rows } = await this.pool.query<DbUserRow>(
       `
-      SELECT u.id, u.email, u.name, u.password_hash, r.slug AS role_slug, u.is_active
+      SELECT
+        u.id,
+        u.email,
+        u.name,
+        u.password_hash,
+        r.slug AS role_slug,
+        u.is_active,
+        u.auth_provider,
+        u.google_subject,
+        u.email_verified_at,
+        u.last_login_at
       FROM users u
       INNER JOIN roles r ON r.id = u.role_id
       WHERE u.id = $1
@@ -85,6 +113,51 @@ export class PostgresAuthRepository implements AuthRepository {
       passwordHash: row.password_hash,
       role: row.role_slug,
       isActive: row.is_active,
+      authProvider: row.auth_provider,
+      googleSubject: row.google_subject,
+      emailVerifiedAt: row.email_verified_at ? new Date(row.email_verified_at) : null,
+      lastLoginAt: row.last_login_at ? new Date(row.last_login_at) : null,
+    };
+  }
+
+  async findUserByGoogleSubject(subject: string): Promise<AuthUserRecord | null> {
+    const { rows } = await this.pool.query<DbUserRow>(
+      `
+      SELECT
+        u.id,
+        u.email,
+        u.name,
+        u.password_hash,
+        r.slug AS role_slug,
+        u.is_active,
+        u.auth_provider,
+        u.google_subject,
+        u.email_verified_at,
+        u.last_login_at
+      FROM users u
+      INNER JOIN roles r ON r.id = u.role_id
+      WHERE u.google_subject = $1
+      LIMIT 1
+      `,
+      [subject],
+    );
+
+    const row = rows[0];
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      email: row.email,
+      name: row.name,
+      passwordHash: row.password_hash,
+      role: row.role_slug,
+      isActive: row.is_active,
+      authProvider: row.auth_provider,
+      googleSubject: row.google_subject,
+      emailVerifiedAt: row.email_verified_at ? new Date(row.email_verified_at) : null,
+      lastLoginAt: row.last_login_at ? new Date(row.last_login_at) : null,
     };
   }
 
@@ -157,6 +230,32 @@ export class PostgresAuthRepository implements AuthRepository {
       WHERE id = $1
       `,
       [id],
+    );
+  }
+
+  async linkGoogleIdentity(userId: string, googleSubject: string, emailVerifiedAt: Date): Promise<void> {
+    await this.pool.query(
+      `
+      UPDATE users
+      SET auth_provider = 'google',
+          google_subject = $2,
+          email_verified_at = COALESCE(email_verified_at, $3),
+          updated_at = NOW()
+      WHERE id = $1
+      `,
+      [userId, googleSubject, emailVerifiedAt],
+    );
+  }
+
+  async recordLastLogin(userId: string, at: Date): Promise<void> {
+    await this.pool.query(
+      `
+      UPDATE users
+      SET last_login_at = $2,
+          updated_at = NOW()
+      WHERE id = $1
+      `,
+      [userId, at],
     );
   }
 }

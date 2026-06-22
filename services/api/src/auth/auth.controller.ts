@@ -3,6 +3,7 @@ import { Body, Controller, Get, Post, UseGuards } from "@nestjs/common";
 import { CurrentUser } from "./decorators/current-user.decorator";
 import { Roles } from "./decorators/roles.decorator";
 import { LoginDto } from "./dto/login.dto";
+import { GoogleLoginDto } from "./dto/google-login.dto";
 import { RefreshTokenDto } from "./dto/refresh-token.dto";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { RolesGuard } from "./guards/roles.guard";
@@ -19,6 +20,13 @@ export class AuthController {
   @RateLimit({ limit: 10, ttl: 60_000 })
   async login(@Body() dto: LoginDto): Promise<{ success: true; data: AuthResponseDto }> {
     const result = await this.authService.login(dto.email, dto.password);
+    return { success: true, data: result };
+  }
+
+  @Post("google")
+  @RateLimit({ limit: 12, ttl: 60_000 })
+  async google(@Body() dto: GoogleLoginDto): Promise<{ success: true; data: AuthResponseDto }> {
+    const result = await this.authService.loginWithGoogle(dto.idToken);
     return { success: true, data: result };
   }
 

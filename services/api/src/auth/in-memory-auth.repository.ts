@@ -29,6 +29,16 @@ export class InMemoryAuthRepository implements AuthRepository {
     return this.users.get(id) ?? null;
   }
 
+  async findUserByGoogleSubject(subject: string): Promise<AuthUserRecord | null> {
+    for (const user of this.users.values()) {
+      if (user.googleSubject === subject) {
+        return user;
+      }
+    }
+
+    return null;
+  }
+
   async findRoleBySlug(slug: RoleSlug): Promise<RoleRecord | null> {
     return this.roles.get(slug) ?? null;
   }
@@ -52,5 +62,35 @@ export class InMemoryAuthRepository implements AuthRepository {
       revokedAt: new Date(),
       updatedAt: new Date(),
     });
+  }
+
+  async linkGoogleIdentity(userId: string, googleSubject: string, emailVerifiedAt: Date): Promise<void> {
+    const user = this.users.get(userId);
+    if (!user) {
+      return;
+    }
+
+    const updated: AuthUserRecord = {
+      ...user,
+      authProvider: "google",
+      googleSubject,
+      emailVerifiedAt: user.emailVerifiedAt ?? emailVerifiedAt,
+    };
+    this.users.set(user.email.toLowerCase(), updated);
+    this.users.set(user.id, updated);
+  }
+
+  async recordLastLogin(userId: string, at: Date): Promise<void> {
+    const user = this.users.get(userId);
+    if (!user) {
+      return;
+    }
+
+    const updated: AuthUserRecord = {
+      ...user,
+      lastLoginAt: at,
+    };
+    this.users.set(user.email.toLowerCase(), updated);
+    this.users.set(user.id, updated);
   }
 }

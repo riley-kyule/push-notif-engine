@@ -14,6 +14,7 @@ export class TokenService {
     const accessToken = jwt.sign(
       {
         email: user.email,
+        name: user.name,
         role: user.role,
         type: "access",
       } satisfies Omit<JwtPayload, "sub">,
@@ -28,6 +29,7 @@ export class TokenService {
     const refreshToken = jwt.sign(
       {
         email: user.email,
+        name: user.name,
         role: user.role,
         type: "refresh",
       } satisfies Omit<JwtPayload, "sub">,
