@@ -17,6 +17,7 @@ export type DashboardNavIcon =
   | "integration"
   | "reporting"
   | "platform"
+  | "health"
   | "auth"
   | "planned";
 
@@ -138,6 +139,14 @@ function SidebarIcon({ name }: { name: DashboardNavIcon }) {
         <svg {...common}>
           <path d="M12 3.8 19 7.8v8.4l-7 4-7-4V7.8l7-4Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
           <path d="m12 3.8 7 4-7 4-7-4 7-4Zm0 8v7.2" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+        </svg>
+      );
+    case "health":
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="8.2" stroke="currentColor" strokeWidth="1.7" />
+          <path d="M12 7.2v4.8l3.4 2.1" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M12 3.8v2.2M20.2 12H18M12 20.2V18M5.8 12H4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
       );
     case "auth":

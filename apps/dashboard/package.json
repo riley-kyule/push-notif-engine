@@ -13,10 +13,7 @@
   "dependencies": {
     "next": "^15.2.4",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "@epe/shared": "file:../../packages/shared",
-    "@epe/types": "file:../../packages/types",
-    "@epe/ui": "file:../../packages/ui"
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.10",

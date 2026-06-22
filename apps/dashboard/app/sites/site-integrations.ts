@@ -1,19 +1,36 @@
 import type { SiteSummary } from "./sites.utils";
 
-function escapeForTemplate(value: string): string {
-  return value.replaceAll("\\", "\\\\").replaceAll("`", "\\`").replaceAll("${", "\\${");
+function escapeForTemplate(value: string | null | undefined, fallback = ""): string {
+  return (value ?? fallback).replaceAll("\\", "\\\\").replaceAll("`", "\\`").replaceAll("${", "\\${");
 }
 
 export function buildSdkSnippet(site: SiteSummary): string {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "https://api.exoticpush.local/api";
+  const appName = site.appName || site.name;
   const config = {
     apiUrl,
     siteKey: site.id,
     vapidPublicKey: site.vapidPublicKey,
     serviceWorkerUrl: `${new URL(site.url).origin}/push-sw.js`,
     manifestUrl: `${new URL(site.url).origin}/manifest.json`,
-    iconUrl: "",
-    appName: site.name,
+    iconUrl: site.iconUrl,
+    appName,
+    themeColor: site.themeColor || "#1c1917",
+    optInPromptType: site.optInPromptType,
+    optInPromptAnimation: site.optInPromptAnimation,
+    optInPromptBackgroundColor: site.optInPromptBackgroundColor,
+    optInPromptHeadline: site.optInPromptHeadline,
+    optInPromptHeadlineTextColor: site.optInPromptHeadlineTextColor,
+    optInPromptText: site.optInPromptText,
+    optInPromptTextColor: site.optInPromptTextColor,
+    optInPromptIconUrl: site.optInPromptIconUrl,
+    optInPromptCancelButtonLabel: site.optInPromptCancelButtonLabel,
+    optInPromptCancelButtonTextColor: site.optInPromptCancelButtonTextColor,
+    optInPromptCancelButtonBackgroundColor: site.optInPromptCancelButtonBackgroundColor,
+    optInPromptApproveButtonLabel: site.optInPromptApproveButtonLabel,
+    optInPromptApproveButtonTextColor: site.optInPromptApproveButtonTextColor,
+    optInPromptApproveButtonBackgroundColor: site.optInPromptApproveButtonBackgroundColor,
+    optInPromptRepromptDelayDays: site.optInPromptRepromptDelayDays,
   };
 
   return [
@@ -29,9 +46,30 @@ export function buildSdkSnippet(site: SiteSummary): string {
   ].join("\n");
 }
 
+export function buildRestApiSnippet(site: SiteSummary): string {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "https://api.exoticpush.local/api";
+  return [
+    `curl -X POST ${JSON.stringify(`${apiUrl}/sites/${site.id}/rest-api-credentials`)}`,
+    "  -H 'Authorization: Bearer <dashboard-session-jwt>'",
+    "  -H 'Content-Type: application/json'",
+    "  -d '{}'",
+  ].join("\n");
+}
+
+export function buildRestApiUsageSnippet(site: SiteSummary): string {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "https://api.exoticpush.local/api";
+  const siteKey = site.restApiKeyId ?? "<rest-api-key-id>";
+  return [
+    `curl -X GET ${JSON.stringify(`${apiUrl}/sites/${site.id}/rest-api/identity`)}`,
+    `  -H 'X-EPE-Site-Key: ${siteKey}'`,
+    "  -H 'Authorization: Bearer <rest-api-auth-token>'",
+  ].join("\n");
+}
+
 export function buildServiceWorkerAsset(site: SiteSummary): string {
-  const appName = escapeForTemplate(site.name);
+  const appName = escapeForTemplate(site.appName, site.name);
   const vapidPublicKey = escapeForTemplate(site.vapidPublicKey ?? "");
+  const iconUrl = JSON.stringify(site.iconUrl || "");
   return `self.addEventListener('install', (event) => {
   event.waitUntil(self.skipWaiting());
 });
@@ -63,8 +101,9 @@ function showPushNotification(payload) {
   const title = payload.title || \`${appName}\`;
   const options = {
     body: payload.body || '',
-    icon: payload.icon || undefined,
+    icon: payload.icon || ${iconUrl} || undefined,
     image: payload.image || undefined,
+    badge: payload.badge || ${iconUrl} || undefined,
     data: {
       url: payload.url || '/',
     },
@@ -126,17 +165,18 @@ self.addEventListener('notificationclick', (event) => {
 
 export function buildManifestAsset(site: SiteSummary): string {
   const origin = new URL(site.url).origin;
+  const appName = site.appName || site.name;
   const manifest = {
-    name: site.name,
-    short_name: site.name,
+    name: appName,
+    short_name: appName,
     start_url: `${origin}/`,
     scope: `${origin}/`,
     display: "standalone",
-    theme_color: "#1c1917",
+    theme_color: site.themeColor || "#1c1917",
     background_color: "#fafaf9",
     icons: [
       {
-        src: `${origin}/icon.png`,
+        src: site.iconUrl || `${origin}/icon.png`,
         sizes: "192x192",
         type: "image/png",
       },

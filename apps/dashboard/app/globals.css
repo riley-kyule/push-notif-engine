@@ -670,6 +670,26 @@ a.nav-item[aria-current="page"] {
   color: var(--success);
 }
 
+.badge.good {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.badge.warn {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.badge.bad {
+  background: var(--error-bg);
+  color: var(--error);
+}
+
+.badge.neutral {
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+}
+
 .badge.completed,
 .badge.paused {
   background: var(--surface-raised);
@@ -757,11 +777,41 @@ a.nav-item[aria-current="page"] {
   color: var(--text-secondary);
 }
 
+.upload-field {
+  position: relative;
+  display: block;
+  border: 1px dashed var(--border-strong);
+  border-radius: 14px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.upload-field input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.upload-field-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 14px;
+  font-weight: 600;
+}
+
 .preview-image {
   height: 130px;
   border-radius: 14px;
   background: linear-gradient(135deg, #fed7aa, #fdba74 45%, #ea580c);
   margin: 12px 0;
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
 }
 
 .kpi-bar {
@@ -1006,6 +1056,322 @@ a.nav-item[aria-current="page"] {
 .workflow-reference {
   border-top: 1px solid var(--border);
   padding-top: 2px;
+}
+
+.platform-health-hero {
+  align-items: stretch;
+}
+
+.platform-health-overview,
+.platform-health-score-card {
+  display: grid;
+  gap: 12px;
+}
+
+.platform-health-copy {
+  display: grid;
+  gap: 12px;
+}
+
+.platform-health-lead {
+  margin: 0;
+  max-width: 58ch;
+  color: var(--text-secondary);
+}
+
+.platform-health-bullets {
+  display: grid;
+  gap: 10px;
+}
+
+.platform-health-bullets > div,
+.platform-health-component {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 250, 249, 0.92));
+}
+
+.platform-health-bullets > div {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+}
+
+.platform-health-bullets strong,
+.platform-health-component-label {
+  font-size: 0.92rem;
+  letter-spacing: -0.01em;
+}
+
+.platform-health-bullets span,
+.platform-health-component p {
+  color: var(--text-secondary);
+}
+
+.platform-health-score-card {
+  align-items: center;
+  justify-items: center;
+  text-align: center;
+  padding-block: 18px 16px;
+}
+
+.platform-health-score-ring {
+  --health-score: 100;
+  width: 148px;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.96) 58%, transparent 59%),
+    conic-gradient(
+      from -90deg,
+      var(--primary) 0 calc(var(--health-score) * 1%),
+      rgba(234, 88, 12, 0.12) calc(var(--health-score) * 1%) 100%
+    );
+  box-shadow: inset 0 0 0 1px rgba(234, 88, 12, 0.1);
+}
+
+.platform-health-score-ring-inner {
+  width: 104px;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background: white;
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.platform-health-score-ring-inner strong {
+  font-size: 1.8rem;
+  letter-spacing: -0.04em;
+}
+
+.platform-health-score-ring-inner span,
+.platform-health-score-meta p {
+  margin: 0;
+}
+
+.platform-health-score-status {
+  font-size: 1rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.platform-health-components {
+  display: grid;
+  gap: 14px;
+}
+
+.platform-health-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.platform-health-component {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  min-width: 0;
+}
+
+.platform-health-component-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.platform-health-component-head p {
+  margin: 0;
+}
+
+.platform-health-component-score {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.platform-health-component-score strong {
+  font-size: 1.45rem;
+  letter-spacing: -0.03em;
+}
+
+.platform-health-component-score span {
+  color: var(--text-secondary);
+}
+
+.platform-health-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.platform-health-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 245, 244, 0.94));
+  color: var(--text-primary);
+}
+
+.platform-health-action::after {
+  content: "→";
+  color: var(--text-muted);
+  font-size: 1rem;
+}
+
+.overview-health-grid {
+  align-items: stretch;
+  margin-bottom: 12px;
+}
+
+.overview-health-card,
+.overview-health-summary {
+  display: grid;
+  gap: 12px;
+}
+
+.overview-health-card {
+  background:
+    radial-gradient(circle at top left, rgba(234, 88, 12, 0.1), transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 250, 249, 0.94));
+}
+
+.overview-health-ring {
+  --health-score: 100;
+  width: 136px;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.96) 58%, transparent 59%),
+    conic-gradient(
+      from -90deg,
+      var(--primary) 0 calc(var(--health-score) * 1%),
+      rgba(234, 88, 12, 0.12) calc(var(--health-score) * 1%) 100%
+    );
+  box-shadow: inset 0 0 0 1px rgba(234, 88, 12, 0.1);
+}
+
+.overview-health-ring-inner {
+  width: 92px;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background: white;
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.overview-health-ring-inner strong {
+  font-size: 1.65rem;
+  letter-spacing: -0.04em;
+}
+
+.overview-health-ring-inner span {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.overview-health-copy {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.overview-health-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.overview-health-summary-item {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--surface-raised);
+}
+
+.overview-health-summary-item strong {
+  font-size: 0.88rem;
+}
+
+.overview-health-summary-item span {
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+  text-transform: capitalize;
+}
+
+.platform-health-queue-card,
+.platform-health-heartbeat-card,
+.platform-health-delivery-card {
+  display: grid;
+  gap: 12px;
+}
+
+.platform-health-queue-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.platform-health-queue-stats > div {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--surface-raised);
+}
+
+.platform-health-queue-stats strong {
+  font-size: 1.1rem;
+}
+
+.platform-health-heartbeat-list,
+.platform-health-site-list {
+  display: grid;
+  gap: 8px;
+}
+
+.platform-health-heartbeat-item,
+.platform-health-site-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.platform-health-heartbeat-item strong,
+.platform-health-site-item strong {
+  display: block;
+}
+
+.platform-health-heartbeat-item span,
+.platform-health-site-item span {
+  color: var(--text-secondary);
+}
+
+.platform-health-site-item {
+  transition: transform 120ms ease, border-color 120ms ease;
+}
+
+.platform-health-site-item:hover {
+  transform: translateY(-1px);
+  border-color: rgba(234, 88, 12, 0.2);
 }
 
 .workflow-reference h4 {
@@ -1777,6 +2143,10 @@ a.nav-item[aria-current="page"] {
     grid-template-columns: 1fr;
   }
 
+  .overview-health-grid {
+    grid-template-columns: 1fr;
+  }
+
   .analytics-page .analytics-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1828,6 +2198,11 @@ a.nav-item[aria-current="page"] {
 
   .metric-card-grid--split {
     grid-template-columns: 1fr;
+  }
+
+  .platform-health-queue-stats,
+  .overview-health-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .analytics-performance-body {
@@ -1891,6 +2266,21 @@ a.nav-item[aria-current="page"] {
 
   .analytics-page .analytics-report-grid,
   .analytics-page .analytics-deep-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .platform-health-hero,
+  .platform-health-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .platform-health-score-card {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .platform-health-queue-stats,
+  .overview-health-summary-grid {
     grid-template-columns: 1fr;
   }
 

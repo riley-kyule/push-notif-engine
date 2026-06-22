@@ -13,6 +13,28 @@ export interface DashboardSiteRecord {
   platform: string;
   subscribers: number;
   vapidPublicKey: string | null;
+  appName: string;
+  iconUrl: string;
+  themeColor: string;
+  optInPromptType: "lightbox-1" | "lightbox-2" | "bell-icon";
+  optInPromptAnimation: "slide-in" | "fade-in" | "pop";
+  optInPromptBackgroundColor: string;
+  optInPromptHeadline: string;
+  optInPromptHeadlineTextColor: string;
+  optInPromptText: string;
+  optInPromptTextColor: string;
+  optInPromptIconUrl: string;
+  optInPromptCancelButtonLabel: string;
+  optInPromptCancelButtonTextColor: string;
+  optInPromptCancelButtonBackgroundColor: string;
+  optInPromptApproveButtonLabel: string;
+  optInPromptApproveButtonTextColor: string;
+  optInPromptApproveButtonBackgroundColor: string;
+  optInPromptRepromptDelayDays: number;
+  optInPromptRecentNotificationsLimit: number;
+  restApiKeyId?: string | null;
+  restApiAuthTokenLast4?: string | null;
+  restApiCredentialsGeneratedAt?: string | null;
 }
 
 export interface DashboardSiteInput {
@@ -24,6 +46,28 @@ export interface DashboardSiteInput {
   platform: string;
   subscribers?: number;
   vapidPublicKey?: string | null;
+  appName: string;
+  iconUrl: string;
+  themeColor: string;
+  optInPromptType: "lightbox-1" | "lightbox-2" | "bell-icon";
+  optInPromptAnimation: "slide-in" | "fade-in" | "pop";
+  optInPromptBackgroundColor: string;
+  optInPromptHeadline: string;
+  optInPromptHeadlineTextColor: string;
+  optInPromptText: string;
+  optInPromptTextColor: string;
+  optInPromptIconUrl: string;
+  optInPromptCancelButtonLabel: string;
+  optInPromptCancelButtonTextColor: string;
+  optInPromptCancelButtonBackgroundColor: string;
+  optInPromptApproveButtonLabel: string;
+  optInPromptApproveButtonTextColor: string;
+  optInPromptApproveButtonBackgroundColor: string;
+  optInPromptRepromptDelayDays: number;
+  optInPromptRecentNotificationsLimit: number;
+  restApiKeyId: string | null;
+  restApiAuthTokenLast4: string | null;
+  restApiCredentialsGeneratedAt: string | null;
 }
 
 export interface DashboardCampaignRecord {
@@ -95,6 +139,28 @@ const state: {
     platform: index === 0 ? "WordPress" : index === 1 ? "Laravel" : "Other",
     subscribers: index === 0 ? 2418400 : index === 1 ? 1184200 : 4200000,
     vapidPublicKey: index === 0 ? "BExoticKey1" : index === 1 ? "BExoticKey2" : "BExoticKey3",
+    appName: site.appName,
+    iconUrl: site.iconUrl,
+    themeColor: site.themeColor,
+    optInPromptType: site.optInPromptType,
+    optInPromptAnimation: site.optInPromptAnimation,
+    optInPromptBackgroundColor: site.optInPromptBackgroundColor,
+    optInPromptHeadline: site.optInPromptHeadline,
+    optInPromptHeadlineTextColor: site.optInPromptHeadlineTextColor,
+    optInPromptText: site.optInPromptText,
+    optInPromptTextColor: site.optInPromptTextColor,
+    optInPromptIconUrl: site.optInPromptIconUrl,
+    optInPromptCancelButtonLabel: site.optInPromptCancelButtonLabel,
+    optInPromptCancelButtonTextColor: site.optInPromptCancelButtonTextColor,
+    optInPromptCancelButtonBackgroundColor: site.optInPromptCancelButtonBackgroundColor,
+    optInPromptApproveButtonLabel: site.optInPromptApproveButtonLabel,
+    optInPromptApproveButtonTextColor: site.optInPromptApproveButtonTextColor,
+    optInPromptApproveButtonBackgroundColor: site.optInPromptApproveButtonBackgroundColor,
+    optInPromptRepromptDelayDays: site.optInPromptRepromptDelayDays,
+    optInPromptRecentNotificationsLimit: site.optInPromptRecentNotificationsLimit,
+    restApiKeyId: site.restApiKeyId,
+    restApiAuthTokenLast4: site.restApiAuthTokenLast4,
+    restApiCredentialsGeneratedAt: site.restApiCredentialsGeneratedAt,
   })),
   campaigns: seedCampaigns(),
 };
@@ -162,6 +228,28 @@ export function createSite(input: DashboardSiteInput) {
     platform: input.platform,
     subscribers: input.subscribers ?? 0,
     vapidPublicKey: input.vapidPublicKey ?? null,
+    appName: input.appName,
+    iconUrl: input.iconUrl,
+    themeColor: input.themeColor,
+    optInPromptType: input.optInPromptType,
+    optInPromptAnimation: input.optInPromptAnimation,
+    optInPromptBackgroundColor: input.optInPromptBackgroundColor,
+    optInPromptHeadline: input.optInPromptHeadline,
+    optInPromptHeadlineTextColor: input.optInPromptHeadlineTextColor,
+    optInPromptText: input.optInPromptText,
+    optInPromptTextColor: input.optInPromptTextColor,
+    optInPromptIconUrl: input.optInPromptIconUrl,
+    optInPromptCancelButtonLabel: input.optInPromptCancelButtonLabel,
+    optInPromptCancelButtonTextColor: input.optInPromptCancelButtonTextColor,
+    optInPromptCancelButtonBackgroundColor: input.optInPromptCancelButtonBackgroundColor,
+    optInPromptApproveButtonLabel: input.optInPromptApproveButtonLabel,
+    optInPromptApproveButtonTextColor: input.optInPromptApproveButtonTextColor,
+    optInPromptApproveButtonBackgroundColor: input.optInPromptApproveButtonBackgroundColor,
+    optInPromptRepromptDelayDays: input.optInPromptRepromptDelayDays,
+    optInPromptRecentNotificationsLimit: input.optInPromptRecentNotificationsLimit,
+    restApiKeyId: input.restApiKeyId ?? null,
+    restApiAuthTokenLast4: input.restApiAuthTokenLast4 ?? null,
+    restApiCredentialsGeneratedAt: input.restApiCredentialsGeneratedAt ?? null,
   };
 
   state.sites = [...state.sites, site];
@@ -190,6 +278,31 @@ export function updateSite(id: string, input: Partial<DashboardSiteInput>) {
     subscribers: input.subscribers ?? current.subscribers,
     vapidPublicKey:
       input.vapidPublicKey === undefined ? current.vapidPublicKey : input.vapidPublicKey,
+    appName: input.appName ?? current.appName,
+    iconUrl: input.iconUrl ?? current.iconUrl,
+    themeColor: input.themeColor ?? current.themeColor,
+    optInPromptType: input.optInPromptType ?? current.optInPromptType,
+    optInPromptAnimation: input.optInPromptAnimation ?? current.optInPromptAnimation,
+    optInPromptBackgroundColor: input.optInPromptBackgroundColor ?? current.optInPromptBackgroundColor,
+    optInPromptHeadline: input.optInPromptHeadline ?? current.optInPromptHeadline,
+    optInPromptHeadlineTextColor: input.optInPromptHeadlineTextColor ?? current.optInPromptHeadlineTextColor,
+    optInPromptText: input.optInPromptText ?? current.optInPromptText,
+    optInPromptTextColor: input.optInPromptTextColor ?? current.optInPromptTextColor,
+    optInPromptIconUrl: input.optInPromptIconUrl ?? current.optInPromptIconUrl,
+    optInPromptCancelButtonLabel: input.optInPromptCancelButtonLabel ?? current.optInPromptCancelButtonLabel,
+    optInPromptCancelButtonTextColor: input.optInPromptCancelButtonTextColor ?? current.optInPromptCancelButtonTextColor,
+    optInPromptCancelButtonBackgroundColor:
+      input.optInPromptCancelButtonBackgroundColor ?? current.optInPromptCancelButtonBackgroundColor,
+    optInPromptApproveButtonLabel: input.optInPromptApproveButtonLabel ?? current.optInPromptApproveButtonLabel,
+    optInPromptApproveButtonTextColor: input.optInPromptApproveButtonTextColor ?? current.optInPromptApproveButtonTextColor,
+    optInPromptApproveButtonBackgroundColor:
+      input.optInPromptApproveButtonBackgroundColor ?? current.optInPromptApproveButtonBackgroundColor,
+    optInPromptRepromptDelayDays: input.optInPromptRepromptDelayDays ?? current.optInPromptRepromptDelayDays,
+    optInPromptRecentNotificationsLimit:
+      input.optInPromptRecentNotificationsLimit ?? current.optInPromptRecentNotificationsLimit,
+    restApiKeyId: input.restApiKeyId ?? current.restApiKeyId ?? null,
+    restApiAuthTokenLast4: input.restApiAuthTokenLast4 ?? current.restApiAuthTokenLast4 ?? null,
+    restApiCredentialsGeneratedAt: input.restApiCredentialsGeneratedAt ?? current.restApiCredentialsGeneratedAt ?? null,
   };
 
   state.sites[index] = updated;

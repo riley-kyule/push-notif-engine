@@ -3,16 +3,17 @@
 import { useMemo, useState } from "react";
 
 import { buildUrl, parseDateTime } from "./campaign-builder.utils";
+import type { CampaignTaxonomyChoice } from "../../_data/campaign-taxonomies";
 import type { SegmentChoice } from "../../_data/segments";
 import type { SiteChoice } from "../../_data/sites";
 
 type CampaignType = "instant" | "scheduled" | "recurring";
 type CampaignChannel = "web" | "mobile" | "all";
-type CampaignContentType = "announcement" | "promotion" | "editorial" | "digest" | "alert";
 
 interface CampaignBuilderFormProps {
   sites: SiteChoice[];
   segments: SegmentChoice[];
+  taxonomies: CampaignTaxonomyChoice[];
 }
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
@@ -32,7 +33,30 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   return (await response.json()) as T;
 }
 
-export function CampaignBuilderForm({ sites, segments }: CampaignBuilderFormProps) {
+async function uploadMedia(siteId: string, kind: "image" | "icon", file: File): Promise<{ id: string; publicUrl: string }> {
+  const formData = new FormData();
+  formData.set("siteId", siteId);
+  formData.set("kind", kind);
+  formData.set("file", file);
+
+  const response = await fetch(buildUrl("/api/dashboard", "/campaign-media"), {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Upload failed with status ${response.status}`);
+  }
+
+  const payload = (await response.json()) as { success?: boolean; data?: { id: string; publicUrl: string } };
+  if (!payload.success || !payload.data) {
+    throw new Error("Upload failed");
+  }
+
+  return payload.data;
+}
+
+export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBuilderFormProps) {
   const [siteId, setSiteId] = useState(sites[0]?.id ?? "site-1");
   const [segmentId, setSegmentId] = useState<string>("");
   const [name, setName] = useState("Launch Week");
@@ -41,20 +65,34 @@ export function CampaignBuilderForm({ sites, segments }: CampaignBuilderFormProp
   const [destination, setDestination] = useState("https://example.com/safari-sale");
   const [channel, setChannel] = useState<CampaignChannel>("web");
   const [type, setType] = useState<CampaignType>("scheduled");
-  const [contentType, setContentType] = useState<CampaignContentType>("promotion");
+  const [contentType, setContentType] = useState(taxonomies.find((taxonomy) => taxonomy.slug === "promotion")?.slug ?? taxonomies[0]?.slug ?? "promotion");
   const [schedule, setSchedule] = useState("2026-06-18T09:00");
   const [imageUrl, setImageUrl] = useState("https://example.com/hero.png");
   const [iconUrl, setIconUrl] = useState("https://example.com/icon.png");
+  const [imageAssetId, setImageAssetId] = useState<string | null>(null);
+  const [iconAssetId, setIconAssetId] = useState<string | null>(null);
+  const [imageFileName, setImageFileName] = useState<string | null>(null);
+  const [iconFileName, setIconFileName] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isUploadingIcon, setIsUploadingIcon] = useState(false);
+  const [showButtons, setShowButtons] = useState(true);
+  const [primaryButtonLabel, setPrimaryButtonLabel] = useState("View Deal");
+  const [primaryButtonUrl, setPrimaryButtonUrl] = useState(destination);
+  const [secondaryButtonLabel, setSecondaryButtonLabel] = useState("Dismiss");
+  const [secondaryButtonUrl, setSecondaryButtonUrl] = useState(destination);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isScheduling, setIsScheduling] = useState(false);
 
   const previewButtons = useMemo(
-    () => [
-      { label: "View Deal", url: destination },
-      { label: "Dismiss", url: destination },
-    ],
-    [destination],
+    () =>
+      showButtons
+        ? [
+            { label: primaryButtonLabel, url: primaryButtonUrl },
+            { label: secondaryButtonLabel, url: secondaryButtonUrl },
+          ]
+        : [],
+    [primaryButtonLabel, primaryButtonUrl, secondaryButtonLabel, secondaryButtonUrl, showButtons],
   );
 
   const segmentsForSite = useMemo(() => segments.filter((segment) => segment.siteId === siteId), [segments, siteId]);
@@ -63,6 +101,52 @@ export function CampaignBuilderForm({ sites, segments }: CampaignBuilderFormProp
     setSiteId(nextSiteId);
     if (!segments.some((segment) => segment.siteId === nextSiteId && segment.id === segmentId)) {
       setSegmentId("");
+    }
+    setImageAssetId(null);
+    setIconAssetId(null);
+    setImageUrl("https://example.com/hero.png");
+    setIconUrl("https://example.com/icon.png");
+    setImageFileName(null);
+    setIconFileName(null);
+  }
+
+  async function handleImageUpload(file: File | null) {
+    if (!file) {
+      return;
+    }
+
+    setIsUploadingImage(true);
+    setStatusMessage(null);
+    try {
+      const asset = await uploadMedia(siteId, "image", file);
+      setImageAssetId(asset.id);
+      setImageUrl(asset.publicUrl);
+      setImageFileName(file.name);
+      setStatusMessage("Campaign image uploaded");
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Unable to upload image");
+    } finally {
+      setIsUploadingImage(false);
+    }
+  }
+
+  async function handleIconUpload(file: File | null) {
+    if (!file) {
+      return;
+    }
+
+    setIsUploadingIcon(true);
+    setStatusMessage(null);
+    try {
+      const asset = await uploadMedia(siteId, "icon", file);
+      setIconAssetId(asset.id);
+      setIconUrl(asset.publicUrl);
+      setIconFileName(file.name);
+      setStatusMessage("Campaign icon uploaded");
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Unable to upload icon");
+    } finally {
+      setIsUploadingIcon(false);
     }
   }
 
@@ -78,7 +162,9 @@ export function CampaignBuilderForm({ sites, segments }: CampaignBuilderFormProp
     url: destination,
     imageUrl,
     iconUrl,
-    buttons: [{ label: "View Deal", url: destination }],
+    imageAssetId,
+    iconAssetId,
+    buttons: showButtons ? previewButtons : [],
     expirationAt: null,
     status: "draft" as const,
     scheduledAt: type === "instant" ? null : parseDateTime(schedule),
@@ -200,17 +286,12 @@ export function CampaignBuilderForm({ sites, segments }: CampaignBuilderFormProp
 
         <div className="field">
           <label htmlFor="contentType">Content taxonomy</label>
-          <select
-            className="select"
-            id="contentType"
-            value={contentType}
-            onChange={(event) => setContentType(event.target.value as CampaignContentType)}
-          >
-            <option value="announcement">Announcement</option>
-            <option value="promotion">Promotion</option>
-            <option value="editorial">Editorial</option>
-            <option value="digest">Digest</option>
-            <option value="alert">Alert</option>
+          <select className="select" id="contentType" value={contentType} onChange={(event) => setContentType(event.target.value)}>
+            {taxonomies.map((taxonomy) => (
+              <option key={taxonomy.id} value={taxonomy.slug}>
+                {taxonomy.label}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -231,12 +312,28 @@ export function CampaignBuilderForm({ sites, segments }: CampaignBuilderFormProp
 
         <div className="grid cards-3">
           <div className="field">
-            <label htmlFor="image">Image URL</label>
-            <input className="input" id="image" value={imageUrl} onChange={(event) => setImageUrl(event.target.value)} />
+            <label htmlFor="image">Image</label>
+            <input className="input" id="image" value={imageUrl} onChange={(event) => {
+              setImageUrl(event.target.value);
+              setImageAssetId(null);
+            }} />
+            <label className="upload-field">
+              <span className="upload-field-button">{isUploadingImage ? "Uploading..." : "Upload image"}</span>
+              <input type="file" accept="image/*" onChange={(event) => void handleImageUpload(event.target.files?.[0] ?? null)} />
+            </label>
+            <p className="subtle">{imageFileName ?? "Use a hosted URL or upload a file."}</p>
           </div>
           <div className="field">
-            <label htmlFor="icon">Icon URL</label>
-            <input className="input" id="icon" value={iconUrl} onChange={(event) => setIconUrl(event.target.value)} />
+            <label htmlFor="icon">Icon</label>
+            <input className="input" id="icon" value={iconUrl} onChange={(event) => {
+              setIconUrl(event.target.value);
+              setIconAssetId(null);
+            }} />
+            <label className="upload-field">
+              <span className="upload-field-button">{isUploadingIcon ? "Uploading..." : "Upload icon"}</span>
+              <input type="file" accept="image/*" onChange={(event) => void handleIconUpload(event.target.files?.[0] ?? null)} />
+            </label>
+            <p className="subtle">{iconFileName ?? "Optional. Upload a brand icon or keep a URL."}</p>
           </div>
           <div className="field">
             <label htmlFor="schedule">Send time</label>
@@ -245,16 +342,49 @@ export function CampaignBuilderForm({ sites, segments }: CampaignBuilderFormProp
         </div>
 
         <div className="field">
-          <label>Action buttons</label>
-          <div className="grid" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
-            {previewButtons.map((button) => (
-              <div key={button.label} className="card" style={{ boxShadow: "none", background: "var(--surface-raised)" }}>
-                <strong>{button.label}</strong>
-                <div className="subtle">{button.url}</div>
-              </div>
-            ))}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <label htmlFor="showButtons">Action buttons</label>
+            <label htmlFor="showButtons" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <input id="showButtons" type="checkbox" checked={showButtons} onChange={(event) => setShowButtons(event.target.checked)} />
+              <span>Show buttons</span>
+            </label>
           </div>
         </div>
+
+        {showButtons ? (
+          <div className="grid cards-2">
+            <div className="field">
+              <label htmlFor="primaryButtonLabel">Primary button label</label>
+              <input
+                className="input"
+                id="primaryButtonLabel"
+                value={primaryButtonLabel}
+                onChange={(event) => setPrimaryButtonLabel(event.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="primaryButtonUrl">Primary button URL</label>
+              <input className="input" id="primaryButtonUrl" value={primaryButtonUrl} onChange={(event) => setPrimaryButtonUrl(event.target.value)} />
+            </div>
+            <div className="field">
+              <label htmlFor="secondaryButtonLabel">Secondary button label</label>
+              <input
+                className="input"
+                id="secondaryButtonLabel"
+                value={secondaryButtonLabel}
+                onChange={(event) => setSecondaryButtonLabel(event.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="secondaryButtonUrl">Secondary button URL</label>
+              <input className="input" id="secondaryButtonUrl" value={secondaryButtonUrl} onChange={(event) => setSecondaryButtonUrl(event.target.value)} />
+            </div>
+          </div>
+        ) : (
+          <div className="card" style={{ boxShadow: "none", background: "var(--surface-raised)" }}>
+            <p className="subtle">Action buttons are hidden for this campaign.</p>
+          </div>
+        )}
 
         <div className="actions" style={{ justifyContent: "space-between", marginTop: 24 }}>
           <span className="subtle">{statusMessage ?? "Save as draft or schedule when ready."}</span>
@@ -275,23 +405,24 @@ export function CampaignBuilderForm({ sites, segments }: CampaignBuilderFormProp
       <aside className="preview">
         <div className="card preview-card">
           <div className="preview-head">
-          <span>Platform: Chrome</span>
-          <span>{channel}</span>
-        </div>
-          <div className="preview-image" />
+            <span>Platform: Chrome</span>
+            <span>{channel}</span>
+          </div>
+          <div className="preview-image" style={imageUrl ? { backgroundImage: `url(${imageUrl})` } : undefined} />
           <p className="preview-title">{title}</p>
           <p className="preview-body">{message}</p>
           <p className="subtle" style={{ marginBottom: 8 }}>
             UTM seed: {contentType}
           </p>
-          <div className="actions">
-            <button className="button primary" type="button">
-              View Deal
-            </button>
-            <button className="button secondary" type="button">
-              Dismiss
-            </button>
-          </div>
+          {showButtons ? (
+            <div className="actions">
+              {previewButtons.map((button) => (
+                <button key={`${button.label}-${button.url}`} className="button secondary" type="button">
+                  {button.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <div className="card" style={{ marginTop: 18 }}>

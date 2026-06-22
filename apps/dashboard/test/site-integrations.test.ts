@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildManifestAsset, buildSdkSnippet, buildServiceWorkerAsset } from "../app/sites/site-integrations";
+import {
+  buildManifestAsset,
+  buildRestApiSnippet,
+  buildRestApiUsageSnippet,
+  buildSdkSnippet,
+  buildServiceWorkerAsset,
+} from "../app/sites/site-integrations";
 
 const site = {
   id: "site-1",
@@ -17,6 +23,8 @@ const site = {
 
 test("site integration artifacts are generated per site", () => {
   const sdkSnippet = buildSdkSnippet(site);
+  const restApiSnippet = buildRestApiSnippet(site);
+  const restApiUsageSnippet = buildRestApiUsageSnippet(site);
   const serviceWorker = buildServiceWorkerAsset(site);
   const manifest = buildManifestAsset(site);
 
@@ -25,6 +33,10 @@ test("site integration artifacts are generated per site", () => {
   assert.match(sdkSnippet, /push-sw\.js/);
   assert.match(sdkSnippet, /manifest\.json/);
   assert.match(sdkSnippet, /Exotic Africa/);
+  assert.match(restApiSnippet, /rest-api-credentials/);
+  assert.match(restApiSnippet, /Authorization: Bearer/);
+  assert.match(restApiUsageSnippet, /rest-api\/identity/);
+  assert.match(restApiUsageSnippet, /X-EPE-Site-Key/);
 
   assert.match(serviceWorker, /Exotic Africa/);
   assert.match(serviceWorker, /EPE_SITE_VAPID_PUBLIC_KEY/);

@@ -5,7 +5,7 @@ export interface CampaignSummary {
   name: string;
   site: string;
   type: "instant" | "scheduled" | "recurring";
-  contentType: "announcement" | "promotion" | "editorial" | "digest" | "alert";
+  contentType: string;
   status: "draft" | "scheduled" | "sending" | "sent" | "failed" | "expired";
   sent: string;
   ctr: string;
@@ -19,7 +19,7 @@ export interface CampaignDetail extends CampaignSummary {
   imageLabel: string;
   iconLabel: string;
   audienceLabel: string;
-  contentType: "announcement" | "promotion" | "editorial" | "digest" | "alert";
+  contentType: string;
   buttons: Array<{ label: string; url: string }>;
   metrics: {
     sent: string;

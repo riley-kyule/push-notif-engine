@@ -17,6 +17,25 @@ export async function POST(request: Request): Promise<Response> {
     platform: string;
     status?: "active" | "inactive";
     vapidPublicKey?: string | null;
+    appName: string;
+    iconUrl: string;
+    themeColor: string;
+    optInPromptType: "lightbox-1" | "lightbox-2" | "bell-icon";
+    optInPromptAnimation: "slide-in" | "fade-in" | "pop";
+    optInPromptBackgroundColor: string;
+    optInPromptHeadline: string;
+    optInPromptHeadlineTextColor: string;
+    optInPromptText: string;
+    optInPromptTextColor: string;
+    optInPromptIconUrl: string;
+    optInPromptCancelButtonLabel: string;
+    optInPromptCancelButtonTextColor: string;
+    optInPromptCancelButtonBackgroundColor: string;
+    optInPromptApproveButtonLabel: string;
+    optInPromptApproveButtonTextColor: string;
+    optInPromptApproveButtonBackgroundColor: string;
+    optInPromptRepromptDelayDays: number;
+    optInPromptRecentNotificationsLimit: number;
   };
 
   const res = await apiFetch("/sites", {
@@ -29,6 +48,25 @@ export async function POST(request: Request): Promise<Response> {
       platform: body.platform,
       status: body.status,
       vapidPublicKey: body.vapidPublicKey ?? null,
+      appName: body.appName,
+      iconUrl: body.iconUrl,
+      themeColor: body.themeColor,
+      optInPromptType: body.optInPromptType,
+      optInPromptAnimation: body.optInPromptAnimation,
+      optInPromptBackgroundColor: body.optInPromptBackgroundColor,
+      optInPromptHeadline: body.optInPromptHeadline,
+      optInPromptHeadlineTextColor: body.optInPromptHeadlineTextColor,
+      optInPromptText: body.optInPromptText,
+      optInPromptTextColor: body.optInPromptTextColor,
+      optInPromptIconUrl: body.optInPromptIconUrl,
+      optInPromptCancelButtonLabel: body.optInPromptCancelButtonLabel,
+      optInPromptCancelButtonTextColor: body.optInPromptCancelButtonTextColor,
+      optInPromptCancelButtonBackgroundColor: body.optInPromptCancelButtonBackgroundColor,
+      optInPromptApproveButtonLabel: body.optInPromptApproveButtonLabel,
+      optInPromptApproveButtonTextColor: body.optInPromptApproveButtonTextColor,
+      optInPromptApproveButtonBackgroundColor: body.optInPromptApproveButtonBackgroundColor,
+      optInPromptRepromptDelayDays: body.optInPromptRepromptDelayDays,
+      optInPromptRecentNotificationsLimit: body.optInPromptRecentNotificationsLimit,
     }),
   });
 

@@ -21,6 +21,7 @@ export const dashboardNavigationSections: DashboardNavSection[] = [
       { href: "/sites/new", label: "Add Site", description: "Onboard a new origin", icon: "create" },
       { href: "/campaigns", label: "Campaigns", description: "Lifecycle and delivery", icon: "campaigns" },
       { href: "/campaigns/new", label: "Create Campaign", description: "Build a push message", icon: "create" },
+      { href: "/campaign-taxonomies", label: "Taxonomies", description: "Managed content labels", icon: "campaigns" },
     ],
   },
   {
@@ -53,6 +54,8 @@ export const dashboardNavigationSections: DashboardNavSection[] = [
     label: "Platform",
     items: [
       { href: "/login", label: "Auth", description: "Session and credential entry", icon: "auth" },
+      { href: "/platform-health", label: "Platform Health", description: "Service status and uptime checks", icon: "health" },
+      { href: "/platform/backup-config", label: "Backup Config", description: "Dropbox/Google Drive system backups", icon: "platform" },
       { label: "RBAC", description: "Role-based access control", status: "planned", icon: "platform" },
       { label: "Audit Logs", description: "Security history", status: "planned", icon: "platform" },
       { label: "Monitoring", description: "Metrics and alerting", status: "planned", icon: "platform" },
