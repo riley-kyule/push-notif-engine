@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 
+import { AuditModule } from "../audit/audit.module";
 import { DatabaseModule } from "../database/database.module";
 import { SitesModule } from "../sites/sites.module";
 import { SEGMENTS_REPOSITORY } from "./segments.constants";
@@ -8,7 +9,7 @@ import { SegmentsService } from "./segments.service";
 import { PostgresSegmentsRepository } from "./postgres-segments.repository";
 
 @Module({
-  imports: [DatabaseModule, SitesModule],
+  imports: [DatabaseModule, SitesModule, AuditModule],
   controllers: [SegmentsController],
   providers: [
     SegmentsService,

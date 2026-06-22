@@ -18,6 +18,13 @@ function createMobilePushQueue(): Queue {
     connection: new IORedis(config.redisUrl, {
       maxRetriesPerRequest: null,
     }) as never,
+    // See browser-push.module.ts: enables BullMQ-level stalled-job recovery. Safe
+    // because the processor skips devices already delivered to for this job id
+    // (see findAlreadySentDeviceIds).
+    defaultJobOptions: {
+      attempts: 3,
+      backoff: { type: "exponential", delay: 2_000 },
+    },
   });
 }
 

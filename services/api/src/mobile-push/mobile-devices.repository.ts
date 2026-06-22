@@ -20,6 +20,14 @@ export interface UpdateMobileDeviceStatusInput {
   lastSeenAt?: Date | null;
 }
 
+export interface MobileDeviceCountSummary {
+  ios: number;
+  android: number;
+  active: number;
+  invalid: number;
+  expired: number;
+}
+
 export interface MobileDevicesRepository {
   register(input: RegisterMobileDeviceInput): Promise<MobileDeviceRecord>;
   findBySiteAndToken(siteId: string, platform: MobilePlatform, deviceToken: string): Promise<MobileDeviceRecord | null>;
@@ -27,4 +35,5 @@ export interface MobileDevicesRepository {
   refreshToken(siteId: string, platform: MobilePlatform, currentDeviceToken: string, nextDeviceToken: string): Promise<MobileDeviceRecord | null>;
   updateStatus(id: string, input: UpdateMobileDeviceStatusInput): Promise<MobileDeviceRecord | null>;
   listEligible(siteId: string, platform: MobilePlatform | "all"): Promise<MobileDeviceRecord[]>;
+  countBySite(siteId: string): Promise<MobileDeviceCountSummary>;
 }

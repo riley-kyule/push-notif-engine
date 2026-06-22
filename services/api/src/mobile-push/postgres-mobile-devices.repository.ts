@@ -2,7 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import type { Pool } from "pg";
 
 import { DATABASE_POOL } from "../database/database.constants";
-import type { MobileDevicesRepository, RegisterMobileDeviceInput, UpdateMobileDeviceStatusInput } from "./mobile-devices.repository";
+import type { MobileDeviceCountSummary, MobileDevicesRepository, RegisterMobileDeviceInput, UpdateMobileDeviceStatusInput } from "./mobile-devices.repository";
 import type { MobileDeviceRecord, MobilePlatform } from "./mobile-push.types";
 
 interface DbMobileDeviceRow {
@@ -125,6 +125,27 @@ export class PostgresMobileDevicesRepository implements MobileDevicesRepository 
     );
 
     return rows.map((row) => this.mapRow(row));
+  }
+
+  async countBySite(siteId: string): Promise<MobileDeviceCountSummary> {
+    const { rows } = await this.pool.query<{ platform: MobilePlatform; status: "active" | "invalid" | "expired"; total: number }>(
+      `
+      SELECT platform, status, COUNT(*)::int AS total
+      FROM mobile_devices
+      WHERE site_id = $1
+      GROUP BY platform, status
+      `,
+      [siteId],
+    );
+
+    const summary: MobileDeviceCountSummary = { ios: 0, android: 0, active: 0, invalid: 0, expired: 0 };
+    for (const row of rows) {
+      if (row.platform === "ios") summary.ios += row.total;
+      if (row.platform === "android") summary.android += row.total;
+      summary[row.status] += row.total;
+    }
+
+    return summary;
   }
 
   private mapRow(row: DbMobileDeviceRow): MobileDeviceRecord {

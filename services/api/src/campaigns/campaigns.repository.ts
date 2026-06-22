@@ -64,4 +64,5 @@ export interface CampaignsRepository {
   delete(id: string): Promise<boolean>;
   list(filters: CampaignListFilters): Promise<CampaignListResult>;
   listDueScheduledCampaigns(asOf: Date): Promise<CampaignRecord[]>;
+  listRecentSentBySite(siteId: string, limit: number): Promise<CampaignRecord[]>;
 }

@@ -122,4 +122,13 @@ export class InMemoryCampaignsRepository implements CampaignsRepository {
       .sort((a, b) => (a.scheduledAt as Date).getTime() - (b.scheduledAt as Date).getTime())
       .map((campaign) => cloneCampaign(campaign));
   }
+
+  async listRecentSentBySite(siteId: string, limit: number): Promise<CampaignRecord[]> {
+    return this.campaigns
+      .filter((campaign) => campaign.siteId === siteId)
+      .filter((campaign) => campaign.sentAt !== null)
+      .sort((a, b) => (b.sentAt as Date).getTime() - (a.sentAt as Date).getTime())
+      .slice(0, limit)
+      .map((campaign) => cloneCampaign(campaign));
+  }
 }

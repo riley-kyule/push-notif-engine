@@ -88,3 +88,43 @@ test("mobile push service manages credentials and devices", async () => {
   await service.recordClick("site-1", "ios", "device-token-2", "https://example.com");
   assert.equal(clicksRepository.events.length, 1);
 });
+
+test("mobile push service masks private keys and summarizes device counts", async () => {
+  const sitesService = { async getSite() { return { id: "site-1" }; } };
+  const credentialsRepository = new InMemoryMobileCredentialsRepository();
+  const devicesRepository = new InMemoryMobileDevicesRepository();
+  const clicksRepository = new InMemoryMobileClicksRepository();
+  const queue = { async add() { return { id: "job-1" }; } };
+
+  const service = new MobilePushService(
+    sitesService as never,
+    credentialsRepository as never,
+    devicesRepository as never,
+    clicksRepository as never,
+    queue as never,
+  );
+
+  const upserted = await service.upsertCredentials("site-1", {
+    apnsKeyId: "key-id",
+    apnsPrivateKey: "super-secret-apns-key",
+    fcmClientEmail: "service@example.com",
+    fcmPrivateKey: "super-secret-fcm-key",
+  });
+
+  assert.equal(upserted.apnsConfigured, true);
+  assert.equal(upserted.fcmConfigured, true);
+  assert.equal((upserted as unknown as Record<string, unknown>).apnsPrivateKey, undefined);
+  assert.equal((upserted as unknown as Record<string, unknown>).fcmPrivateKey, undefined);
+
+  const fetched = await service.getCredentials("site-1");
+  assert.equal(fetched?.apnsKeyId, "key-id");
+  assert.equal((fetched as unknown as Record<string, unknown>).apnsPrivateKey, undefined);
+
+  await service.registerDevice({ siteId: "site-1", platform: "ios", deviceToken: "tok-1", country: "US", language: "en" });
+  await service.registerDevice({ siteId: "site-1", platform: "android", deviceToken: "tok-2", country: "US", language: "en" });
+
+  const summary = await service.getDeviceSummary("site-1");
+  assert.equal(summary.ios, 1);
+  assert.equal(summary.android, 1);
+  assert.equal(summary.active, 2);
+});

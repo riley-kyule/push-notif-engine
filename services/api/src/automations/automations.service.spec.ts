@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { createFakeAuditService } from "../audit/audit.service.fake";
 import { InMemoryAutomationsRepository } from "./in-memory-automations.repository";
 import { AutomationsService } from "./automations.service";
 
@@ -12,7 +13,7 @@ function createService(overrides: { dispatchCalls?: unknown[] } = {}) {
   };
   const dispatchCalls = overrides.dispatchCalls ?? [];
   const repository = new InMemoryAutomationsRepository();
-  const service = new AutomationsService(sitesService as never, repository as never);
+  const service = new AutomationsService(sitesService as never, createFakeAuditService(), repository as never);
 
   return { service, repository, dispatchCalls };
 }

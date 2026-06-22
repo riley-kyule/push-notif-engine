@@ -102,38 +102,62 @@ export class BrowserPushRepository {
     return rows;
   }
 
-  async createPendingDeliveryEvent(input: {
+  // One round trip for the whole batch instead of one INSERT per subscriber — matters
+  // once batches reach tens of thousands of rows. Uses unnest() so the parameter count
+  // stays fixed (2 arrays) regardless of batch size, rather than building a VALUES
+  // list that could blow past Postgres's 65535-parameter limit on large sends.
+  async createPendingDeliveryEvents(input: {
     siteId: string;
     campaignId?: string | null;
-    subscriberId: string | null;
-    endpoint: string;
+    jobId?: string | null;
     payload: BrowserPushNotificationPayload;
-  }): Promise<string> {
-    const { rows } = await this.pool.query<{ id: string }>(
+    subscribers: Array<{ subscriberId: string; endpoint: string }>;
+  }): Promise<Map<string, string>> {
+    if (input.subscribers.length === 0) {
+      return new Map();
+    }
+
+    const { rows } = await this.pool.query<{ id: string; subscriber_id: string }>(
       `
       INSERT INTO push_delivery_events (
-        site_id, campaign_id, subscriber_id, endpoint, status,
-        provider_message_id, error_code, error_message, payload,
-        sent_at, delivered_at, created_at, updated_at
+        site_id, campaign_id, subscriber_id, endpoint, status, payload, job_id, created_at, updated_at
       )
-      VALUES ($1, $2, $3, $4, 'pending',
-        NULL, NULL, NULL, $5,
-        NULL, NULL, NOW(), NOW())
-      RETURNING id
+      SELECT $1::uuid, $2::uuid, sub_id, ep, 'pending', $3::jsonb, $4::text, NOW(), NOW()
+      FROM unnest($5::uuid[], $6::text[]) AS t(sub_id, ep)
+      RETURNING id, subscriber_id
       `,
       [
         input.siteId,
         input.campaignId ?? null,
-        input.subscriberId,
-        input.endpoint,
         JSON.stringify(input.payload),
+        input.jobId ?? null,
+        input.subscribers.map((subscriber) => subscriber.subscriberId),
+        input.subscribers.map((subscriber) => subscriber.endpoint),
       ],
     );
 
-    return rows[0]?.id ?? "";
+    return new Map(rows.map((row) => [row.subscriber_id, row.id]));
   }
 
-  async markDeliveryEventSent(id: string, providerMessageId: string | null): Promise<void> {
+  // Lets a BullMQ-retried job (worker crash mid-job, or a transient failure that
+  // triggered a job-level retry) skip subscribers it already successfully sent to,
+  // instead of re-sending the same notification.
+  async findAlreadySentSubscriberIds(jobId: string): Promise<Set<string>> {
+    const { rows } = await this.pool.query<{ subscriber_id: string | null }>(
+      `
+      SELECT subscriber_id
+      FROM push_delivery_events
+      WHERE job_id = $1
+        AND status IN ('sent', 'delivered')
+        AND subscriber_id IS NOT NULL
+      `,
+      [jobId],
+    );
+
+    return new Set(rows.map((row) => row.subscriber_id).filter((id): id is string => Boolean(id)));
+  }
+
+  async markDeliveryEventSent(id: string, providerMessageId: string | null, retryCount: number): Promise<void> {
     await this.pool.query(
       `
       UPDATE push_delivery_events
@@ -142,10 +166,12 @@ export class BrowserPushRepository {
           error_code = NULL,
           error_message = NULL,
           sent_at = NOW(),
-          updated_at = NOW()
+          updated_at = NOW(),
+          retry_count = $3,
+          last_attempted_at = NOW()
       WHERE id = $1
       `,
-      [id, providerMessageId],
+      [id, providerMessageId, retryCount],
     );
   }
 
@@ -155,6 +181,7 @@ export class BrowserPushRepository {
       status: BrowserPushDeliveryStatus;
       errorCode: string | null;
       errorMessage: string | null;
+      retryCount: number;
     },
   ): Promise<void> {
     await this.pool.query(
@@ -163,10 +190,12 @@ export class BrowserPushRepository {
       SET status = $2,
           error_code = $3,
           error_message = $4,
-          updated_at = NOW()
+          updated_at = NOW(),
+          retry_count = $5,
+          last_attempted_at = NOW()
       WHERE id = $1
       `,
-      [id, input.status, input.errorCode, input.errorMessage],
+      [id, input.status, input.errorCode, input.errorMessage, input.retryCount],
     );
   }
 

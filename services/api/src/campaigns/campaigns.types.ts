@@ -1,6 +1,6 @@
 export type CampaignType = "instant" | "scheduled" | "recurring";
 
-export type CampaignContentType = "announcement" | "promotion" | "editorial" | "digest" | "alert";
+export type CampaignContentType = string;
 
 export type CampaignChannel = "web" | "mobile" | "all";
 

@@ -1,5 +1,6 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 
+import { AuditService } from "../audit/audit.service";
 import { SitesService } from "../sites/sites.service";
 import { normalizeSegmentDefinition } from "./segments.logic";
 import { SEGMENTS_REPOSITORY } from "./segments.constants";
@@ -23,20 +24,37 @@ function normalizeDescription(description: string | null | undefined): string | 
 export class SegmentsService {
   constructor(
     private readonly sitesService: SitesService,
+    private readonly auditService: AuditService,
     @Inject(SEGMENTS_REPOSITORY) private readonly segmentsRepository: SegmentsRepository,
   ) {}
 
-  async createSegment(dto: CreateSegmentDto): Promise<SegmentRecord> {
+  async createSegment(dto: CreateSegmentDto, actorUserId?: string): Promise<SegmentRecord> {
     await this.sitesService.getSite(dto.siteId);
-    return this.segmentsRepository.create(this.normalizeCreateInput(dto));
+    const segment = await this.segmentsRepository.create(this.normalizeCreateInput(dto));
+    await this.auditService.log({
+      actorUserId: actorUserId ?? null,
+      action: "segment.created",
+      targetType: "segment",
+      targetId: segment.id,
+      metadata: { siteId: segment.siteId, name: segment.name },
+    });
+    return segment;
   }
 
-  async updateSegment(id: string, dto: UpdateSegmentDto): Promise<SegmentRecord> {
+  async updateSegment(id: string, dto: UpdateSegmentDto, actorUserId?: string): Promise<SegmentRecord> {
     const existing = await this.getSegment(id);
     const updated = await this.segmentsRepository.update(id, this.normalizeUpdateInput(existing, dto));
     if (!updated) {
       throw new NotFoundException("Segment not found");
     }
+
+    await this.auditService.log({
+      actorUserId: actorUserId ?? null,
+      action: "segment.updated",
+      targetType: "segment",
+      targetId: updated.id,
+      metadata: { changes: dto },
+    });
 
     return updated;
   }
@@ -66,11 +84,20 @@ export class SegmentsService {
     return this.segmentsRepository.list(filters);
   }
 
-  async deleteSegment(id: string): Promise<void> {
+  async deleteSegment(id: string, actorUserId?: string): Promise<void> {
+    const existing = await this.getSegment(id);
     const deleted = await this.segmentsRepository.delete(id);
     if (!deleted) {
       throw new NotFoundException("Segment not found");
     }
+
+    await this.auditService.log({
+      actorUserId: actorUserId ?? null,
+      action: "segment.deleted",
+      targetType: "segment",
+      targetId: id,
+      metadata: { siteId: existing.siteId, name: existing.name },
+    });
   }
 
   async estimateSegmentReach(dto: EstimateSegmentReachDto): Promise<{ siteId: string; estimatedReach: number }> {

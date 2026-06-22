@@ -253,6 +253,22 @@ export class PostgresCampaignsRepository implements CampaignsRepository {
     return rows.map((row) => this.mapRow(row));
   }
 
+  async listRecentSentBySite(siteId: string, limit: number): Promise<CampaignRecord[]> {
+    const { rows } = await this.pool.query<DbCampaignRow>(
+      `
+      SELECT *
+      FROM campaigns
+      WHERE site_id = $1
+        AND sent_at IS NOT NULL
+      ORDER BY sent_at DESC
+      LIMIT $2
+      `,
+      [siteId, limit],
+    );
+
+    return rows.map((row) => this.mapRow(row));
+  }
+
   private mapRow(row: DbCampaignRow): CampaignRecord {
     return {
       id: row.id,

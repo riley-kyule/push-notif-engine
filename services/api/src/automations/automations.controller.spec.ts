@@ -28,15 +28,19 @@ test("automations controller returns created automation data", async () => {
   };
 
   const controller = new AutomationsController(service as never);
+  const user = { id: "user-1" } as never;
 
-  const created = await controller.createAutomation({
-    siteId: "site-1",
-    name: "Welcome push",
-    triggerEvent: "subscriber_registered",
-    title: "Welcome!",
-    message: "Thanks for subscribing",
-    url: "https://example.com/welcome",
-  } as never);
+  const created = await controller.createAutomation(
+    {
+      siteId: "site-1",
+      name: "Welcome push",
+      triggerEvent: "subscriber_registered",
+      title: "Welcome!",
+      message: "Thanks for subscribing",
+      url: "https://example.com/welcome",
+    } as never,
+    user,
+  );
 
   assert.equal(created.success, true);
   assert.deepEqual(calls, ["create"]);

@@ -2,6 +2,7 @@ import type { BrowserPushJobPayload } from "./browser-push.types";
 import type { BrowserPushRepository } from "./browser-push.repository";
 import type { BrowserPushSender } from "./browser-push.sender";
 import { loadBrowserPushConfig } from "./config";
+import { mapWithConcurrency } from "./concurrency.util";
 
 type PushError = {
   statusCode?: number;
@@ -22,6 +23,10 @@ function isRetryableError(error: PushError): boolean {
   return statusCode === 429 || statusCode >= 500;
 }
 
+function isAttemptedError(error: unknown): error is { attempts: number } {
+  return typeof error === "object" && error !== null && "attempts" in error && typeof (error as { attempts: unknown }).attempts === "number";
+}
+
 export class BrowserPushProcessor {
   constructor(
     private readonly repository: BrowserPushRepository,
@@ -31,7 +36,7 @@ export class BrowserPushProcessor {
     },
   ) {}
 
-  async process(job: BrowserPushJobPayload): Promise<{ sent: number; failed: number; expired: number }> {
+  async process(job: BrowserPushJobPayload, jobId?: string): Promise<{ sent: number; failed: number; expired: number }> {
     const browserPushConfig = loadBrowserPushConfig();
     const site = await this.repository.findSiteCredentials(job.siteId);
     if (!site || !site.vapid_subject || !site.vapid_public_key || !site.vapid_private_key) {
@@ -47,29 +52,36 @@ export class BrowserPushProcessor {
       vapidPrivateKey: site.vapid_private_key,
     });
 
-    const subscribers = job.subscriberId
+    const allSubscribers = job.subscriberId
       ? await this.repository.findEligibleSubscriberById(job.siteId, job.subscriberId)
       : await this.repository.listEligibleSubscribers(
           job.siteId,
           job.segmentId ? await this.repository.findSegmentDefinition(job.segmentId) : null,
         );
-    let sent = 0;
-    let failed = 0;
-    let expired = 0;
 
-    for (const subscriber of subscribers) {
-      const deliveryId = await this.repository.createPendingDeliveryEvent({
-        siteId: job.siteId,
-        campaignId: job.campaignId ?? null,
+    const alreadySent = jobId ? await this.repository.findAlreadySentSubscriberIds(jobId) : new Set<string>();
+    const subscribers = allSubscribers.filter((subscriber) => !alreadySent.has(subscriber.id));
+
+    // One bulk insert for the whole batch instead of one INSERT per subscriber —
+    // matters once batches reach tens of thousands of rows.
+    const deliveryIdsBySubscriber = await this.repository.createPendingDeliveryEvents({
+      siteId: job.siteId,
+      campaignId: job.campaignId ?? null,
+      jobId: jobId ?? null,
+      payload: { ...job.notification, deliveryId: null, ackUrl: null, clickUrl: null },
+      subscribers: subscribers.map((subscriber) => ({
         subscriberId: subscriber.id,
         endpoint: subscriber.subscription_endpoint,
-        payload: {
-          ...job.notification,
-          deliveryId: null,
-          ackUrl: null,
-          clickUrl: null,
-        },
-      });
+      })),
+    });
+
+    type Outcome = "sent" | "failed" | "expired";
+
+    const outcomes = await mapWithConcurrency(subscribers, browserPushConfig.sendConcurrency, async (subscriber): Promise<Outcome> => {
+      const deliveryId = deliveryIdsBySubscriber.get(subscriber.id);
+      if (!deliveryId) {
+        return "failed";
+      }
 
       const subscription = {
         endpoint: subscriber.subscription_endpoint,
@@ -88,50 +100,60 @@ export class BrowserPushProcessor {
         };
         const result = await this.sendWithRetry(subscription, notification);
 
-        await this.repository.markDeliveryEventSent(deliveryId, result.providerMessageId);
-        sent += 1;
+        await this.repository.markDeliveryEventSent(deliveryId, result.providerMessageId, result.attempts);
+        return "sent";
       } catch (error) {
         const statusCode = isResponseError(error) ? error.statusCode : undefined;
         const message = isResponseError(error) ? error.message : "Unknown push failure";
         const shouldExpire = statusCode === 404 || statusCode === 410;
+        const attempts = isAttemptedError(error) ? error.attempts : 1;
 
         await this.repository.markDeliveryEventFailed(deliveryId, {
           status: shouldExpire ? "expired" : "failed",
           errorCode: statusCode ? String(statusCode) : null,
           errorMessage: message,
+          retryCount: attempts,
         });
 
         if (shouldExpire) {
           await this.repository.markSubscriberExpired(subscriber.id);
-          expired += 1;
-        } else {
-          failed += 1;
+          return "expired";
         }
+
+        return "failed";
       }
-    }
+    });
 
     if (job.campaignId) {
       await this.repository.markCampaignSent(job.campaignId);
     }
 
-    return { sent, failed, expired };
+    return {
+      sent: outcomes.filter((outcome) => outcome === "sent").length,
+      failed: outcomes.filter((outcome) => outcome === "failed").length,
+      expired: outcomes.filter((outcome) => outcome === "expired").length,
+    };
   }
 
   private async sendWithRetry(
     subscription: { endpoint: string; keys: { p256dh: string; auth: string } },
     notification: BrowserPushJobPayload["notification"],
-  ): Promise<{ providerMessageId: string | null }> {
+  ): Promise<{ providerMessageId: string | null; attempts: number }> {
     const maxAttempts = 3;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
-        return await this.sender.send(subscription, notification);
+        const result = await this.sender.send(subscription, notification);
+        return { ...result, attempts: attempt };
       } catch (error) {
         const pushError = isResponseError(error) ? error : { message: "Unknown push failure" };
         const retryable = isRetryableError(pushError);
         const shouldRetry = retryable && attempt < maxAttempts;
 
         if (!shouldRetry) {
+          if (typeof error === "object" && error !== null) {
+            throw Object.assign(error, { attempts: attempt });
+          }
           throw error;
         }
 

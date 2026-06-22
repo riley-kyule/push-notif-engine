@@ -1,6 +1,9 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 
+import { AuditService } from "../audit/audit.service";
 import { BrowserPushService } from "../browser-push/browser-push.service";
+import { CampaignMediaService } from "../campaign-media/campaign-media.service";
+import { CampaignTaxonomiesService } from "../campaign-taxonomies/campaign-taxonomies.service";
 import { SegmentsService } from "../segments/segments.service";
 import { SitesService } from "../sites/sites.service";
 import { computeNextOccurrence } from "./campaign-recurrence.util";
@@ -48,28 +51,65 @@ export class CampaignsService {
     private readonly sitesService: SitesService,
     private readonly segmentsService: SegmentsService,
     private readonly browserPushService: BrowserPushService,
+    private readonly campaignMediaService: CampaignMediaService,
+    private readonly campaignTaxonomiesService: CampaignTaxonomiesService,
+    private readonly auditService: AuditService,
     @Inject(CAMPAIGNS_REPOSITORY) private readonly campaignsRepository: CampaignsRepository,
   ) {}
 
-  async createCampaign(dto: CreateCampaignDto): Promise<CampaignRecord> {
+  async createCampaign(dto: CreateCampaignDto, actorUserId?: string): Promise<CampaignRecord> {
     await this.sitesService.getSite(dto.siteId);
     if (dto.segmentId) {
       await this.assertSegmentBelongsToSite(dto.segmentId, dto.siteId);
     }
+    await this.campaignTaxonomiesService.ensureActive(dto.contentType ?? "announcement");
+    const media = await this.campaignMediaService.resolveCampaignMedia(dto.siteId, {
+      ...(dto.imageAssetId !== undefined ? { imageAssetId: dto.imageAssetId } : {}),
+      ...(dto.iconAssetId !== undefined ? { iconAssetId: dto.iconAssetId } : {}),
+      ...(dto.imageUrl !== undefined ? { imageUrl: dto.imageUrl } : {}),
+      ...(dto.iconUrl !== undefined ? { iconUrl: dto.iconUrl } : {}),
+    });
 
-    return this.campaignsRepository.create(this.normalizeCreateInput(dto));
+    const campaign = await this.campaignsRepository.create(this.normalizeCreateInput(dto, media));
+    await this.attachCampaignMedia(campaign.id, dto.imageAssetId, dto.iconAssetId);
+    await this.auditService.log({
+      actorUserId: actorUserId ?? null,
+      action: "campaign.created",
+      targetType: "campaign",
+      targetId: campaign.id,
+      metadata: { siteId: campaign.siteId, name: campaign.name },
+    });
+    return campaign;
   }
 
-  async updateCampaign(id: string, dto: UpdateCampaignDto): Promise<CampaignRecord> {
+  async updateCampaign(id: string, dto: UpdateCampaignDto, actorUserId?: string): Promise<CampaignRecord> {
     const existing = await this.getCampaign(id);
     if (dto.segmentId) {
       await this.assertSegmentBelongsToSite(dto.segmentId, existing.siteId);
     }
+    if (dto.contentType) {
+      await this.campaignTaxonomiesService.ensureActive(dto.contentType);
+    }
+    const media = await this.campaignMediaService.resolveCampaignMedia(existing.siteId, {
+      ...(dto.imageAssetId !== undefined ? { imageAssetId: dto.imageAssetId } : {}),
+      ...(dto.iconAssetId !== undefined ? { iconAssetId: dto.iconAssetId } : {}),
+      ...(dto.imageUrl !== undefined ? { imageUrl: dto.imageUrl } : {}),
+      ...(dto.iconUrl !== undefined ? { iconUrl: dto.iconUrl } : {}),
+    });
 
-    const updated = await this.campaignsRepository.update(id, this.normalizeUpdateInput(existing, dto));
+    const updated = await this.campaignsRepository.update(id, this.normalizeUpdateInput(existing, dto, media));
     if (!updated) {
       throw new NotFoundException("Campaign not found");
     }
+    await this.attachCampaignMedia(updated.id, dto.imageAssetId, dto.iconAssetId);
+
+    await this.auditService.log({
+      actorUserId: actorUserId ?? null,
+      action: "campaign.updated",
+      targetType: "campaign",
+      targetId: updated.id,
+      metadata: { changes: dto },
+    });
 
     return updated;
   }
@@ -112,18 +152,28 @@ export class CampaignsService {
     return this.campaignsRepository.list(normalized);
   }
 
-  async deleteCampaign(id: string): Promise<void> {
+  async deleteCampaign(id: string, actorUserId?: string): Promise<void> {
+    const existing = await this.getCampaign(id);
+    await this.campaignMediaService.deleteCampaignAssets(existing.id);
     const deleted = await this.campaignsRepository.delete(id);
     if (!deleted) {
       throw new NotFoundException("Campaign not found");
     }
+
+    await this.auditService.log({
+      actorUserId: actorUserId ?? null,
+      action: "campaign.deleted",
+      targetType: "campaign",
+      targetId: id,
+      metadata: { siteId: existing.siteId, name: existing.name },
+    });
   }
 
-  async cloneCampaign(id: string, dto: CloneCampaignDto): Promise<CampaignRecord> {
+  async cloneCampaign(id: string, dto: CloneCampaignDto, actorUserId?: string): Promise<CampaignRecord> {
     const existing = await this.getCampaign(id);
     await this.sitesService.getSite(existing.siteId);
 
-    return this.campaignsRepository.create({
+    const cloned = await this.campaignsRepository.create({
       siteId: existing.siteId,
       segmentId: existing.segmentId,
       name: dto.name ?? `${existing.name} Copy`,
@@ -146,6 +196,27 @@ export class CampaignsService {
       clonedFromCampaignId: existing.id,
       sentAt: null,
     });
+    const clonedMedia = await this.campaignMediaService.cloneCampaignAssets(existing, cloned.id);
+    if (clonedMedia.imageUrl !== cloned.imageUrl || clonedMedia.iconUrl !== cloned.iconUrl) {
+      const updatedClone = await this.campaignsRepository.update(cloned.id, {
+        imageUrl: clonedMedia.imageUrl,
+        iconUrl: clonedMedia.iconUrl,
+      });
+      if (updatedClone) {
+        cloned.imageUrl = updatedClone.imageUrl;
+        cloned.iconUrl = updatedClone.iconUrl;
+      }
+    }
+
+    await this.auditService.log({
+      actorUserId: actorUserId ?? null,
+      action: "campaign.cloned",
+      targetType: "campaign",
+      targetId: cloned.id,
+      metadata: { clonedFromCampaignId: existing.id },
+    });
+
+    return cloned;
   }
 
   async previewCampaign(id: string): Promise<{ campaignId: string; preview: CampaignButton[]; title: string; message: string; url: string; imageUrl: string | null; iconUrl: string | null }> {
@@ -161,9 +232,9 @@ export class CampaignsService {
     };
   }
 
-  async scheduleCampaign(id: string, dto: ScheduleCampaignDto): Promise<CampaignRecord> {
+  async scheduleCampaign(id: string, dto: ScheduleCampaignDto, actorUserId?: string): Promise<CampaignRecord> {
     const existing = await this.getCampaign(id);
-    return this.updateCampaign(id, {
+    const scheduled = await this.updateCampaign(id, {
       type: existing.type === "instant" && dto.recurrenceType ? "recurring" : existing.type,
       status: "scheduled",
       scheduledAt: dto.scheduledAt ?? existing.scheduledAt?.toISOString() ?? null,
@@ -172,9 +243,19 @@ export class CampaignsService {
       recurrenceInterval: dto.recurrenceInterval ?? existing.recurrenceInterval,
       recurrenceUntilAt: dto.recurrenceUntilAt ?? existing.recurrenceUntilAt?.toISOString() ?? null,
     });
+
+    await this.auditService.log({
+      actorUserId: actorUserId ?? null,
+      action: "campaign.scheduled",
+      targetType: "campaign",
+      targetId: scheduled.id,
+      metadata: { scheduledAt: scheduled.scheduledAt },
+    });
+
+    return scheduled;
   }
 
-  async sendCampaign(id: string): Promise<{ jobId: string | undefined; queued: true }> {
+  async sendCampaign(id: string, actorUserId?: string): Promise<{ jobId: string | undefined; queued: true }> {
     const campaign = await this.getCampaign(id);
 
     if (campaign.status === "sending" || campaign.status === "sent") {
@@ -193,6 +274,14 @@ export class CampaignsService {
     });
 
     await this.campaignsRepository.update(id, { status: "sending" });
+
+    await this.auditService.log({
+      actorUserId: actorUserId ?? null,
+      action: "campaign.sent",
+      targetType: "campaign",
+      targetId: campaign.id,
+      metadata: { siteId: campaign.siteId },
+    });
 
     return result;
   }
@@ -229,7 +318,16 @@ export class CampaignsService {
     await this.campaignsRepository.update(campaign.id, { scheduledAt: next });
   }
 
-  private normalizeCreateInput(dto: CreateCampaignDto): CreateCampaignInput {
+  private async attachCampaignMedia(campaignId: string, imageAssetId?: string | null, iconAssetId?: string | null): Promise<void> {
+    const assetIds = [imageAssetId, iconAssetId].filter((value): value is string => typeof value === "string" && value.length > 0);
+    if (assetIds.length === 0) {
+      return;
+    }
+
+    await this.campaignMediaService.attachAssetsToCampaign(campaignId, assetIds);
+  }
+
+  private normalizeCreateInput(dto: CreateCampaignDto, media: { imageUrl: string | null; iconUrl: string | null }): CreateCampaignInput {
     return {
       siteId: dto.siteId,
       segmentId: dto.segmentId ?? null,
@@ -240,8 +338,8 @@ export class CampaignsService {
       title: dto.title,
       message: dto.message,
       url: dto.url,
-      imageUrl: dto.imageUrl ?? null,
-      iconUrl: dto.iconUrl ?? null,
+      imageUrl: media.imageUrl,
+      iconUrl: media.iconUrl,
       buttons: normalizeButtons(dto.buttons),
       expirationAt: toNullableDate(dto.expirationAt) ?? null,
       status: dto.status ?? "draft",
@@ -255,7 +353,11 @@ export class CampaignsService {
     };
   }
 
-  private normalizeUpdateInput(existing: CampaignRecord, dto: UpdateCampaignDto): UpdateCampaignInput {
+  private normalizeUpdateInput(
+    existing: CampaignRecord,
+    dto: UpdateCampaignDto,
+    media: { imageUrl: string | null; iconUrl: string | null },
+  ): UpdateCampaignInput {
     return {
       ...(dto.segmentId !== undefined ? { segmentId: dto.segmentId } : {}),
       name: dto.name ?? existing.name,
@@ -265,8 +367,8 @@ export class CampaignsService {
       title: dto.title ?? existing.title,
       message: dto.message ?? existing.message,
       url: dto.url ?? existing.url,
-      imageUrl: dto.imageUrl === undefined ? existing.imageUrl : dto.imageUrl,
-      iconUrl: dto.iconUrl === undefined ? existing.iconUrl : dto.iconUrl,
+      imageUrl: dto.imageAssetId !== undefined || dto.imageUrl !== undefined ? media.imageUrl : existing.imageUrl,
+      iconUrl: dto.iconAssetId !== undefined || dto.iconUrl !== undefined ? media.iconUrl : existing.iconUrl,
       buttons: dto.buttons ? normalizeButtons(dto.buttons) : existing.buttons,
       expirationAt: dto.expirationAt === undefined ? existing.expirationAt : (toNullableDate(dto.expirationAt) ?? null),
       status: dto.status ?? existing.status,

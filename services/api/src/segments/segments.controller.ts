@@ -1,8 +1,10 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 
+import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
+import type { AuthenticatedUser } from "../auth/auth.types";
 import { CreateSegmentDto } from "./dto/create-segment.dto";
 import { EstimateSegmentReachDto } from "./dto/estimate-segment-reach.dto";
 import { ListSegmentsQueryDto } from "./dto/list-segments-query.dto";
@@ -16,8 +18,8 @@ export class SegmentsController {
   constructor(private readonly segmentsService: SegmentsService) {}
 
   @Post()
-  async createSegment(@Body() dto: CreateSegmentDto): Promise<{ success: true; data: unknown }> {
-    const segment = await this.segmentsService.createSegment(dto);
+  async createSegment(@Body() dto: CreateSegmentDto, @CurrentUser() user: AuthenticatedUser): Promise<{ success: true; data: unknown }> {
+    const segment = await this.segmentsService.createSegment(dto, user.id);
     return { success: true, data: segment };
   }
 
@@ -34,14 +36,18 @@ export class SegmentsController {
   }
 
   @Patch(":id")
-  async updateSegment(@Param("id") id: string, @Body() dto: UpdateSegmentDto): Promise<{ success: true; data: unknown }> {
-    const segment = await this.segmentsService.updateSegment(id, dto);
+  async updateSegment(
+    @Param("id") id: string,
+    @Body() dto: UpdateSegmentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ success: true; data: unknown }> {
+    const segment = await this.segmentsService.updateSegment(id, dto, user.id);
     return { success: true, data: segment };
   }
 
   @Delete(":id")
-  async deleteSegment(@Param("id") id: string): Promise<{ success: true; data: { deleted: true } }> {
-    await this.segmentsService.deleteSegment(id);
+  async deleteSegment(@Param("id") id: string, @CurrentUser() user: AuthenticatedUser): Promise<{ success: true; data: { deleted: true } }> {
+    await this.segmentsService.deleteSegment(id, user.id);
     return { success: true, data: { deleted: true } };
   }
 

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { createFakeAuditService } from "../audit/audit.service.fake";
 import { InMemorySegmentsRepository } from "./in-memory-segments.repository";
 import { SegmentsService } from "./segments.service";
 
@@ -52,7 +53,7 @@ test("segments service creates, updates, and estimates reach", async () => {
   };
 
   const repository = new InMemorySegmentsRepository(subscribersRepository as never);
-  const service = new SegmentsService(sitesService as never, repository as never);
+  const service = new SegmentsService(sitesService as never, createFakeAuditService(), repository as never);
 
   const created = await service.createSegment({
     siteId: "site-1",

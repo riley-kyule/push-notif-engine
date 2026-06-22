@@ -14,6 +14,15 @@ test("campaigns controller returns created campaign data", async () => {
       calls.push("list");
       return { items: [], total: 0 };
     },
+    async listDueScheduledCampaigns() {
+      return [];
+    },
+    async dispatchScheduledOccurrence() {
+      return { jobId: "job-1", queued: true as const };
+    },
+    async advanceRecurringCampaign() {
+      return undefined;
+    },
     async getCampaign() {
       calls.push("get");
       return { id: "campaign-1" };
@@ -40,16 +49,20 @@ test("campaigns controller returns created campaign data", async () => {
   };
 
   const controller = new CampaignsController(service as never);
+  const user = { id: "user-1" } as never;
 
-  const created = await controller.createCampaign({
-    siteId: "site-1",
-    name: "Launch Campaign",
-    channel: "web",
-    type: "instant",
-    title: "Big Sale",
-    message: "Shop now",
-    url: "https://example.com",
-  });
+  const created = await controller.createCampaign(
+    {
+      siteId: "site-1",
+      name: "Launch Campaign",
+      channel: "web",
+      type: "instant",
+      title: "Big Sale",
+      message: "Shop now",
+      url: "https://example.com",
+    },
+    user,
+  );
 
   assert.equal(created.success, true);
   assert.deepEqual(calls, ["create"]);

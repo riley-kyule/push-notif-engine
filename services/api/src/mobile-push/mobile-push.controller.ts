@@ -48,6 +48,12 @@ export class MobilePushController {
     return { success: true, data: credentials };
   }
 
+  @Get("sites/:siteId/mobile-devices/summary")
+  async getDeviceSummary(@Param("siteId") siteId: string): Promise<{ success: true; data: unknown }> {
+    const summary = await this.mobilePushService.getDeviceSummary(siteId);
+    return { success: true, data: summary };
+  }
+
   @Post("mobile-devices/register")
   async registerDevice(@Body() dto: RegisterMobileDeviceDto): Promise<{ success: true; data: unknown }> {
     const device = await this.mobilePushService.registerDevice(dto);

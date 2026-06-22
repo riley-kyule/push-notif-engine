@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 
-import type { MobileDevicesRepository, RegisterMobileDeviceInput, UpdateMobileDeviceStatusInput, UpdateMobileDeviceTokenInput } from "./mobile-devices.repository";
+import type { MobileDeviceCountSummary, MobileDevicesRepository, RegisterMobileDeviceInput, UpdateMobileDeviceStatusInput, UpdateMobileDeviceTokenInput } from "./mobile-devices.repository";
 import type { MobileDeviceRecord, MobilePlatform } from "./mobile-push.types";
 
 export class InMemoryMobileDevicesRepository implements MobileDevicesRepository {
@@ -88,5 +88,17 @@ export class InMemoryMobileDevicesRepository implements MobileDevicesRepository 
       if (platform !== "all" && item.platform !== platform) return false;
       return item.status === "active";
     });
+  }
+
+  async countBySite(siteId: string): Promise<MobileDeviceCountSummary> {
+    const summary: MobileDeviceCountSummary = { ios: 0, android: 0, active: 0, invalid: 0, expired: 0 };
+    for (const item of this.items.values()) {
+      if (item.siteId !== siteId) continue;
+      if (item.platform === "ios") summary.ios += 1;
+      if (item.platform === "android") summary.android += 1;
+      summary[item.status] += 1;
+    }
+
+    return summary;
   }
 }

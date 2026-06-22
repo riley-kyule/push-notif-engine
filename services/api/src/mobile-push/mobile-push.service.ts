@@ -10,13 +10,27 @@ import { RefreshMobileDeviceDto } from "./dto/refresh-mobile-device.dto";
 import { InvalidateMobileDeviceDto } from "./dto/invalidate-mobile-device.dto";
 import { CreateMobilePushDispatchDto } from "./dto/create-mobile-push-dispatch.dto";
 import type { MobileCredentialsRepository } from "./mobile-credentials.repository";
-import type { MobileDevicesRepository } from "./mobile-devices.repository";
+import type { MobileDeviceCountSummary, MobileDevicesRepository } from "./mobile-devices.repository";
 import type { MobilePushJobPayload, MobilePushCredentialsRecord, MobileDeviceRecord } from "./mobile-push.types";
 
 export const MOBILE_PUSH_QUEUE = Symbol("MOBILE_PUSH_QUEUE");
 export const MOBILE_CREDENTIALS_REPOSITORY = Symbol("MOBILE_CREDENTIALS_REPOSITORY");
 export const MOBILE_DEVICES_REPOSITORY = Symbol("MOBILE_DEVICES_REPOSITORY");
 export const MOBILE_CLICKS_REPOSITORY = Symbol("MOBILE_CLICKS_REPOSITORY");
+
+// Never sends apnsPrivateKey/fcmPrivateKey to the dashboard — those are write-only
+// secrets, mirroring how REST API auth tokens are only shown once at generation time.
+export interface MobileCredentialsSummary {
+  siteId: string;
+  apnsConfigured: boolean;
+  apnsKeyId: string | null;
+  apnsTeamId: string | null;
+  apnsBundleId: string | null;
+  fcmConfigured: boolean;
+  fcmProjectId: string | null;
+  fcmClientEmail: string | null;
+  updatedAt: Date;
+}
 
 @Injectable()
 export class MobilePushService {
@@ -28,9 +42,9 @@ export class MobilePushService {
     @Inject(MOBILE_PUSH_QUEUE) private readonly queue: Queue,
   ) {}
 
-  async upsertCredentials(siteId: string, dto: UpsertMobileCredentialsDto): Promise<MobilePushCredentialsRecord> {
+  async upsertCredentials(siteId: string, dto: UpsertMobileCredentialsDto): Promise<MobileCredentialsSummary> {
     await this.sitesService.getSite(siteId);
-    return this.credentialsRepository.upsert({
+    const record = await this.credentialsRepository.upsert({
       siteId,
       apnsKeyId: dto.apnsKeyId ?? null,
       apnsTeamId: dto.apnsTeamId ?? null,
@@ -40,10 +54,30 @@ export class MobilePushService {
       fcmClientEmail: dto.fcmClientEmail ?? null,
       fcmPrivateKey: dto.fcmPrivateKey ?? null,
     });
+    return this.toCredentialsSummary(record);
   }
 
-  async getCredentials(siteId: string): Promise<MobilePushCredentialsRecord | null> {
-    return this.credentialsRepository.findBySiteId(siteId);
+  async getCredentials(siteId: string): Promise<MobileCredentialsSummary | null> {
+    const record = await this.credentialsRepository.findBySiteId(siteId);
+    return record ? this.toCredentialsSummary(record) : null;
+  }
+
+  async getDeviceSummary(siteId: string): Promise<MobileDeviceCountSummary> {
+    return this.devicesRepository.countBySite(siteId);
+  }
+
+  private toCredentialsSummary(record: MobilePushCredentialsRecord): MobileCredentialsSummary {
+    return {
+      siteId: record.siteId,
+      apnsConfigured: Boolean(record.apnsPrivateKey),
+      apnsKeyId: record.apnsKeyId,
+      apnsTeamId: record.apnsTeamId,
+      apnsBundleId: record.apnsBundleId,
+      fcmConfigured: Boolean(record.fcmPrivateKey),
+      fcmProjectId: record.fcmProjectId,
+      fcmClientEmail: record.fcmClientEmail,
+      updatedAt: record.updatedAt,
+    };
   }
 
   async registerDevice(dto: RegisterMobileDeviceDto): Promise<MobileDeviceRecord> {

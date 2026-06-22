@@ -1,4 +1,5 @@
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { AuditService } from "../audit/audit.service";
 import { SitesService } from "../sites/sites.service";
 import { AUTOMATIONS_REPOSITORY } from "./automations.constants";
 import type {
@@ -58,10 +59,11 @@ function normalizeActions(actions: CreateAutomationDto["actions"] | UpdateAutoma
 export class AutomationsService {
   constructor(
     private readonly sitesService: SitesService,
+    private readonly auditService: AuditService,
     @Inject(AUTOMATIONS_REPOSITORY) private readonly automationsRepository: AutomationsRepository,
   ) {}
 
-  async createAutomation(dto: CreateAutomationDto): Promise<AutomationRecord> {
+  async createAutomation(dto: CreateAutomationDto, actorUserId?: string): Promise<AutomationRecord> {
     await this.sitesService.getSite(dto.siteId);
 
     const input: CreateAutomationInput = {
@@ -78,10 +80,18 @@ export class AutomationsService {
       status: dto.status ?? "active",
     };
 
-    return this.automationsRepository.create(input);
+    const automation = await this.automationsRepository.create(input);
+    await this.auditService.log({
+      actorUserId: actorUserId ?? null,
+      action: "automation.created",
+      targetType: "automation",
+      targetId: automation.id,
+      metadata: { siteId: automation.siteId, name: automation.name, triggerEvent: automation.triggerEvent },
+    });
+    return automation;
   }
 
-  async updateAutomation(id: string, dto: UpdateAutomationDto): Promise<AutomationRecord> {
+  async updateAutomation(id: string, dto: UpdateAutomationDto, actorUserId?: string): Promise<AutomationRecord> {
     const existing = await this.getAutomation(id);
 
     const input: UpdateAutomationInput = {
@@ -101,6 +111,14 @@ export class AutomationsService {
     if (!updated) {
       throw new NotFoundException("Automation not found");
     }
+
+    await this.auditService.log({
+      actorUserId: actorUserId ?? null,
+      action: "automation.updated",
+      targetType: "automation",
+      targetId: updated.id,
+      metadata: { changes: dto },
+    });
 
     return updated;
   }
@@ -131,11 +149,19 @@ export class AutomationsService {
     return this.automationsRepository.listActiveByTrigger(siteId, triggerEvent);
   }
 
-  async deleteAutomation(id: string): Promise<void> {
+  async deleteAutomation(id: string, actorUserId?: string): Promise<void> {
+    const existing = await this.getAutomation(id);
     const deleted = await this.automationsRepository.delete(id);
     if (!deleted) {
       throw new NotFoundException("Automation not found");
     }
-  }
 
+    await this.auditService.log({
+      actorUserId: actorUserId ?? null,
+      action: "automation.deleted",
+      targetType: "automation",
+      targetId: id,
+      metadata: { siteId: existing.siteId, name: existing.name },
+    });
+  }
 }

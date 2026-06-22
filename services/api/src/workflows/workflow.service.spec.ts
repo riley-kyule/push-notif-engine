@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { createFakeAuditService } from "../audit/audit.service.fake";
 import { InMemoryAutomationsRepository } from "../automations/in-memory-automations.repository";
 import { AutomationsService } from "../automations/automations.service";
 import { InMemoryWorkflowRepository } from "./in-memory-workflow.repository";
@@ -15,7 +16,7 @@ function createService() {
 
   const repository = new InMemoryWorkflowRepository();
   const automationsRepository = new InMemoryAutomationsRepository();
-  const automationsService = new AutomationsService(sitesService as never, automationsRepository as never);
+  const automationsService = new AutomationsService(sitesService as never, createFakeAuditService(), automationsRepository as never);
   const dispatchCalls: unknown[] = [];
   const browserPushService = {
     async dispatch(input: unknown) {

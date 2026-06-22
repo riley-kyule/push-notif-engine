@@ -4,10 +4,25 @@ import test from "node:test";
 import { BrowserPushProcessor } from "../src/browser-push.processor";
 import type { BrowserPushJobPayload } from "../src/browser-push.types";
 
+// Fake bulk-insert: assigns deterministic delivery ids in input order and records
+// each call so tests can assert on what was sent.
+function createPendingDeliveryEventsFake(calls: Array<{ subscriberId: string }>) {
+  let counter = 0;
+  return async (input: { subscribers: Array<{ subscriberId: string; endpoint: string }> }) => {
+    const map = new Map<string, string>();
+    for (const subscriber of input.subscribers) {
+      counter += 1;
+      calls.push({ subscriberId: subscriber.subscriberId });
+      map.set(subscriber.subscriberId, `delivery-${counter}`);
+    }
+    return map;
+  };
+}
+
 test("browser push processor marks expired subscribers", async () => {
-  const events: Array<{ status: string; subscriberId: string }> = [];
   const expired: string[] = [];
-  let lastSubscriberId: string | null = null;
+  const failedEvents: Array<{ status: string }> = [];
+
   const fakeRepository = {
     async findSiteCredentials() {
       return {
@@ -27,24 +42,12 @@ test("browser push processor marks expired subscribers", async () => {
         },
       ];
     },
-    async createPendingDeliveryEvent(input: { subscriberId: string | null }) {
-      if (!input.subscriberId) {
-        return "delivery-1";
-      }
-
-      lastSubscriberId = input.subscriberId;
-      events.push({ status: "pending", subscriberId: input.subscriberId });
-      return "delivery-1";
-    },
+    createPendingDeliveryEvents: createPendingDeliveryEventsFake([]),
     async markDeliveryEventSent() {
       return undefined;
     },
     async markDeliveryEventFailed(_id: string, input: { status: string }) {
-      if (!lastSubscriberId) {
-        return;
-      }
-
-      events.push({ status: input.status, subscriberId: lastSubscriberId });
+      failedEvents.push({ status: input.status });
     },
     async markSubscriberExpired(subscriberId: string) {
       expired.push(subscriberId);
@@ -79,16 +82,13 @@ test("browser push processor marks expired subscribers", async () => {
   assert.equal(result.failed, 0);
   assert.equal(result.expired, 1);
   assert.deepEqual(expired, ["subscriber-1"]);
-  assert.deepEqual(events, [
-    { status: "pending", subscriberId: "subscriber-1" },
-    { status: "expired", subscriberId: "subscriber-1" },
-  ]);
+  assert.deepEqual(failedEvents, [{ status: "expired" }]);
 });
 
 test("browser push processor retries transient relay failures", async () => {
-  const events: Array<{ status: string; subscriberId: string }> = [];
   const sleeps: number[] = [];
   let attempts = 0;
+  let sentCalls = 0;
 
   const fakeRepository = {
     async findSiteCredentials() {
@@ -109,19 +109,12 @@ test("browser push processor retries transient relay failures", async () => {
         },
       ];
     },
-    async createPendingDeliveryEvent(input: { subscriberId: string | null }) {
-      if (!input.subscriberId) {
-        return "delivery-1";
-      }
-
-      events.push({ status: "pending", subscriberId: input.subscriberId });
-      return "delivery-1";
-    },
+    createPendingDeliveryEvents: createPendingDeliveryEventsFake([]),
     async markDeliveryEventSent() {
-      events.push({ status: "sent", subscriberId: "subscriber-1" });
+      sentCalls += 1;
     },
-    async markDeliveryEventFailed(_id: string, input: { status: string }) {
-      events.push({ status: input.status, subscriberId: "subscriber-1" });
+    async markDeliveryEventFailed() {
+      throw new Error("should not be called on eventual success");
     },
     async markSubscriberExpired() {
       return undefined;
@@ -164,10 +157,7 @@ test("browser push processor retries transient relay failures", async () => {
   assert.equal(result.expired, 0);
   assert.equal(attempts, 3);
   assert.deepEqual(sleeps, [250, 500]);
-  assert.deepEqual(events, [
-    { status: "pending", subscriberId: "subscriber-1" },
-    { status: "sent", subscriberId: "subscriber-1" },
-  ]);
+  assert.equal(sentCalls, 1);
 });
 
 test("browser push processor filters eligible subscribers by the campaign's segment", async () => {
@@ -191,9 +181,7 @@ test("browser push processor filters eligible subscribers by the campaign's segm
       requestedSegmentDefinitions.push(segmentDefinition);
       return [];
     },
-    async createPendingDeliveryEvent() {
-      return "delivery-1";
-    },
+    createPendingDeliveryEvents: createPendingDeliveryEventsFake([]),
     async markDeliveryEventSent() {
       return undefined;
     },
@@ -265,8 +253,8 @@ test("browser push processor includes a deliveryId-scoped clickUrl in the outgoi
         },
       ];
     },
-    async createPendingDeliveryEvent() {
-      return "delivery-42";
+    async createPendingDeliveryEvents(input: { subscribers: Array<{ subscriberId: string }> }) {
+      return new Map(input.subscribers.map((subscriber) => [subscriber.subscriberId, "delivery-42"]));
     },
     async markDeliveryEventSent() {
       return undefined;
@@ -347,9 +335,7 @@ test("browser push processor sends to exactly one subscriber when subscriberId i
       listAllCalls.push(1);
       return [];
     },
-    async createPendingDeliveryEvent() {
-      return "delivery-1";
-    },
+    createPendingDeliveryEvents: createPendingDeliveryEventsFake([]),
     async markDeliveryEventSent() {
       return undefined;
     },
@@ -389,4 +375,124 @@ test("browser push processor sends to exactly one subscriber when subscriberId i
   assert.equal(result.sent, 1);
   assert.deepEqual(eligibleByIdCalls, [["site-1", "subscriber-42"]]);
   assert.deepEqual(listAllCalls, []);
+});
+
+test("browser push processor skips subscribers already sent to under the same job id", async () => {
+  const createCalls: Array<{ subscriberId: string }> = [];
+  const fakeRepository = {
+    async findSiteCredentials() {
+      return {
+        id: "site-1",
+        vapid_subject: "mailto:push@example.com",
+        vapid_public_key: "public-key",
+        vapid_private_key: "private-key",
+      };
+    },
+    async listEligibleSubscribers() {
+      return [
+        { id: "subscriber-1", subscription_endpoint: "https://push.example.com/one", p256dh_key: "p256dh", auth_key: "auth" },
+        { id: "subscriber-2", subscription_endpoint: "https://push.example.com/two", p256dh_key: "p256dh", auth_key: "auth" },
+      ];
+    },
+    async findAlreadySentSubscriberIds(jobId: string) {
+      assert.equal(jobId, "job-retry-1");
+      return new Set(["subscriber-1"]);
+    },
+    createPendingDeliveryEvents: createPendingDeliveryEventsFake(createCalls),
+    async markDeliveryEventSent() {
+      return undefined;
+    },
+    async markDeliveryEventFailed() {
+      return undefined;
+    },
+    async markSubscriberExpired() {
+      return undefined;
+    },
+  };
+
+  const fakeSender = {
+    configure() {
+      return undefined;
+    },
+    async send() {
+      return { providerMessageId: "provider-1" };
+    },
+  };
+
+  const processor = new BrowserPushProcessor(fakeRepository as never, fakeSender as never);
+  const job: BrowserPushJobPayload = {
+    siteId: "site-1",
+    enqueuedAt: new Date().toISOString(),
+    notification: { title: "t", body: "b", url: "https://example.com", icon: null, image: null },
+  };
+
+  const result = await processor.process(job, "job-retry-1");
+
+  assert.equal(result.sent, 1);
+  assert.deepEqual(createCalls, [{ subscriberId: "subscriber-2" }]);
+});
+
+test("browser push processor sends with bounded concurrency, not sequentially", async () => {
+  const subscriberCount = 50;
+  process.env.BROWSER_PUSH_SEND_CONCURRENCY = "10";
+
+  let inFlight = 0;
+  let maxInFlight = 0;
+
+  const fakeRepository = {
+    async findSiteCredentials() {
+      return {
+        id: "site-1",
+        vapid_subject: "mailto:push@example.com",
+        vapid_public_key: "public-key",
+        vapid_private_key: "private-key",
+      };
+    },
+    async listEligibleSubscribers() {
+      return Array.from({ length: subscriberCount }, (_, index) => ({
+        id: `subscriber-${index}`,
+        subscription_endpoint: `https://push.example.com/${index}`,
+        p256dh_key: "p256dh",
+        auth_key: "auth",
+      }));
+    },
+    createPendingDeliveryEvents: createPendingDeliveryEventsFake([]),
+    async markDeliveryEventSent() {
+      return undefined;
+    },
+    async markDeliveryEventFailed() {
+      return undefined;
+    },
+    async markSubscriberExpired() {
+      return undefined;
+    },
+  };
+
+  const fakeSender = {
+    configure() {
+      return undefined;
+    },
+    async send() {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      inFlight -= 1;
+      return { providerMessageId: "provider-1" };
+    },
+  };
+
+  const processor = new BrowserPushProcessor(fakeRepository as never, fakeSender as never);
+  const job: BrowserPushJobPayload = {
+    siteId: "site-1",
+    enqueuedAt: new Date().toISOString(),
+    notification: { title: "t", body: "b", url: "https://example.com", icon: null, image: null },
+  };
+
+  const result = await processor.process(job);
+
+  delete process.env.BROWSER_PUSH_SEND_CONCURRENCY;
+
+  assert.equal(result.sent, subscriberCount);
+  assert.ok(maxInFlight > 1, "expected more than one send in flight at once");
+  assert.ok(maxInFlight <= 10, `expected concurrency to stay at or below the configured limit, got ${maxInFlight}`);
 });

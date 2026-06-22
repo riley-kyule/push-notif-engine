@@ -39,6 +39,7 @@ export interface MobilePushDeliveryEventInput {
   errorCode: string | null;
   errorMessage: string | null;
   payload: MobilePushNotificationPayload;
+  jobId?: string | null;
 }
 
 export class MobilePushRepository {
@@ -104,9 +105,10 @@ export class MobilePushRepository {
     await this.pool.query(
       `
       INSERT INTO mobile_push_events (
-        site_id, mobile_device_id, platform, device_token, status, provider_message_id, error_code, error_message, payload
+        site_id, mobile_device_id, platform, device_token, status, provider_message_id, error_code, error_message, payload,
+        job_id, last_attempted_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
       `,
       [
         input.siteId,
@@ -118,8 +120,26 @@ export class MobilePushRepository {
         input.errorCode,
         input.errorMessage,
         JSON.stringify(input.payload),
+        input.jobId ?? null,
       ],
     );
+  }
+
+  // Mirrors BrowserPushRepository.findAlreadySentSubscriberIds: lets a BullMQ-retried
+  // job skip devices it already delivered to instead of double-sending.
+  async findAlreadySentDeviceIds(jobId: string): Promise<Set<string>> {
+    const { rows } = await this.pool.query<{ mobile_device_id: string | null }>(
+      `
+      SELECT mobile_device_id
+      FROM mobile_push_events
+      WHERE job_id = $1
+        AND status = 'sent'
+        AND mobile_device_id IS NOT NULL
+      `,
+      [jobId],
+    );
+
+    return new Set(rows.map((row) => row.mobile_device_id).filter((id): id is string => Boolean(id)));
   }
 
   async markDeviceExpired(deviceId: string): Promise<void> {

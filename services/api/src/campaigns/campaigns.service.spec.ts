@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { createFakeAuditService } from "../audit/audit.service.fake";
 import { InMemoryCampaignsRepository } from "./in-memory-campaigns.repository";
 import { CampaignsService } from "./campaigns.service";
 
@@ -15,6 +16,25 @@ test("campaigns service creates, clones, previews, and schedules campaigns", asy
       return { id: "segment-1", siteId: "site-1" };
     },
   };
+  const campaignTaxonomiesService = {
+    async ensureActive() {
+      return undefined;
+    },
+  };
+  const campaignMediaService = {
+    async resolveCampaignMedia() {
+      return { imageUrl: "https://example.com/image.png", iconUrl: "https://example.com/icon.png" };
+    },
+    async attachAssetsToCampaign() {
+      return undefined;
+    },
+    async cloneCampaignAssets() {
+      return { imageUrl: null, iconUrl: null };
+    },
+    async deleteCampaignAssets() {
+      return undefined;
+    },
+  };
   const browserPushService = {
     async dispatch() {
       return { jobId: "job-1", queued: true as const };
@@ -25,6 +45,9 @@ test("campaigns service creates, clones, previews, and schedules campaigns", asy
     sitesService as never,
     segmentsService as never,
     browserPushService as never,
+    campaignMediaService as never,
+    campaignTaxonomiesService as never,
+    createFakeAuditService(),
     repository as never,
   );
 
@@ -89,6 +112,25 @@ test("campaigns service lists campaigns with content taxonomy filters", async ()
       return { id: "segment-1", siteId: "site-1" };
     },
   };
+  const campaignTaxonomiesService = {
+    async ensureActive() {
+      return undefined;
+    },
+  };
+  const campaignMediaService = {
+    async resolveCampaignMedia() {
+      return { imageUrl: null, iconUrl: null };
+    },
+    async attachAssetsToCampaign() {
+      return undefined;
+    },
+    async cloneCampaignAssets() {
+      return { imageUrl: null, iconUrl: null };
+    },
+    async deleteCampaignAssets() {
+      return undefined;
+    },
+  };
   const browserPushService = {
     async dispatch() {
       return { jobId: "job-1", queued: true as const };
@@ -99,6 +141,9 @@ test("campaigns service lists campaigns with content taxonomy filters", async ()
     sitesService as never,
     segmentsService as never,
     browserPushService as never,
+    campaignMediaService as never,
+    campaignTaxonomiesService as never,
+    createFakeAuditService(),
     repository as never,
   );
 
@@ -130,6 +175,25 @@ test("campaigns service accepts a segment that belongs to the campaign's site", 
       return { id, siteId: "site-1" };
     },
   };
+  const campaignTaxonomiesService = {
+    async ensureActive() {
+      return undefined;
+    },
+  };
+  const campaignMediaService = {
+    async resolveCampaignMedia() {
+      return { imageUrl: null, iconUrl: null };
+    },
+    async attachAssetsToCampaign() {
+      return undefined;
+    },
+    async cloneCampaignAssets() {
+      return { imageUrl: null, iconUrl: null };
+    },
+    async deleteCampaignAssets() {
+      return undefined;
+    },
+  };
   const browserPushService = {
     async dispatch() {
       return { jobId: "job-1", queued: true as const };
@@ -140,6 +204,9 @@ test("campaigns service accepts a segment that belongs to the campaign's site", 
     sitesService as never,
     segmentsService as never,
     browserPushService as never,
+    campaignMediaService as never,
+    campaignTaxonomiesService as never,
+    createFakeAuditService(),
     repository as never,
   );
 
@@ -168,6 +235,25 @@ test("campaigns service rejects a segment that belongs to a different site", asy
       return { id, siteId: "site-2" };
     },
   };
+  const campaignTaxonomiesService = {
+    async ensureActive() {
+      return undefined;
+    },
+  };
+  const campaignMediaService = {
+    async resolveCampaignMedia() {
+      return { imageUrl: null, iconUrl: null };
+    },
+    async attachAssetsToCampaign() {
+      return undefined;
+    },
+    async cloneCampaignAssets() {
+      return { imageUrl: null, iconUrl: null };
+    },
+    async deleteCampaignAssets() {
+      return undefined;
+    },
+  };
   const browserPushService = {
     async dispatch() {
       return { jobId: "job-1", queued: true as const };
@@ -178,6 +264,9 @@ test("campaigns service rejects a segment that belongs to a different site", asy
     sitesService as never,
     segmentsService as never,
     browserPushService as never,
+    campaignMediaService as never,
+    campaignTaxonomiesService as never,
+    createFakeAuditService(),
     repository as never,
   );
 
@@ -195,4 +284,72 @@ test("campaigns service rejects a segment that belongs to a different site", asy
       }),
     /Segment does not belong/,
   );
+});
+
+test("campaigns service resolves uploaded media assets into campaign URLs", async () => {
+  const sitesService = {
+    async getSite() {
+      return { id: "site-1" };
+    },
+  };
+  const segmentsService = {
+    async getSegment() {
+      return { id: "segment-1", siteId: "site-1" };
+    },
+  };
+  const campaignMediaService = {
+    async resolveCampaignMedia() {
+      return {
+        imageUrl: "http://127.0.0.1:3001/api/campaign-media/image-asset/file",
+        iconUrl: "http://127.0.0.1:3001/api/campaign-media/icon-asset/file",
+      };
+    },
+    async attachAssetsToCampaign() {
+      return undefined;
+    },
+    async cloneCampaignAssets() {
+      return { imageUrl: "http://127.0.0.1:3001/api/campaign-media/cloned-image/file", iconUrl: null };
+    },
+    async deleteCampaignAssets() {
+      return undefined;
+    },
+  };
+  const campaignTaxonomiesService = {
+    async ensureActive() {
+      return undefined;
+    },
+  };
+  const browserPushService = {
+    async dispatch() {
+      return { jobId: "job-1", queued: true as const };
+    },
+  };
+  const repository = new InMemoryCampaignsRepository();
+  const service = new CampaignsService(
+    sitesService as never,
+    segmentsService as never,
+    browserPushService as never,
+    campaignMediaService as never,
+    campaignTaxonomiesService as never,
+    createFakeAuditService(),
+    repository as never,
+  );
+
+  const created = await service.createCampaign({
+    siteId: "site-1",
+    name: "Media Campaign",
+    channel: "web",
+    type: "instant",
+    title: "Big Sale",
+    message: "Shop now",
+    url: "https://example.com",
+    imageAssetId: "image-asset",
+    iconAssetId: "icon-asset",
+  });
+
+  assert.equal(created.imageUrl, "http://127.0.0.1:3001/api/campaign-media/image-asset/file");
+  assert.equal(created.iconUrl, "http://127.0.0.1:3001/api/campaign-media/icon-asset/file");
+
+  const cloned = await service.cloneCampaign(created.id, {});
+  assert.equal(cloned.imageUrl, "http://127.0.0.1:3001/api/campaign-media/cloned-image/file");
 });

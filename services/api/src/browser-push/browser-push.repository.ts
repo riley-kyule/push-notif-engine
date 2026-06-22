@@ -110,6 +110,23 @@ export class BrowserPushRepository {
     return (result.rowCount ?? 0) > 0;
   }
 
+  async findDeliveryEventContext(
+    id: string,
+  ): Promise<{ siteId: string; subscriberId: string | null; campaignId: string | null } | null> {
+    const { rows } = await this.pool.query<{ site_id: string; subscriber_id: string | null; campaign_id: string | null }>(
+      `
+      SELECT site_id, subscriber_id, campaign_id
+      FROM push_delivery_events
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [id],
+    );
+
+    const row = rows[0];
+    return row ? { siteId: row.site_id, subscriberId: row.subscriber_id, campaignId: row.campaign_id } : null;
+  }
+
   async markDeliveryEventSent(id: string, providerMessageId: string | null): Promise<void> {
     await this.pool.query(
       `

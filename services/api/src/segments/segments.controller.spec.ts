@@ -36,14 +36,18 @@ test("segments controller returns created segment data", async () => {
   };
 
   const controller = new SegmentsController(service as never);
+  const user = { id: "user-1" } as never;
 
-  const created = await controller.createSegment({
-    siteId: "site-1",
-    name: "Segment",
-    definition: {
-      rules: [{ field: "country", operator: "is", value: "US" }],
-    } as never,
-  });
+  const created = await controller.createSegment(
+    {
+      siteId: "site-1",
+      name: "Segment",
+      definition: {
+        rules: [{ field: "country", operator: "is", value: "US" }],
+      } as never,
+    },
+    user,
+  );
 
   assert.equal(created.success, true);
   assert.deepEqual(calls, ["create"]);

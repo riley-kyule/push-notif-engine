@@ -1,6 +1,9 @@
 import { Module } from "@nestjs/common";
 
+import { AuditModule } from "../audit/audit.module";
 import { BrowserPushModule } from "../browser-push/browser-push.module";
+import { CampaignMediaModule } from "../campaign-media/campaign-media.module";
+import { CampaignTaxonomiesModule } from "../campaign-taxonomies/campaign-taxonomies.module";
 import { DatabaseModule } from "../database/database.module";
 import { SegmentsModule } from "../segments/segments.module";
 import { SitesModule } from "../sites/sites.module";
@@ -11,7 +14,15 @@ import { CampaignsService } from "./campaigns.service";
 import { PostgresCampaignsRepository } from "./postgres-campaigns.repository";
 
 @Module({
-  imports: [DatabaseModule, SitesModule, SegmentsModule, BrowserPushModule],
+  imports: [
+    DatabaseModule,
+    SitesModule,
+    SegmentsModule,
+    BrowserPushModule,
+    AuditModule,
+    CampaignTaxonomiesModule,
+    CampaignMediaModule,
+  ],
   controllers: [CampaignsController],
   providers: [
     CampaignsService,
