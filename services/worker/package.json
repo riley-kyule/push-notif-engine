@@ -13,9 +13,7 @@
     "bullmq": "^5.58.9",
     "ioredis": "^5.5.0",
     "pg": "^8.13.3",
-    "web-push": "^3.6.7",
-    "@epe/shared": "file:../../packages/shared",
-    "@epe/types": "file:../../packages/types"
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@types/pg": "^8.11.10",

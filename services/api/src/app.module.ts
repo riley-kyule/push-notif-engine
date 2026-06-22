@@ -5,9 +5,10 @@ import { ScheduleModule } from "@nestjs/schedule";
 import { AnalyticsModule } from "./analytics/analytics.module";
 import { AutomationsModule } from "./automations/automations.module";
 import { AuthModule } from "./auth/auth.module";
+import { BackupModule } from "./backup/backup.module";
 import { CampaignsModule } from "./campaigns/campaigns.module";
 import { BrowserPushModule } from "./browser-push/browser-push.module";
-import { HealthController } from "./health/health.controller";
+import { HealthModule } from "./health/health.module";
 import { MobilePushModule } from "./mobile-push/mobile-push.module";
 import { RateLimitModule } from "./rate-limit/rate-limit.module";
 import { RateLimitGuard } from "./rate-limit/rate-limit.guard";
@@ -18,6 +19,7 @@ import { SubscribersModule } from "./subscribers/subscribers.module";
 @Module({
   imports: [
     ScheduleModule.forRoot(),
+    HealthModule,
     RateLimitModule,
     AuthModule,
     SitesModule,
@@ -28,8 +30,8 @@ import { SubscribersModule } from "./subscribers/subscribers.module";
     SegmentsModule,
     AnalyticsModule,
     AutomationsModule,
+    BackupModule,
   ],
-  controllers: [HealthController],
   providers: [
     {
       provide: APP_GUARD,
