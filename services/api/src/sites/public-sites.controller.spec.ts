@@ -33,6 +33,9 @@ test("public sites controller returns branding config for active sites", async (
         optInPromptRecentNotificationsLimit: 3,
       };
     },
+    async recordConnection() {
+      return undefined;
+    },
     async query() {
       return { rows: [] };
     },

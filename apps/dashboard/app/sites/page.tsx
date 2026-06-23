@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { DashboardShell } from "../_components/dashboard-shell";
-import { getSiteList } from "./sites.utils";
+import { getConnectionStatus, getSiteList } from "./sites.utils";
 
 export default async function SitesPage() {
   const sites = await getSiteList();
@@ -27,33 +27,40 @@ export default async function SitesPage() {
               <th>Language</th>
               <th>Platform</th>
               <th>Status</th>
+              <th>Plugin connection</th>
               <th>Subscribers</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {sites.items.map((site) => (
-              <tr key={site.id}>
-                <td>
-                  <Link href={`/sites/${site.id}`}>
-                    <strong>{site.name}</strong>
-                  </Link>
-                </td>
-                <td className="subtle">{site.url}</td>
-                <td>{site.country}</td>
-                <td>{site.language}</td>
-                <td>{site.platform}</td>
-                <td>
-                  <span className={`badge ${site.status}`}>{site.status}</span>
-                </td>
-                <td>{site.subscribers.toLocaleString()}</td>
-                <td>
-                  <Link className="subtle" href={`/sites/${site.id}`}>
-                    View
-                  </Link>
-                </td>
-              </tr>
-            ))}
+            {sites.items.map((site) => {
+              const connection = getConnectionStatus(site.lastConnectedAt);
+              return (
+                <tr key={site.id}>
+                  <td>
+                    <Link href={`/sites/${site.id}`}>
+                      <strong>{site.name}</strong>
+                    </Link>
+                  </td>
+                  <td className="subtle">{site.url}</td>
+                  <td>{site.country}</td>
+                  <td>{site.language}</td>
+                  <td>{site.platform}</td>
+                  <td>
+                    <span className={`badge ${site.status}`}>{site.status}</span>
+                  </td>
+                  <td>
+                    <span className={`badge ${connection.badgeClass}`}>{connection.label}</span>
+                  </td>
+                  <td>{site.subscribers.toLocaleString()}</td>
+                  <td>
+                    <Link className="subtle" href={`/sites/${site.id}`}>
+                      View
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </section>

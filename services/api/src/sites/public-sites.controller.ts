@@ -20,6 +20,8 @@ export class PublicSitesController {
       throw new NotFoundException("Site not found");
     }
 
+    await this.sitesService.recordConnection(site.id);
+
     return {
       success: true,
       data: {

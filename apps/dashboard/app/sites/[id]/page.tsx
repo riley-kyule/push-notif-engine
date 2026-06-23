@@ -7,7 +7,7 @@ import { MobilePushPanel } from "../mobile-push-panel";
 import { SiteAnalyticsPanel } from "../site-analytics-panel";
 import { RestApiPanel } from "../rest-api-panel";
 import { getSiteAnalytics } from "../../../lib/site-analytics";
-import { getSiteById } from "../sites.utils";
+import { getConnectionStatus, getSiteById } from "../sites.utils";
 import { SiteActions } from "./site-actions";
 
 export default async function SiteDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -19,6 +19,7 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
   }
 
   const analytics = await getSiteAnalytics(site);
+  const connection = getConnectionStatus(site.lastConnectedAt);
 
   return (
     <DashboardShell
@@ -41,7 +42,10 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
         <article className="card">
           <h3>Status</h3>
           <p className={`badge ${site.status}`}>{site.status}</p>
-          <p className="subtle">Push credentials and service worker readiness</p>
+          <p className={`badge ${connection.badgeClass}`} style={{ marginTop: 6 }}>
+            {connection.label}
+          </p>
+          <p className="subtle">Plugin connection is detected from its own config requests to the API</p>
         </article>
         <article className="card">
           <h3>Branding</h3>

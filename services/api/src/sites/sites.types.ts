@@ -36,6 +36,7 @@ export interface SiteRecord {
   vapidPublicKey: string | null;
   vapidPrivateKey: string | null;
   status: SiteStatus;
+  lastConnectedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

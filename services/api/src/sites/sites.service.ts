@@ -127,6 +127,10 @@ export class SitesService {
     return site;
   }
 
+  async recordConnection(id: string): Promise<void> {
+    await this.sitesRepository.recordConnection(id);
+  }
+
   async listSites(filters: Partial<SiteListFilters>): Promise<SiteListResult> {
     const normalized: SiteListFilters = {
       limit: filters.limit ?? 20,

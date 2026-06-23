@@ -79,4 +79,5 @@ export interface SitesRepository {
   findByIdWithRestApiCredentials(id: string): Promise<SiteRestApiCredentialsRecord | null>;
   list(filters: SiteListFilters): Promise<SiteListResult>;
   delete(id: string): Promise<boolean>;
+  recordConnection(id: string): Promise<void>;
 }

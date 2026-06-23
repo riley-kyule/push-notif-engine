@@ -305,6 +305,7 @@ function createAllSitesFallback(): SiteSummary {
     restApiKeyId: null,
     restApiAuthTokenLast4: null,
     restApiCredentialsGeneratedAt: null,
+    lastConnectedAt: null,
   };
 }
 

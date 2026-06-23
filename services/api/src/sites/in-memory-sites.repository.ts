@@ -21,6 +21,7 @@ export class InMemorySitesRepository implements SitesRepository {
       vapidSubject: input.vapidSubject,
       vapidPublicKey: input.vapidPublicKey,
       vapidPrivateKey: input.vapidPrivateKey,
+      lastConnectedAt: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -86,5 +87,13 @@ export class InMemorySitesRepository implements SitesRepository {
 
     const items = all.slice(filters.offset, filters.offset + filters.limit);
     return { items, total: all.length };
+  }
+
+  async recordConnection(id: string): Promise<void> {
+    const existing = this.sites.get(id);
+    if (!existing) {
+      return;
+    }
+    this.sites.set(id, { ...existing, lastConnectedAt: new Date() });
   }
 }
