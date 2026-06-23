@@ -333,10 +333,11 @@ export function AccessControlManager({ initialRoles, initialUsers }: Props) {
               <span>Password (optional)</span>
               <input
                 className="input"
+                type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="Leave blank to auto-generate"
-                minLength={8}
+                autoComplete="new-password"
               />
             </label>
 
