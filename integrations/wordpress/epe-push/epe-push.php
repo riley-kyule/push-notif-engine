@@ -117,7 +117,7 @@ final class Exotic_Push_Engine_Plugin {
         );
     }
 
-    // Hosts running a strict Content-Security-Policy without 'unsafe-inline' must
+    // Hosts running a strict Content-Security-Policy without 'unsafe-inline' can
     // supply their per-request nonce via this filter so our inline config script
     // (and the SDK <script> tag that loads alongside it) are allowed to execute.
     private static function get_csp_nonce(): string {
@@ -126,17 +126,36 @@ final class Exotic_Push_Engine_Plugin {
     }
 
     public static function add_inline_script_nonce(array $attributes, string $data): array {
+        if (!str_contains($data, 'ExoticPushEngineConfig')) {
+            return $attributes;
+        }
+
         $nonce = self::get_csp_nonce();
-        if ($nonce !== '' && str_contains($data, 'ExoticPushEngineConfig')) {
+        if ($nonce !== '') {
             $attributes['nonce'] = $nonce;
         }
+
+        // Cloudflare Rocket Loader rewrites the type attribute on every <script>
+        // tag it processes (e.g. type="<hash>-text/javascript"), which stops the
+        // browser from executing it until the user interacts with the page. The
+        // opt-in prompt needs this config available immediately, so opt out via
+        // Rocket Loader's documented data-cfasync="false" exclusion attribute.
+        $attributes['data-cfasync'] = 'false';
 
         return $attributes;
     }
 
     public static function add_script_tag_nonce(string $tag, string $handle): string {
+        if ($handle !== 'exotic-push-engine-sdk') {
+            return $tag;
+        }
+
+        if (!str_contains($tag, 'data-cfasync=')) {
+            $tag = str_replace(' src=', ' data-cfasync="false" src=', $tag);
+        }
+
         $nonce = self::get_csp_nonce();
-        if ($nonce === '' || $handle !== 'exotic-push-engine-sdk' || str_contains($tag, 'nonce=')) {
+        if ($nonce === '' || str_contains($tag, 'nonce=')) {
             return $tag;
         }
 
