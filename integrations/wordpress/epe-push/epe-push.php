@@ -87,10 +87,6 @@ final class Exotic_Push_Engine_Plugin {
         return array_merge($defaults, $stored);
     }
 
-    private static function update_settings(array $settings): void {
-        update_option(self::OPTION_KEY, $settings, false);
-    }
-
     public static function enqueue_sdk(): void {
         $config = self::get_site_config();
 

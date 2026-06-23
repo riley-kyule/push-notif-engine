@@ -46,7 +46,6 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
           <p className={`badge ${connection.badgeClass}`} style={{ marginTop: 6 }}>
             {connection.label}
           </p>
-          <p className="subtle">Plugin connection is detected from its own config requests to the API</p>
           <CheckConnectionButton siteId={site.id} />
         </article>
         <article className="card">

@@ -311,7 +311,7 @@ export function AccessControlManager({ initialRoles, initialUsers }: Props) {
         </article>
       </section>
 
-      <div className="grid cards-2">
+      <div className="grid cards-2" style={{ alignItems: "start" }}>
         <article className="card access-control-card">
           <div className="panel-heading">
             <div>

@@ -255,7 +255,7 @@ const CONNECTION_FRESH_WINDOW_MS = 30 * 60 * 1000;
 
 export function getConnectionStatus(lastConnectedAt: string | null): { label: string; badgeClass: string } {
   if (!lastConnectedAt) {
-    return { label: "Not connected yet", badgeClass: "neutral" };
+    return { label: "Disconnected", badgeClass: "neutral" };
   }
 
   const elapsedMs = Date.now() - new Date(lastConnectedAt).getTime();
@@ -263,5 +263,5 @@ export function getConnectionStatus(lastConnectedAt: string | null): { label: st
     return { label: "Connected", badgeClass: "good" };
   }
 
-  return { label: `Last connected ${new Date(lastConnectedAt).toLocaleString()}`, badgeClass: "warn" };
+  return { label: "Disconnected", badgeClass: "warn" };
 }

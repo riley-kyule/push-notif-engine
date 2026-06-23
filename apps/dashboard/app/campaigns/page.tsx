@@ -28,38 +28,40 @@ export default async function CampaignsPage() {
       </div>
 
       <section className="card">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Campaign</th>
-              <th>Type</th>
-              <th>Site</th>
-              <th>Sent</th>
-              <th>CTR</th>
-              <th>Status</th>
-              <th>Scheduled At</th>
-            </tr>
-          </thead>
-          <tbody>
-            {campaigns.items.map((campaign) => (
-              <tr key={campaign.id}>
-                <td>
-                  <Link href={`/campaigns/${campaign.id}`}>
-                    <strong>{campaign.name}</strong>
-                  </Link>
-                </td>
-                <td className="subtle">{campaign.type}</td>
-                <td>{campaign.site}</td>
-                <td>{campaign.sent}</td>
-                <td>{campaign.ctr}</td>
-                <td>
-                  <span className={`badge ${campaign.status}`}>{campaign.status}</span>
-                </td>
-                <td className="subtle">{campaign.scheduledAt}</td>
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Campaign</th>
+                <th>Type</th>
+                <th>Site</th>
+                <th>Sent</th>
+                <th>CTR</th>
+                <th>Status</th>
+                <th>Scheduled At</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {campaigns.items.map((campaign) => (
+                <tr key={campaign.id}>
+                  <td>
+                    <Link href={`/campaigns/${campaign.id}`}>
+                      <strong>{campaign.name}</strong>
+                    </Link>
+                  </td>
+                  <td className="subtle">{campaign.type}</td>
+                  <td>{campaign.site}</td>
+                  <td>{campaign.sent}</td>
+                  <td>{campaign.ctr}</td>
+                  <td>
+                    <span className={`badge ${campaign.status}`}>{campaign.status}</span>
+                  </td>
+                  <td className="subtle">{campaign.scheduledAt}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
     </DashboardShell>
   );

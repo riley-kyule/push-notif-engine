@@ -284,54 +284,56 @@ export function MobilePushPanel({ site }: { site: SiteSummary }) {
         </select>
       </div>
 
-      <table className="table" style={{ marginTop: 12 }}>
-        <thead>
-          <tr>
-            <th>Device</th>
-            <th>Platform</th>
-            <th>Country</th>
-            <th>Language</th>
-            <th>Last Seen</th>
-            <th>Status</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {deviceRows.map((device) => (
-            <tr key={device.id}>
-              <td>
-                <code>{maskToken(device.deviceToken)}</code>
-              </td>
-              <td>{device.platform === "ios" ? "iOS" : "Android"}</td>
-              <td>{device.country ?? "—"}</td>
-              <td>{device.language ?? "—"}</td>
-              <td className="subtle">{device.lastSeenAt ? new Date(device.lastSeenAt).toLocaleString() : "Never"}</td>
-              <td>
-                <span className={`badge ${device.status}`}>{device.status}</span>
-              </td>
-              <td>
-                {device.status === "active" ? (
-                  <button
-                    className="button secondary"
-                    type="button"
-                    onClick={() => handleRevokeDevice(device)}
-                    disabled={revokingDeviceId === device.id}
-                  >
-                    {revokingDeviceId === device.id ? "Revoking..." : "Revoke"}
-                  </button>
-                ) : null}
-              </td>
-            </tr>
-          ))}
-          {!devicesLoading && deviceRows.length === 0 ? (
+      <div className="table-wrap">
+        <table className="table" style={{ marginTop: 12 }}>
+          <thead>
             <tr>
-              <td colSpan={7} className="subtle">
-                No devices registered yet.
-              </td>
+              <th>Device</th>
+              <th>Platform</th>
+              <th>Country</th>
+              <th>Language</th>
+              <th>Last Seen</th>
+              <th>Status</th>
+              <th></th>
             </tr>
-          ) : null}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {deviceRows.map((device) => (
+              <tr key={device.id}>
+                <td>
+                  <code>{maskToken(device.deviceToken)}</code>
+                </td>
+                <td>{device.platform === "ios" ? "iOS" : "Android"}</td>
+                <td>{device.country ?? "—"}</td>
+                <td>{device.language ?? "—"}</td>
+                <td className="subtle">{device.lastSeenAt ? new Date(device.lastSeenAt).toLocaleString() : "Never"}</td>
+                <td>
+                  <span className={`badge ${device.status}`}>{device.status}</span>
+                </td>
+                <td>
+                  {device.status === "active" ? (
+                    <button
+                      className="button secondary"
+                      type="button"
+                      onClick={() => handleRevokeDevice(device)}
+                      disabled={revokingDeviceId === device.id}
+                    >
+                      {revokingDeviceId === device.id ? "Revoking..." : "Revoke"}
+                    </button>
+                  ) : null}
+                </td>
+              </tr>
+            ))}
+            {!devicesLoading && deviceRows.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="subtle">
+                  No devices registered yet.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
 
       {deviceError ? <p className="badge failed" style={{ justifyContent: "flex-start", marginTop: 8 }}>{deviceError}</p> : null}
 

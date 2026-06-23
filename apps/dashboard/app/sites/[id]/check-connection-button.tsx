@@ -13,16 +13,16 @@ export function CheckConnectionButton({ siteId }: { siteId: string }) {
     startTransition(() => {
       void fetch(`/api/dashboard/sites/${siteId}/check-connection`, { method: "POST" })
         .then(async (response) => {
-          const payload = (await response.json().catch(() => null)) as { success?: boolean; error?: { message?: string } } | null;
+          const payload = (await response.json().catch(() => null)) as { success?: boolean } | null;
           if (!response.ok || !payload?.success) {
-            throw new Error(payload?.error?.message ?? "Site is unreachable right now.");
+            throw new Error("Disconnected");
           }
 
-          setMessage("Plugin script found on the site just now.");
+          setMessage("Connected");
           router.refresh();
         })
-        .catch((error) => {
-          setMessage(error instanceof Error ? error.message : "Plugin script not found on the site.");
+        .catch(() => {
+          setMessage("Disconnected");
         });
     });
   }
