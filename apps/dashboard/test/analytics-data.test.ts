@@ -57,3 +57,37 @@ test("analytics dashboard data resolves all sites as the global reporting scope"
   assert.ok(data.timePerformance.length > 0);
   assert.ok(data.contentPerformance.length > 0);
 });
+
+test("analytics dashboard data falls back to all sites when no sites exist", async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/sites")) {
+        return new Response(JSON.stringify({ success: true, data: { items: [] } }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      if (url.endsWith("/campaigns")) {
+        return new Response(JSON.stringify({ success: true, data: { items: [] } }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({ success: true, data: null }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as typeof fetch;
+
+    const data = await getAnalyticsDashboardData({ preset: "30d", days: "30" });
+    assert.equal(data.selectedSite.id, "site-3");
+    assert.equal(data.selectedSite.name, "All Sites");
+    assert.ok(data.sitePerformance.length > 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

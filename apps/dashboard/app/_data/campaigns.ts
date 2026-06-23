@@ -277,7 +277,7 @@ export async function getCampaignList(): Promise<CampaignListPayload> {
     "/campaigns",
   );
 
-  const items = response?.data.items?.map((item) => toCampaignSummary(item)) ?? campaignSummaries;
+  const items = response?.data?.items?.map((item) => toCampaignSummary(item)) ?? campaignSummaries;
   return {
     items,
     total: items.length,

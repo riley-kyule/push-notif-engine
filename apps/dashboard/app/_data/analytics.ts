@@ -272,6 +272,42 @@ function buildFallbackAnalytics(site: SiteSummary): SiteAnalyticsSummary {
   };
 }
 
+function createAllSitesFallback(): SiteSummary {
+  return {
+    id: "site-3",
+    name: "All Sites",
+    url: "",
+    country: "Global",
+    language: "en",
+    platform: "Other",
+    status: "active",
+    subscribers: 0,
+    vapidPublicKey: null,
+    appName: "Exotic Push Engine",
+    iconUrl: "",
+    themeColor: "#1c1917",
+    optInPromptType: "bell-icon",
+    optInPromptAnimation: "pop",
+    optInPromptBackgroundColor: "#ffffff",
+    optInPromptHeadline: "Get browser notifications",
+    optInPromptHeadlineTextColor: "#111111",
+    optInPromptText: "Choose a custom prompt for each site.",
+    optInPromptTextColor: "#52525b",
+    optInPromptIconUrl: "",
+    optInPromptCancelButtonLabel: "Dismiss",
+    optInPromptCancelButtonTextColor: "#ffffff",
+    optInPromptCancelButtonBackgroundColor: "#27272a",
+    optInPromptApproveButtonLabel: "Allow",
+    optInPromptApproveButtonTextColor: "#ffffff",
+    optInPromptApproveButtonBackgroundColor: "#ea580c",
+    optInPromptRepromptDelayDays: 30,
+    optInPromptRecentNotificationsLimit: 3,
+    restApiKeyId: null,
+    restApiAuthTokenLast4: null,
+    restApiCredentialsGeneratedAt: null,
+  };
+}
+
 export async function getAnalyticsDashboardData(input: {
   days?: string;
   preset?: string;
@@ -318,11 +354,8 @@ export async function getAnalyticsDashboardData(input: {
   ]);
   const comparisonOverview = comparisonRange ? await getDashboardOverview(comparisonRange.days) : null;
 
-  const sites = sitesPayload.items;
-  const selectedSite = ((input.siteId ? await getSiteById(input.siteId) : null) ?? sites[0] ?? null);
-  if (!selectedSite) {
-    throw new Error("No sites available for analytics reporting.");
-  }
+  const sites = sitesPayload.items.length > 0 ? sitesPayload.items : [createAllSitesFallback()];
+  const selectedSite = (input.siteId ? await getSiteById(input.siteId) : null) ?? sites[0] ?? createAllSitesFallback();
   const siteScopeId = selectedSite.id === "site-3" ? undefined : selectedSite.id;
 
   const selectedCampaign =
