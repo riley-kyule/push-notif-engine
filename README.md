@@ -12,8 +12,10 @@ Not a SaaS product. Not multi-tenant. Built for Exotic's own sites only.
 - [Sites](#sites)
 - [Subscribers](#subscribers)
 - [Browser push delivery](#browser-push-delivery)
+- [Mobile push](#mobile-push)
 - [Campaigns](#campaigns)
 - [Segments](#segments)
+- [Content taxonomies](#content-taxonomies)
 - [Workflow automation](#workflow-automation)
 - [Analytics](#analytics)
 - [Dashboard](#dashboard)
@@ -110,7 +112,10 @@ JWT-based, with refresh token rotation and Google sign-in support.
 - `POST /api/auth/login` → `{ accessToken (15min), refreshToken (30 days) }`. Refresh tokens are stored hashed (SHA-256) in `refresh_tokens`, rotated on every refresh.
 - `POST /api/auth/google` → accepts a Google ID token, verifies it against Google's tokeninfo endpoint, links the Google subject to the existing Exotic user record, and issues the same JWT pair.
 - `POST /api/auth/refresh` → issues a new pair, revokes the old refresh token.
-- Roles, most to least privileged: `super-admin > admin > editor > analyst`. Enforced via `@Roles(...)` + `RolesGuard` on each controller/route.
+- Roles, most to least privileged: `super-admin > admin > sub-admin > customer-service`. Legacy `editor` and `analyst` slugs remain accepted as aliases so existing user records do not break during rollout. Enforced via `@Roles(...)` + `RolesGuard` on each controller/route.
+- Access control management lives at `GET /api/access-control/roles`, `GET /api/access-control/users`, `POST /api/access-control/users`, `PATCH /api/access-control/users/:id/role`, and `PATCH /api/access-control/roles/:slug`.
+- Role permissions are stored on the `roles` table as JSONB and audited when updated.
+- The dashboard `/access-control` page now handles user creation with first name, last name, email, role, and auto-generated username. Passwords are generated server-side for compatibility and are not part of the dashboard form.
 - All auth events (`auth.login.success`, `auth.login.failure`, `auth.google.login.success`, `auth.google.login.failure`, `auth.token.refreshed`) are written to `audit_logs`.
 - Passwords hashed with Argon2.
 - A custom Redis-backed rate limiter (`services/api/src/rate-limit/`) guards every route — default 120 req/min per IP, overridden per-route with `@RateLimit({ limit, ttl })` (login: 10/min, refresh: 30/min).
@@ -177,6 +182,17 @@ Two service worker implementations carry this logic and must be kept in sync if 
 - The inline SW served by `integrations/wordpress/epe-push/epe-push.php` at `/push-sw.js` on every WordPress site running the plugin. **This is the one that matters in production** — it's what actually runs on the 110+ WP sites.
 
 `push_delivery_events.status` lifecycle: `pending → sent → delivered` (or `failed`/`expired` instead of `delivered`). `clicked_at` is a separate timestamp, independent of status.
+
+## Mobile push
+
+Native APNs/FCM delivery for an iOS/Android app, parallel to browser push. Full developer guide: [docs/mobile-push-integration.md](./docs/mobile-push-integration.md).
+
+- Staff configure per-site APNs (key id, team id, bundle id, `.p8` key) and/or FCM (project id, client email, service account key) credentials in the dashboard's Mobile Push panel, plus generate site-scoped REST API credentials (key id + auth token) in the REST API panel.
+- The app itself registers/refreshes/invalidates its own device tokens and reports clicks via `POST/PATCH /api/sites/:siteId/mobile-devices/*` — authenticated with those REST API credentials, not a staff login. There is no separate dashboard step to "add" a device; registration is entirely app-driven.
+- `POST /api/mobile-push/dispatch` (staff-only) queues a send to all eligible devices for a site/platform on the `mobile-push` BullMQ queue, same retry (3x, exponential backoff) and idempotency model as browser push.
+- The **worker** sends via real protocol implementations — JWT-signed APNs over HTTP/2, FCM's v1 `messages:send` REST API — not a stub. A device that APNs/FCM reports as gone (404/410) is automatically marked `expired` and excluded from future sends.
+- Delivery and click events are logged per-device (`mobile_push_events`, `mobile_push_click_events`), same shape as browser push's `push_delivery_events`.
+- Credentials are masked on read — private keys are write-only and never sent back to the dashboard after saving.
 
 ## Campaigns
 
@@ -310,9 +326,13 @@ To onboard a new WordPress site: create the site in EPE, set the branding and VA
 
 ## Other platform integrations
 
-`docs/phase-2-6-*.md` contain integration guides for Magento, Node.js, and Laravel. WordPress has a working installable plugin, Magento has a production scaffold under `integrations/magento/Exotic/PushEngine/`, and Node.js/Laravel now have starter packages under `integrations/node/` and `integrations/laravel/`.
+WordPress has a working installable plugin (see [WordPress plugin](#wordpress-plugin) above). The other three platforms are all install-and-go now — no manual file publishing, no static assets to keep in sync by hand:
 
-Phase 7 is next and will expand the analytics surface with time, country, content, site, and export reporting.
+- **Magento** — a production module scaffold under [`integrations/magento/Exotic/PushEngine/`](integrations/magento/Exotic/PushEngine/), installed through the normal Magento module pipeline.
+- **Node.js** — [`integrations/node/`](integrations/node/README.md). `mountEpePush(app, config, express.static)` registers `/push-sw.js`, `/manifest.json`, and the SDK on an Express app in one line; framework-agnostic generator functions are also exported for everything else.
+- **Laravel** — [`integrations/laravel/`](integrations/laravel/README.md). `composer require epe/laravel-starter` registers the same three routes automatically — `manifest.json` and `push-sw.js` are generated from config on every request, never a stale published file.
+
+`docs/phase-2-6-*.md` are the original planning notes for these, now pointing at the packages above.
 
 ## Production deployment
 
@@ -335,7 +355,5 @@ Each service uses Node's built-in test runner (`node --import tsx --test`), not 
 
 ## Known gaps
 
-- **Native mobile push (Phase 4) exists in code** (APNs/FCM credential storage, device registration, dispatch, click tracking endpoints) but is explicitly gated on Exotic having actual mobile apps to integrate with — nothing currently calls it.
 - **Magento has a scaffold; Node.js and Laravel integrations are starter packages** (`integrations/node`, `integrations/laravel`) that generate the bootstrap snippet/service worker/manifest — neither is a drop-in plugin the way WordPress and Magento are.
-- **The site editor's "Subscribers" field is a leftover manual number input** that doesn't map to anything real (subscriber count is derived from actual registrations) — the API silently ignores it, but the UI still shows it.
 - **No automated PM2 boot-persistence test** — `pm2 save` + `pm2 startup` are documented in the runbook but haven't been tested through an actual server reboot, since that requires the real VPS.
