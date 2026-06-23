@@ -375,6 +375,15 @@ When starting the stack manually, do not reuse a shell where `services/api/.env`
 
 - `scripts/pm2-bootstrap.sh` starts a clean PM2 stack from `ecosystem.config.js`
 - `scripts/pm2-restart.sh` reloads the ecosystem file with updated env values
+- `scripts/minor-update.sh` runs `git pull` followed by the PM2 restart flow
+- `scripts/deploy-update.sh` runs the core update flow: install, build, migrate, then PM2 restart
+
+The dashboard's `Platform Health` page also exposes two guarded maintenance actions for super admins:
+
+- `Minor Update` for the pull-and-restart path
+- `Core Update` for the full install/build/migrate/restart path
+
+That panel also shows the local VM commit and the current GitHub `main` commit so you can see whether the VM is behind before triggering an update.
 
 ## Infrastructure runbooks
 

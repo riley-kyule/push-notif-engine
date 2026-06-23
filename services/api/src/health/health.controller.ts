@@ -10,7 +10,7 @@ import { DATABASE_POOL } from "../database/database.constants";
 import { CAMPAIGN_MEDIA_STORAGE } from "../campaign-media/campaign-media.constants";
 import type { CampaignMediaStoragePort } from "../campaign-media/campaign-media-storage.port";
 import { AuditService } from "../audit/audit.service";
-import { DeploymentAction, DeploymentOperationsService } from "./deployment-operations.service";
+import { DeploymentAction, DeploymentOperationsService, type DeploymentVersionInfo } from "./deployment-operations.service";
 import { PlatformHealthService } from "./platform-health.service";
 
 @Controller("health")
@@ -55,6 +55,13 @@ export class HealthController {
     return { success: true, data: await this.platformHealthService.getPlatformHealth() };
   }
 
+  @Get("deployment/version")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("super-admin")
+  async getDeploymentVersion(): Promise<{ success: true; data: DeploymentVersionInfo }> {
+    return { success: true, data: await this.deploymentOperationsService.getVersionInfo() };
+  }
+
   @Post("deployment")
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("super-admin")
@@ -63,10 +70,23 @@ export class HealthController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<{
     success: true;
-    data: { action: DeploymentAction; command: string; stdout: string; stderr: string };
+    data: { action: DeploymentAction; command: string; stdout: string; stderr: string; exitCode: number | null };
   }> {
     const action = body.action === "minor-update" ? "minor-update" : "core-update";
     const result = await this.deploymentOperationsService.run(action);
+
+    if (result.exitCode === null || result.exitCode !== 0) {
+      throw new HttpException(
+        {
+          success: false,
+          error: {
+            message: action === "minor-update" ? "Minor update failed" : "Core update failed",
+            details: result.stderr || result.stdout || `Command exited with code ${result.exitCode}`,
+          },
+        },
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
 
     await this.auditService.log({
       actorUserId: user.id,
