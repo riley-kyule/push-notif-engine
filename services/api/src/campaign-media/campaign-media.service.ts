@@ -200,7 +200,21 @@ export class CampaignMediaService {
     return asset.publicUrl;
   }
 
+  // This URL is embedded in every uploaded asset's publicUrl and served back
+  // to browsers on completely different origins -- a silent fallback to
+  // 127.0.0.1 here resolves to whichever machine is viewing the image, not
+  // this server, so every upload "succeeds" but the image never renders
+  // anywhere. Same shape as the browser-push ackBaseUrl bug: required,
+  // rather than silently broken with no error pointing back to the cause.
   private getApiBaseUrl(): string {
-    return process.env.PUBLIC_API_BASE_URL ?? process.env.API_PUBLIC_URL ?? "http://127.0.0.1:3001/api";
+    const value = process.env.PUBLIC_API_BASE_URL ?? process.env.API_PUBLIC_URL;
+    if (!value || value.trim().length === 0) {
+      throw new Error(
+        "Missing required environment variable: set PUBLIC_API_BASE_URL (or API_PUBLIC_URL) to this server's " +
+          "real public API URL, e.g. https://push.exotic-online.com/api",
+      );
+    }
+
+    return value;
   }
 }

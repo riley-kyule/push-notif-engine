@@ -7,6 +7,10 @@ import { CampaignMediaService } from "./campaign-media.service";
 import type { CampaignMediaStoragePort } from "./campaign-media-storage.port";
 import type { CampaignMediaUploadFile } from "./campaign-media-file.type";
 
+// getApiBaseUrl() now requires this (see campaign-media.service.ts) rather
+// than silently falling back to a broken 127.0.0.1 default.
+process.env.PUBLIC_API_BASE_URL ??= "https://api.example.com/api";
+
 function createStorage(): CampaignMediaStoragePort & { entries: Map<string, Buffer> } {
   const entries = new Map<string, Buffer>();
   return {
