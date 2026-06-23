@@ -65,12 +65,12 @@ export class HealthController {
     success: true;
     data: { action: DeploymentAction; command: string; stdout: string; stderr: string };
   }> {
-    const action = body.action === "restart" ? "restart" : "update";
+    const action = body.action === "minor-update" ? "minor-update" : "core-update";
     const result = await this.deploymentOperationsService.run(action);
 
     await this.auditService.log({
       actorUserId: user.id,
-      action: action === "restart" ? "platform.restart_requested" : "platform.update_requested",
+      action: action === "minor-update" ? "platform.minor_update_requested" : "platform.core_update_requested",
       targetType: "platform",
       targetId: "deployment",
       metadata: { command: result.command },

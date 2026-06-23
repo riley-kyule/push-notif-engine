@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
-export type DeploymentAction = "update" | "restart";
+export type DeploymentAction = "minor-update" | "core-update";
 
 export interface DeploymentActionResult {
   action: DeploymentAction;
@@ -19,11 +19,11 @@ function rootDirFromScript(): string {
 }
 
 export function getDeploymentCommand(action: DeploymentAction): { command: string; args: string[]; timeout: number } {
-  if (action === "update") {
-    return { command: "bash", args: ["scripts/deploy-update.sh"], timeout: 20 * 60 * 1000 };
+  if (action === "minor-update") {
+    return { command: "bash", args: ["scripts/minor-update.sh"], timeout: 2 * 60 * 1000 };
   }
 
-  return { command: "bash", args: ["scripts/pm2-restart.sh"], timeout: 60 * 1000 };
+  return { command: "bash", args: ["scripts/deploy-update.sh"], timeout: 20 * 60 * 1000 };
 }
 
 @Injectable()

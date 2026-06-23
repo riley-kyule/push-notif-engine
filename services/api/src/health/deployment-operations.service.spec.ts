@@ -3,18 +3,18 @@ import test from "node:test";
 
 import { getDeploymentCommand } from "./deployment-operations.service";
 
-test("deployment command uses the full update script", () => {
-  const command = getDeploymentCommand("update");
+test("deployment command uses the minor update script", () => {
+  const command = getDeploymentCommand("minor-update");
+
+  assert.equal(command.command, "bash");
+  assert.deepEqual(command.args, ["scripts/minor-update.sh"]);
+  assert.equal(command.timeout, 2 * 60 * 1000);
+});
+
+test("deployment command uses the core update script", () => {
+  const command = getDeploymentCommand("core-update");
 
   assert.equal(command.command, "bash");
   assert.deepEqual(command.args, ["scripts/deploy-update.sh"]);
   assert.equal(command.timeout, 20 * 60 * 1000);
-});
-
-test("deployment command uses the restart script", () => {
-  const command = getDeploymentCommand("restart");
-
-  assert.equal(command.command, "bash");
-  assert.deepEqual(command.args, ["scripts/pm2-restart.sh"]);
-  assert.equal(command.timeout, 60 * 1000);
 });

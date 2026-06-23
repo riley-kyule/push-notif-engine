@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { apiFetch } from "../../../../../lib/server-api";
 
 export async function POST(request: Request): Promise<Response> {
-  const body = (await request.json().catch(() => null)) as { action?: "update" | "restart" } | null;
+  const body = (await request.json().catch(() => null)) as { action?: "minor-update" | "core-update" } | null;
   if (!body) {
     return NextResponse.json(
       { success: false, error: { message: "Request body must be valid JSON." } },

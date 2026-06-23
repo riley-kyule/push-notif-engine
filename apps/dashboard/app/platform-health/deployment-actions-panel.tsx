@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 
-type DeploymentAction = "update" | "restart";
+type DeploymentAction = "minor-update" | "core-update";
 
 type DeploymentResult = {
   action: DeploymentAction;
@@ -12,13 +12,13 @@ type DeploymentResult = {
 };
 
 function actionLabel(action: DeploymentAction): string {
-  return action === "update" ? "Run update" : "Restart PM2";
+  return action === "minor-update" ? "Minor Update" : "Core Update";
 }
 
 function actionDescription(action: DeploymentAction): string {
-  return action === "update"
-    ? "git pull, npm install, build API and dashboard, migrate, then restart PM2"
-    : "restart the PM2 process set without pulling code or rebuilding";
+  return action === "minor-update"
+    ? "git pull, then restart PM2"
+    : "npm install, build API and dashboard, migrate, then restart PM2";
 }
 
 export function DeploymentActionsPanel() {
@@ -27,7 +27,13 @@ export function DeploymentActionsPanel() {
   const [result, setResult] = useState<DeploymentResult | null>(null);
 
   function run(action: DeploymentAction) {
-    if (!window.confirm(`This will ${action === "update" ? "pull updates, rebuild, migrate, and restart processes" : "restart PM2"}. Continue?`)) {
+    if (
+      !window.confirm(
+        action === "minor-update"
+          ? "This will git pull and restart PM2. Continue?"
+          : "This will reinstall dependencies, build, migrate, and restart PM2. Continue?",
+      )
+    ) {
       return;
     }
 
@@ -45,14 +51,14 @@ export function DeploymentActionsPanel() {
             | null;
 
           if (!response.ok || !payload?.data) {
-            throw new Error(payload?.error?.message ?? `Unable to ${action} platform`);
+            throw new Error(payload?.error?.message ?? `Unable to run ${actionLabel(action).toLowerCase()}`);
           }
 
           setResult(payload.data);
           setMessage(`${actionLabel(action)} completed.`);
         })
         .catch((error) => {
-          setMessage(error instanceof Error ? error.message : `Unable to ${action} platform`);
+          setMessage(error instanceof Error ? error.message : `Unable to run ${actionLabel(action).toLowerCase()}`);
         });
     });
   }
@@ -72,9 +78,9 @@ export function DeploymentActionsPanel() {
       </p>
 
       <div className="grid cards-2" style={{ marginTop: 14 }}>
-        {(["update", "restart"] as const).map((action) => (
+        {(["minor-update", "core-update"] as const).map((action) => (
           <article key={action} className="card" style={{ margin: 0 }}>
-            <p className="eyebrow">{action === "update" ? "Full update" : "Process restart"}</p>
+            <p className="eyebrow">{action === "minor-update" ? "Quick sync" : "Full update"}</p>
             <p className="stat" style={{ marginBottom: 6 }}>
               {actionLabel(action)}
             </p>
