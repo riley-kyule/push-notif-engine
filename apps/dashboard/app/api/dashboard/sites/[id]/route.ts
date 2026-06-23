@@ -11,7 +11,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
   const { id } = await params;
-  const body = (await request.json()) as Partial<{
+  const body = (await request.json().catch(() => null)) as Partial<{
     name: string;
     url: string;
     country: string;
@@ -38,7 +38,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     optInPromptApproveButtonBackgroundColor: string;
     optInPromptRepromptDelayDays: number;
     optInPromptRecentNotificationsLimit: number;
-  }>;
+  }> | null;
+
+  if (!body) {
+    return NextResponse.json(
+      { success: false, error: { message: "Request body must be valid JSON." } },
+      { status: 400 },
+    );
+  }
 
   const res = await apiFetch(`/sites/${id}`, {
     method: "PATCH",

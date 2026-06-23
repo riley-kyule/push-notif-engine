@@ -9,7 +9,7 @@ export async function GET(): Promise<Response> {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  const body = (await request.json()) as {
+  const body = (await request.json().catch(() => null)) as {
     name: string;
     url: string;
     country: string;
@@ -36,7 +36,14 @@ export async function POST(request: Request): Promise<Response> {
     optInPromptApproveButtonBackgroundColor: string;
     optInPromptRepromptDelayDays: number;
     optInPromptRecentNotificationsLimit: number;
-  };
+  } | null;
+
+  if (!body) {
+    return NextResponse.json(
+      { success: false, error: { message: "Request body must be valid JSON." } },
+      { status: 400 },
+    );
+  }
 
   const res = await apiFetch("/sites", {
     method: "POST",

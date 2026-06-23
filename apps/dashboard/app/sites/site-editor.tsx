@@ -43,6 +43,40 @@ const promptTemplates = [
   { value: "bell-icon", label: "Bell Icon", description: "Bottom-left launcher" },
 ] as const;
 
+export function normalizeSiteUrl(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  return `https://${trimmed}`;
+}
+
+export function extractApiErrorMessage(payload: unknown, fallback: string): string {
+  if (!payload || typeof payload !== "object") {
+    return fallback;
+  }
+
+  const error = (payload as { error?: { message?: unknown } }).error;
+  if (error && typeof error.message === "string" && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
+export function buildSiteRequestBody(values: SiteFormValues): Record<string, unknown> {
+  return {
+    ...values,
+    url: normalizeSiteUrl(values.url),
+    vapidPublicKey: values.vapidPublicKey.trim() ? values.vapidPublicKey.trim() : null,
+  };
+}
+
 function PromptPreview({ values }: { values: SiteFormValues }) {
   const isBell = values.optInPromptType === "bell-icon";
   const isLightboxTwo = values.optInPromptType === "lightbox-2";
@@ -154,14 +188,13 @@ async function submitSite(mode: SiteEditorMode, id: string | null, values: SiteF
     headers: {
       "content-type": "application/json",
     },
-    body: JSON.stringify({
-      ...values,
-      vapidPublicKey: values.vapidPublicKey.trim() ? values.vapidPublicKey.trim() : null,
-    }),
+    body: JSON.stringify(buildSiteRequestBody(values)),
   });
 
+  const payload = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
+
   if (!response.ok) {
-    throw new Error("Unable to save site");
+    throw new Error(extractApiErrorMessage(payload, "Unable to save site"));
   }
 }
 
@@ -208,6 +241,9 @@ export function SiteEditor({
       <div className="field">
         <label htmlFor="url">Site URL</label>
         <input id="url" className="input" value={values.url} onChange={(e) => updateField("url", e.target.value)} />
+        <p className="subtle" style={{ marginTop: 8 }}>
+          Paste a site hostname or full URL. `https://` will be added automatically when needed.
+        </p>
       </div>
       <div className="grid cards-3">
         <div className="field">
