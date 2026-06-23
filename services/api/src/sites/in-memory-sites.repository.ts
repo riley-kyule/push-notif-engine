@@ -22,6 +22,7 @@ export class InMemorySitesRepository implements SitesRepository {
       vapidPublicKey: input.vapidPublicKey,
       vapidPrivateKey: input.vapidPrivateKey,
       lastConnectedAt: null,
+      subscriberCount: 0,
       createdAt: now,
       updatedAt: now,
     };

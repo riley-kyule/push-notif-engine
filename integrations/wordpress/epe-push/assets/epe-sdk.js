@@ -454,7 +454,14 @@
             p256dhKey: keys.p256dh || null,
             authKey: keys.auth || null,
           }),
-        }).then(function () {
+        }).then(function (response) {
+          // fetch() only rejects on network failure, never on HTTP error status --
+          // without this check, a 400/404/500 from the API was silently ignored
+          // and the UI went on to show the subscriber launcher as if registration
+          // had actually succeeded, even though nothing was ever persisted.
+          if (!response.ok) {
+            throw new Error("Subscriber registration failed with status " + response.status);
+          }
           return subscription;
         });
       });

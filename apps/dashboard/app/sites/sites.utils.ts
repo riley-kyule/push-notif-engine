@@ -77,6 +77,7 @@ interface ApiSiteRecord {
   restApiAuthTokenLast4?: string | null;
   restApiCredentialsGeneratedAt?: string | null;
   lastConnectedAt?: string | null;
+  subscriberCount?: number;
 }
 
 // Only rendered when the /sites API is unreachable. "All Sites" (site-3) is a
@@ -187,7 +188,7 @@ const fallbackSites: SiteSummary[] = [
   },
 ];
 
-function toSiteSummary(record: ApiSiteRecord, subscribers = 0): SiteSummary {
+function toSiteSummary(record: ApiSiteRecord, subscribers?: number): SiteSummary {
   return {
     id: record.id,
     name: record.name,
@@ -196,7 +197,7 @@ function toSiteSummary(record: ApiSiteRecord, subscribers = 0): SiteSummary {
     language: record.language,
     platform: record.platform,
     status: record.status,
-    subscribers,
+    subscribers: subscribers ?? record.subscriberCount ?? 0,
     vapidPublicKey: record.vapidPublicKey,
     appName: record.appName ?? record.name,
     iconUrl: record.iconUrl ?? "",
@@ -241,7 +242,7 @@ export async function getSiteById(id: string): Promise<SiteSummary | null> {
   }
 
   const analytics = await apiJson<SiteApiResponse<{ totalSubscribers: number }>>(`/analytics/sites/${id}`);
-  return toSiteSummary(response.data, analytics?.data.totalSubscribers ?? 0);
+  return toSiteSummary(response.data, analytics?.data.totalSubscribers ?? response.data.subscriberCount ?? 0);
 }
 
 export function getFallbackSiteChoices(): SiteSummary[] {
