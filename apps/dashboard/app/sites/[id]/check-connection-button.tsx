@@ -18,11 +18,11 @@ export function CheckConnectionButton({ siteId }: { siteId: string }) {
             throw new Error(payload?.error?.message ?? "Site is unreachable right now.");
           }
 
-          setMessage("Reachable just now.");
+          setMessage("Plugin script found on the site just now.");
           router.refresh();
         })
         .catch((error) => {
-          setMessage(error instanceof Error ? error.message : "Site is unreachable right now.");
+          setMessage(error instanceof Error ? error.message : "Plugin script not found on the site.");
         });
     });
   }

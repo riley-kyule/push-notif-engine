@@ -45,9 +45,14 @@ git pull
 npm install
 cd services/api && npm run migrate && npm run build
 cd ../worker && npm run build
-cd ../../apps/dashboard && npm run build
+cd ../../apps/dashboard && rm -rf .next && npm run build
 cd ../..
 ```
+
+The dashboard's `.next` incremental build cache has, more than once, silently
+skipped recompiling a changed file (the new code never shows up even though
+the build "succeeds" and the timestamp updates) -- always `rm -rf .next`
+before rebuilding the dashboard rather than relying on the incremental build.
 
 ### Restart PM2 cleanly
 
