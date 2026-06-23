@@ -6,19 +6,17 @@ This is the Magento integration scaffold for Exotic Push Engine.
 
 - Adds an admin config section under `Stores -> Configuration -> General -> EPE Push Engine`
 - Injects the EPE SDK config into the storefront `<head>`
-- Assumes the service worker is deployed at `/push-sw.js`
-- Assumes the manifest is deployed at `/manifest.json`
+- Serves `/push-sw.js`, `/manifest.json`, and `/assets/epe-sdk.js` itself, generated from admin config on every request
 - Keeps the service worker and manifest on the storefront origin
 
 ## Deployment model
 
-Magento should deploy these assets during release:
-
-- `pub/push-sw.js`
-- `pub/manifest.json`
-- `pub/assets/epe-sdk.js`
-
-The module itself only injects the config and script tag.
+Install-and-go: nothing to copy into `pub/`. A custom frontend router
+(`Exotic\PushEngine\Controller\Router`, registered in `etc/frontend/di.xml`)
+intercepts those three literal paths and serves them straight from PHP, the
+same way the Node, Laravel, and WordPress integrations do. Editing the app
+name, icon, or theme color in admin takes effect immediately — there's no
+static file to fall out of sync or forget to re-publish on release.
 
 ## CSP guidance
 
