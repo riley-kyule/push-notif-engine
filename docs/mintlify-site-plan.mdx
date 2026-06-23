@@ -9,10 +9,9 @@ This document defines the proposed Mintlify information architecture for the Exo
 - Separate product documentation from implementation details.
 - Keep the docs aligned with the current scope of EPE:
   - self-hosted
-  - browser push only
+  - browser push and native mobile push (APNs/FCM)
   - no SaaS billing
   - no multi-tenancy
-  - no native mobile app push
 
 ## Proposed Navigation
 
@@ -60,6 +59,9 @@ This document defines the proposed Mintlify information architecture for the Exo
 
 - `/features/notifications`  
   Campaign creation, delivery flow, queueing, retries, and delivery state handling.
+
+- `/features/mobile-push`  
+  Native iOS/Android push via APNs/FCM, app-facing device registration API, and the credential setup flow in the dashboard.
 
 - `/features/analytics`  
   Reporting dashboards, preset date windows, custom date ranges, and period comparison controls.
