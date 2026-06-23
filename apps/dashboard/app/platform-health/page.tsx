@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { DashboardShell } from "../_components/dashboard-shell";
 import { getPlatformHealthBadge, getPlatformHealthSummary, getPlatformHealthTone, summarizePlatformHealth } from "../_data/platform-health";
+import { DeploymentActionsPanel } from "./deployment-actions-panel";
 
 function formatScore(value: number): string {
   return `${Math.round(value)}%`;
@@ -282,6 +283,8 @@ export default async function PlatformHealthPage() {
           </p>
         </article>
       </section>
+
+      <DeploymentActionsPanel />
     </DashboardShell>
   );
 }
