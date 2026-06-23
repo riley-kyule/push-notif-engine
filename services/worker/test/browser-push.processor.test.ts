@@ -4,6 +4,11 @@ import test from "node:test";
 import { BrowserPushProcessor } from "../src/browser-push.processor";
 import type { BrowserPushJobPayload } from "../src/browser-push.types";
 
+// loadBrowserPushConfig() now requires this (see config.ts) rather than
+// silently falling back to a broken 127.0.0.1 default -- set it once for the
+// whole file instead of duplicating it per test.
+process.env.BROWSER_PUSH_ACK_BASE_URL ??= "https://api.example.com/api";
+
 // Fake bulk-insert: assigns deterministic delivery ids in input order and records
 // each call so tests can assert on what was sent.
 function createPendingDeliveryEventsFake(calls: Array<{ subscriberId: string }>) {
