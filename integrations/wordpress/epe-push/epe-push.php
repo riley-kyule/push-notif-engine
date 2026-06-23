@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Exotic Push Engine
  * Description: Browser push integration for Exotic WordPress sites.
- * Version: 1.0.2
+ * Version: 1.0.3
  * Author: Riley Kyule
  * Text Domain: exotic-push-engine
  */
@@ -19,6 +19,7 @@ final class Exotic_Push_Engine_Plugin {
     public static function boot(): void {
         add_action('init', [__CLASS__, 'register_rewrites']);
         add_filter('query_vars', [__CLASS__, 'register_query_vars']);
+        add_filter('redirect_canonical', [__CLASS__, 'skip_canonical_redirect_for_assets']);
         add_action('template_redirect', [__CLASS__, 'maybe_serve_assets']);
         add_action('wp_enqueue_scripts', [__CLASS__, 'enqueue_sdk']);
         add_filter('wp_inline_script_attributes', [__CLASS__, 'add_inline_script_nonce'], 10, 2);
@@ -59,6 +60,19 @@ final class Exotic_Push_Engine_Plugin {
         }
     }
 
+    // WordPress's redirect_canonical() 301s bare paths like /push-sw.js to
+    // /push-sw.js/ to match the site's permalink structure. Service workers are
+    // not allowed to register from a redirected response, so that single 301
+    // silently broke every subscription on every site using this plugin -- skip
+    // the canonical redirect entirely for our two virtual asset paths.
+    public static function skip_canonical_redirect_for_assets($redirect_url) {
+        if ((int) get_query_var(self::QUERY_VAR_PUSH_SW) === 1 || (int) get_query_var(self::QUERY_VAR_MANIFEST) === 1) {
+            return false;
+        }
+
+        return $redirect_url;
+    }
+
     private static function get_settings(): array {
         $defaults = [
             'api_url'         => '',
@@ -83,7 +97,7 @@ final class Exotic_Push_Engine_Plugin {
         // Registered with no src and loaded purely as a vehicle for inline content
         // below -- see the comment on add_inline_script_nonce() for why the SDK is
         // inlined rather than loaded as an external <script src> file.
-        wp_register_script('exotic-push-engine-sdk', '', [], '1.0.2', true);
+        wp_register_script('exotic-push-engine-sdk', '', [], '1.0.3', true);
         wp_enqueue_script('exotic-push-engine-sdk');
 
         $sdk_path = plugin_dir_path(__FILE__) . 'assets/epe-sdk.js';
