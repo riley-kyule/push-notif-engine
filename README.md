@@ -139,6 +139,18 @@ Full-system backups to a connected cloud provider, managed at `/platform/backup-
 - **Restore is manual, by design** — there's no one-click restore endpoint. The dashboard's restore toolkit card pre-fills the exact `pg_restore` command for the latest successful run with a copy button; campaign media is restored by extracting the archive's `media/` directory.
 - `GET /api/backup` (provider connection status) and `GET /api/backup/runs` (history: status, trigger, file name/size, error message) back the dashboard's summary cards and run history table.
 
+### Getting Dropbox app credentials
+
+There's no way to get a Dropbox API key/secret without creating an "app" in their developer console — but it's a 3-minute form, not a real registration process, and it works with your own account immediately (no app review needed).
+
+1. Go to <https://www.dropbox.com/developers/apps> and click **Create app**.
+2. Choose **Scoped access**, then **App folder** (simplest — gives the app its own `/Apps/<your-app-name>` folder rather than full account access; switch to "Full Dropbox" later if you ever need to write outside that folder).
+3. Name it anything (e.g. "Exotic Push Engine Backups") and create it.
+4. On the app's **Permissions** tab, enable `files.content.write` and `files.content.read`, then click **Submit** at the bottom of that tab.
+5. On the **Settings** tab: copy the **App key** and **App secret** into `DROPBOX_APP_KEY`/`DROPBOX_APP_SECRET`. Under **OAuth 2 → Redirect URIs**, add `https://your-dashboard-domain/api/dashboard/backup/dropbox/callback` and set the same URL as `DROPBOX_REDIRECT_URI`.
+
+That's it — no business verification, no waiting period. If you'd rather skip Dropbox entirely, **Google Drive works the same way and reuses the OAuth client you're already setting up for sign-in and Sheets export** — one fewer provider to manage.
+
 ## Sites
 
 A "site" is one Exotic-owned website. Each site has its own VAPID key pair — generated once, never shared.
@@ -205,6 +217,7 @@ Native APNs/FCM delivery for an iOS/Android app, parallel to browser push. Full 
 - The **worker** sends via real protocol implementations — JWT-signed APNs over HTTP/2, FCM's v1 `messages:send` REST API — not a stub. A device that APNs/FCM reports as gone (404/410) is automatically marked `expired` and excluded from future sends.
 - Delivery and click events are logged per-device (`mobile_push_events`, `mobile_push_click_events`), same shape as browser push's `push_delivery_events`.
 - Credentials are masked on read — private keys are write-only and never sent back to the dashboard after saving.
+- `GET /api/sites/:siteId/mobile-devices` (staff-only, paginated, filterable by `platform`/`status`) backs a per-device table in the dashboard's Mobile Push panel — not just aggregate counts. Staff can revoke an individual device (`PATCH /api/mobile-devices/invalidate`), which marks it `invalid` and excludes it from future sends.
 
 ## Campaigns
 
@@ -371,5 +384,3 @@ Each service uses Node's built-in test runner (`node --import tsx --test`), not 
 ## Known gaps
 
 - **No automated PM2 boot-persistence test** — `pm2 save` + `pm2 startup` are documented in the runbook but haven't been tested through an actual server reboot, since that requires the real VPS.
-- **Mobile push device management is aggregate-only in the dashboard** — the Mobile Push panel shows device counts by platform/status, not a per-device list/drill-down. Acceptable for now; expand if a per-device view is ever needed.
-- **Access control is built but Google sign-in is the intended primary path** — staff accounts created via `/access-control` get a random, never-revealed password (Argon2-hashed); there's no "set/reset password" flow because the design assumes Google SSO for day-to-day sign-in. If a non-Google account ever needs password auth, that flow doesn't exist yet.
