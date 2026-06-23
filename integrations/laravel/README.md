@@ -1,55 +1,57 @@
 # Exotic Push Engine Laravel Starter
 
-This is the production starter path for Laravel sites that need EPE without a CMS plugin.
+Install-and-go integration — no files to publish into `public/`.
 
-## What you deploy
+## Install
 
-- `public/push-sw.js`
-- `public/manifest.json`
-- the EPE SDK bootstrap in a shared Blade layout
-- a small registration flow that uses the site key and API URL
-
-## Runtime contract
-
-- The service worker must be served from the same origin as the Laravel app.
-- The manifest must be reachable at `/manifest.json`.
-- Site branding and opt-in prompt settings should live in EPE site settings.
-- The app should only receive the API URL and site key from environment/config values.
-
-## Example Blade snippet
-
-```blade
-<script>
-  window.ExoticPushEngineConfig = @json([
-    'apiUrl' => env('EPE_API_URL', 'https://api.example.com/api'),
-    'siteKey' => env('EPE_SITE_KEY'),
-    'serviceWorkerUrl' => '/push-sw.js',
-    'manifestUrl' => '/manifest.json',
-    'iconUrl' => '/icons/icon-192.png',
-    'appName' => config('app.name'),
-    'themeColor' => '#111111',
-  ]);
-</script>
-<script defer src="/assets/epe-sdk.js"></script>
+```bash
+composer require epe/laravel-starter
+php artisan vendor:publish --tag=epe-push-assets
 ```
 
-## Suggested file layout
+Publishing only copies the **config file** (`config/epe-push.php`) and a sample
+Blade partial you can customize — it does not copy `push-sw.js`, `manifest.json`,
+or the SDK. Those three are registered as routes automatically when the package
+boots, generated from your config on every request.
 
-- `public/push-sw.js`
-- `public/manifest.json`
-- `public/assets/epe-sdk.js`
-- `resources/views/layouts/app.blade.php`
-- `app/Services/EpePush.php`
+Set the two required values in `.env`:
 
-## Minimal integration flow
+```
+EPE_API_URL=https://push.example.com/api
+EPE_SITE_KEY=your-site-uuid
+```
 
-1. Inject the SDK bootstrap in the main layout.
-2. Publish the worker and manifest during deployment.
-3. Resolve the site key from `.env` or a config file.
-4. Let the SDK register the browser subscription against EPE.
+## Add the bootstrap to your layout
 
-## Notes
+```blade
+@include('epe-push::bootstrap')
+```
 
-- Keep the starter deployment-friendly.
-- Do not depend on Docker or container-only release steps.
-- Keep the worker and manifest on the app origin.
+Drop that into your main layout's `<head>` (e.g.
+`resources/views/layouts/app.blade.php`). It renders the
+`window.ExoticPushEngineConfig` object plus the SDK `<script>` tag.
+
+## What the package serves automatically
+
+- `GET /push-sw.js` — generated from `EpePush::serviceWorkerScript()`, same logic the Node and WordPress integrations use.
+- `GET /manifest.json` — generated from your config (`app_name`, `theme_color`, `icon_url`) via `EpePush::manifestJson()`.
+- `GET /assets/epe-sdk.js` — served straight from the package's vendored copy of the SDK (same file the WordPress plugin bundles).
+
+Override the manifest/service-worker URLs via `EPE_MANIFEST_URL` /
+`EPE_PUSH_SW_URL` in `.env` if `/manifest.json` or `/push-sw.js` collide with
+something else in your app.
+
+## Config reference (`config/epe-push.php`)
+
+| Key | Env var | Default |
+| --- | --- | --- |
+| `api_url` | `EPE_API_URL` | — |
+| `site_key` | `EPE_SITE_KEY` | — |
+| `service_worker_url` | `EPE_PUSH_SW_URL` | `/push-sw.js` |
+| `manifest_url` | `EPE_MANIFEST_URL` | `/manifest.json` |
+| `app_name` | `EPE_APP_NAME` | `config('app.name')` |
+| `icon_url` | `EPE_ICON_URL` | `/icons/icon-192.png` |
+| `theme_color` | `EPE_THEME_COLOR` | `#111111` |
+
+Branding, opt-in prompt copy, and colors beyond `theme_color` live in EPE site
+settings and are fetched automatically by the SDK — they're not configured here.

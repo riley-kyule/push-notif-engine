@@ -12,8 +12,10 @@ test("phase 2.6 platform guides exist", () => {
 
   assert.match(magento, /Magento 2 Integration Guide/);
   assert.match(magento, /Service Worker/);
+  // Node.js and Laravel guides were superseded by the real starter packages —
+  // these are now pointer stubs to integrations/node and integrations/laravel.
   assert.match(nodejs, /Node\.js Integration Guide/);
-  assert.match(nodejs, /API Registration/);
+  assert.match(nodejs, /integrations\/node\/README\.md/);
   assert.match(laravel, /Laravel Integration Guide/);
-  assert.match(laravel, /Blade Snippet/);
+  assert.match(laravel, /integrations\/laravel\/README\.md/);
 });
