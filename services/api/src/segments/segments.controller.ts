@@ -13,7 +13,7 @@ import { SegmentsService } from "./segments.service";
 
 @Controller("segments")
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles("super-admin", "admin", "editor")
+@Roles("super-admin", "admin", "sub-admin")
 export class SegmentsController {
   constructor(private readonly segmentsService: SegmentsService) {}
 

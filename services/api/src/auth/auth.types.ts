@@ -1,4 +1,20 @@
-export type RoleSlug = "super-admin" | "admin" | "editor" | "analyst";
+export type RoleSlug = "super-admin" | "admin" | "sub-admin" | "customer-service" | "editor" | "analyst";
+
+export type PermissionSlug =
+  | "users:manage"
+  | "roles:manage"
+  | "automations:manage"
+  | "sites:manage"
+  | "sites:settings"
+  | "analytics:view"
+  | "subscribers:view"
+  | "campaigns:manage"
+  | "campaigns:assigned"
+  | "campaign-taxonomies:manage"
+  | "segments:manage"
+  | "audit-logs:view"
+  | "system-health:view"
+  | "backups:manage";
 
 export interface AuthenticatedUser {
   id: string;

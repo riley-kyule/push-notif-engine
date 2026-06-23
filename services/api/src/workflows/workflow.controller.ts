@@ -66,7 +66,7 @@ class UpdateRssFeedDto {
 
 @Controller("workflow")
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles("super-admin", "admin", "editor", "analyst")
+@Roles("super-admin", "admin")
 export class WorkflowController {
   constructor(private readonly workflowService: WorkflowService) {}
 

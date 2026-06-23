@@ -41,7 +41,7 @@ function decodeState(state: string): { nonce: string; payload: GoogleSheetsExpor
 
 @Controller("analytics")
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles("super-admin", "admin", "editor", "analyst")
+@Roles("super-admin", "admin", "sub-admin")
 export class AnalyticsController {
   constructor(
     private readonly analyticsService: AnalyticsService,

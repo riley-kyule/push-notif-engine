@@ -14,11 +14,12 @@ import { CampaignsService } from "./campaigns.service";
 
 @Controller("campaigns")
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles("super-admin", "admin", "editor")
+@Roles("super-admin", "admin", "sub-admin")
 export class CampaignsController {
   constructor(private readonly campaignsService: CampaignsService) {}
 
   @Get()
+  @Roles("super-admin", "admin", "sub-admin", "customer-service")
   async listCampaigns(@Query() query: ListCampaignsQueryDto): Promise<{ success: true; data: unknown }> {
     const campaigns = await this.campaignsService.listCampaigns(query);
     return { success: true, data: campaigns };
@@ -31,6 +32,7 @@ export class CampaignsController {
   }
 
   @Get(":id")
+  @Roles("super-admin", "admin", "sub-admin", "customer-service")
   async getCampaign(@Param("id") id: string): Promise<{ success: true; data: unknown }> {
     const campaign = await this.campaignsService.getCampaign(id);
     return { success: true, data: campaign };
@@ -63,6 +65,7 @@ export class CampaignsController {
   }
 
   @Post(":id/preview")
+  @Roles("super-admin", "admin", "sub-admin", "customer-service")
   async previewCampaign(@Param("id") id: string): Promise<{ success: true; data: unknown }> {
     const preview = await this.campaignsService.previewCampaign(id);
     return { success: true, data: preview };

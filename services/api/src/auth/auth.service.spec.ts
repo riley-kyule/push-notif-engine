@@ -15,6 +15,7 @@ const role: RoleRecord = {
   id: "role-1",
   slug: "admin",
   name: "Admin",
+  permissions: ["users:manage", "sites:manage"],
 };
 
 test("auth service logs in and rotates refresh tokens", async () => {
@@ -24,6 +25,9 @@ test("auth service logs in and rotates refresh tokens", async () => {
 
   const user: AuthUserRecord = {
     id: "user-1",
+    firstName: "Admin",
+    lastName: "User",
+    username: "adminuser",
     email: "admin@example.com",
     name: "Admin User",
     passwordHash,
@@ -77,10 +81,13 @@ test("auth service links and logs in with google identity", async () => {
 
   const user: AuthUserRecord = {
     id: "user-2",
+    firstName: "Editor",
+    lastName: "User",
+    username: "editoruser",
     email: "editor@example.com",
     name: "Editor User",
     passwordHash: null,
-    role: "editor",
+    role: "sub-admin",
     isActive: true,
     authProvider: "local",
     googleSubject: null,

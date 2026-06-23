@@ -6,12 +6,12 @@ import {
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 
-import { ROLE_ORDER } from "../auth.constants";
+import { ROLE_ORDER, canonicalRoleSlug } from "../auth.constants";
 import type { AuthenticatedUser, RoleSlug } from "../auth.types";
 import { ROLES_KEY } from "../decorators/roles.decorator";
 
 function rank(role: RoleSlug): number {
-  return ROLE_ORDER.indexOf(role);
+  return ROLE_ORDER.indexOf(canonicalRoleSlug(role));
 }
 
 @Injectable()

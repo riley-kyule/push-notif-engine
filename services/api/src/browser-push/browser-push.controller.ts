@@ -8,7 +8,7 @@ import { BrowserPushService } from "./browser-push.service";
 
 @Controller("browser-push")
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles("super-admin", "admin", "editor")
+@Roles("super-admin", "admin", "sub-admin")
 export class BrowserPushController {
   constructor(private readonly browserPushService: BrowserPushService) {}
 

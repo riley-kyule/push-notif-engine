@@ -4,11 +4,10 @@ import test from "node:test";
 import { Reflector } from "@nestjs/core";
 
 import { RolesGuard } from "./roles.guard";
-import { ROLES_KEY } from "../decorators/roles.decorator";
 
-test("roles guard authorizes matching roles", () => {
+test("roles guard authorizes matching roles and legacy aliases", () => {
   const reflector = new Reflector();
-  reflector.getAllAndOverride = () => ["admin"];
+  reflector.getAllAndOverride = () => ["sub-admin"];
 
   const guard = new RolesGuard(reflector);
   const allowed = guard.canActivate({
@@ -16,7 +15,7 @@ test("roles guard authorizes matching roles", () => {
     getClass: () => Symbol("class") as never,
     switchToHttp: () =>
       ({
-        getRequest: () => ({ user: { role: "super-admin" } }),
+        getRequest: () => ({ user: { role: "editor" } }),
       }) as never,
   } as never);
 

@@ -15,7 +15,7 @@ export class CampaignMediaController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles("super-admin", "admin", "editor")
+  @Roles("super-admin", "admin", "sub-admin")
   @UseInterceptors(FileInterceptor("file"))
   async uploadMedia(
     @Body() dto: UploadCampaignMediaDto,

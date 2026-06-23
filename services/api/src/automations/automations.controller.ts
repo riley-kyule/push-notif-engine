@@ -12,7 +12,7 @@ import { UpdateAutomationDto } from "./dto/update-automation.dto";
 
 @Controller("automations")
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles("super-admin", "admin", "editor")
+@Roles("super-admin", "admin")
 export class AutomationsController {
   constructor(private readonly automationsService: AutomationsService) {}
 

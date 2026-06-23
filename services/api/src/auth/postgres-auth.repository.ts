@@ -6,13 +6,18 @@ import { DATABASE_POOL } from "../database/database.constants";
 import type {
   AuthRepository,
   AuthUserRecord,
+  CreateUserInput,
   RefreshTokenRecord,
   RoleRecord,
+  UpdateRoleInput,
 } from "./auth.repository";
-import type { RoleSlug } from "./auth.types";
+import type { PermissionSlug, RoleSlug } from "./auth.types";
 
 interface DbUserRow {
   id: string;
+  first_name: string;
+  last_name: string;
+  username: string;
   email: string;
   name: string;
   password_hash: string | null;
@@ -22,6 +27,13 @@ interface DbUserRow {
   google_subject: string | null;
   email_verified_at: string | null;
   last_login_at: string | null;
+}
+
+interface DbRoleRow {
+  id: string;
+  slug: RoleSlug;
+  name: string;
+  permissions: string[] | null;
 }
 
 interface DbRefreshTokenRow {
@@ -38,11 +50,32 @@ interface DbRefreshTokenRow {
 export class PostgresAuthRepository implements AuthRepository {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool) {}
 
+  private mapUserRow(row: DbUserRow): AuthUserRecord {
+    return {
+      id: row.id,
+      firstName: row.first_name,
+      lastName: row.last_name,
+      username: row.username,
+      email: row.email,
+      name: row.name,
+      passwordHash: row.password_hash,
+      role: row.role_slug,
+      isActive: row.is_active,
+      authProvider: row.auth_provider,
+      googleSubject: row.google_subject,
+      emailVerifiedAt: row.email_verified_at ? new Date(row.email_verified_at) : null,
+      lastLoginAt: row.last_login_at ? new Date(row.last_login_at) : null,
+    };
+  }
+
   async findUserByEmail(email: string): Promise<AuthUserRecord | null> {
     const { rows } = await this.pool.query<DbUserRow>(
       `
       SELECT
         u.id,
+        u.first_name,
+        u.last_name,
+        u.username,
         u.email,
         u.name,
         u.password_hash,
@@ -65,18 +98,7 @@ export class PostgresAuthRepository implements AuthRepository {
       return null;
     }
 
-    return {
-      id: row.id,
-      email: row.email,
-      name: row.name,
-      passwordHash: row.password_hash,
-      role: row.role_slug,
-      isActive: row.is_active,
-      authProvider: row.auth_provider,
-      googleSubject: row.google_subject,
-      emailVerifiedAt: row.email_verified_at ? new Date(row.email_verified_at) : null,
-      lastLoginAt: row.last_login_at ? new Date(row.last_login_at) : null,
-    };
+    return this.mapUserRow(row);
   }
 
   async findUserById(id: string): Promise<AuthUserRecord | null> {
@@ -84,6 +106,9 @@ export class PostgresAuthRepository implements AuthRepository {
       `
       SELECT
         u.id,
+        u.first_name,
+        u.last_name,
+        u.username,
         u.email,
         u.name,
         u.password_hash,
@@ -106,18 +131,7 @@ export class PostgresAuthRepository implements AuthRepository {
       return null;
     }
 
-    return {
-      id: row.id,
-      email: row.email,
-      name: row.name,
-      passwordHash: row.password_hash,
-      role: row.role_slug,
-      isActive: row.is_active,
-      authProvider: row.auth_provider,
-      googleSubject: row.google_subject,
-      emailVerifiedAt: row.email_verified_at ? new Date(row.email_verified_at) : null,
-      lastLoginAt: row.last_login_at ? new Date(row.last_login_at) : null,
-    };
+    return this.mapUserRow(row);
   }
 
   async findUserByGoogleSubject(subject: string): Promise<AuthUserRecord | null> {
@@ -125,6 +139,9 @@ export class PostgresAuthRepository implements AuthRepository {
       `
       SELECT
         u.id,
+        u.first_name,
+        u.last_name,
+        u.username,
         u.email,
         u.name,
         u.password_hash,
@@ -147,28 +164,237 @@ export class PostgresAuthRepository implements AuthRepository {
       return null;
     }
 
-    return {
-      id: row.id,
-      email: row.email,
-      name: row.name,
-      passwordHash: row.password_hash,
-      role: row.role_slug,
-      isActive: row.is_active,
-      authProvider: row.auth_provider,
-      googleSubject: row.google_subject,
-      emailVerifiedAt: row.email_verified_at ? new Date(row.email_verified_at) : null,
-      lastLoginAt: row.last_login_at ? new Date(row.last_login_at) : null,
-    };
+    return this.mapUserRow(row);
+  }
+
+  async findUserByUsername(username: string): Promise<AuthUserRecord | null> {
+    const { rows } = await this.pool.query<DbUserRow>(
+      `
+      SELECT
+        u.id,
+        u.first_name,
+        u.last_name,
+        u.username,
+        u.email,
+        u.name,
+        u.password_hash,
+        r.slug AS role_slug,
+        u.is_active,
+        u.auth_provider,
+        u.google_subject,
+        u.email_verified_at,
+        u.last_login_at
+      FROM users u
+      INNER JOIN roles r ON r.id = u.role_id
+      WHERE lower(u.username) = lower($1)
+      LIMIT 1
+      `,
+      [username],
+    );
+
+    const row = rows[0];
+    return row ? this.mapUserRow(row) : null;
+  }
+
+  async listUsers(): Promise<AuthUserRecord[]> {
+    const { rows } = await this.pool.query<DbUserRow>(
+      `
+      SELECT
+        u.id,
+        u.first_name,
+        u.last_name,
+        u.username,
+        u.email,
+        u.name,
+        u.password_hash,
+        r.slug AS role_slug,
+        u.is_active,
+        u.auth_provider,
+        u.google_subject,
+        u.email_verified_at,
+        u.last_login_at
+      FROM users u
+      INNER JOIN roles r ON r.id = u.role_id
+      ORDER BY u.created_at DESC
+      `,
+    );
+
+    return rows.map((row) => this.mapUserRow(row));
+  }
+
+  async createUser(input: CreateUserInput): Promise<AuthUserRecord> {
+    const role = await this.findRoleBySlug(input.role);
+    if (!role) {
+      throw new Error(`Role ${input.role} not found`);
+    }
+
+    const { rows } = await this.pool.query<DbUserRow>(
+      `
+      INSERT INTO users (
+        role_id,
+        first_name,
+        last_name,
+        username,
+        email,
+        name,
+        password_hash,
+        is_active,
+        auth_provider,
+        google_subject,
+        email_verified_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING id, first_name, last_name, username, email, name, password_hash, $11::text AS role_slug, is_active, auth_provider, google_subject, email_verified_at, NULL::timestamptz AS last_login_at
+      `,
+      [
+        role.id,
+        input.firstName,
+        input.lastName,
+        input.username,
+        input.email,
+        input.name,
+        input.passwordHash,
+        input.isActive ?? true,
+        input.authProvider ?? "local",
+        input.googleSubject ?? null,
+        input.emailVerifiedAt ?? null,
+        input.role,
+      ],
+    );
+
+    const row = rows[0];
+    if (!row) {
+      throw new Error("Failed to create user");
+    }
+
+    return this.mapUserRow(row);
+  }
+
+  async updateUserRole(userId: string, role: RoleSlug): Promise<AuthUserRecord | null> {
+    const roleRecord = await this.findRoleBySlug(role);
+    if (!roleRecord) {
+      return null;
+    }
+
+    const { rows } = await this.pool.query<DbUserRow>(
+      `
+      UPDATE users
+      SET role_id = $2,
+          updated_at = NOW()
+      WHERE id = $1
+      RETURNING
+        id,
+        first_name,
+        last_name,
+        username,
+        email,
+        name,
+        password_hash,
+        $3::text AS role_slug,
+        is_active,
+        auth_provider,
+        google_subject,
+        email_verified_at,
+        last_login_at
+      `,
+      [userId, roleRecord.id, role],
+    );
+
+    const row = rows[0];
+    if (!row) {
+      return null;
+    }
+
+    return this.mapUserRow(row);
+  }
+
+  async updatePasswordHash(userId: string, passwordHash: string): Promise<AuthUserRecord | null> {
+    const { rows } = await this.pool.query<DbUserRow>(
+      `
+      UPDATE users u
+      SET password_hash = $2,
+          updated_at = NOW()
+      WHERE u.id = $1
+      RETURNING
+        u.id,
+        u.first_name,
+        u.last_name,
+        u.username,
+        u.email,
+        u.name,
+        u.password_hash,
+        (SELECT r.slug FROM roles r WHERE r.id = u.role_id) AS role_slug,
+        u.is_active,
+        u.auth_provider,
+        u.google_subject,
+        u.email_verified_at,
+        u.last_login_at
+      `,
+      [userId, passwordHash],
+    );
+
+    const row = rows[0];
+    if (!row) {
+      return null;
+    }
+
+    return this.mapUserRow(row);
   }
 
   async findRoleBySlug(slug: RoleSlug): Promise<RoleRecord | null> {
-    const { rows } = await this.pool.query<{ id: string; slug: RoleSlug; name: string }>(
-      `SELECT id, slug, name FROM roles WHERE slug = $1 LIMIT 1`,
+    const { rows } = await this.pool.query<DbRoleRow>(
+      `SELECT id, slug, name, permissions FROM roles WHERE slug = $1 LIMIT 1`,
       [slug],
     );
 
     const row = rows[0];
-    return row ?? null;
+    return row
+      ? {
+          id: row.id,
+          slug: row.slug,
+          name: row.name,
+          permissions: Array.isArray(row.permissions) ? (row.permissions as PermissionSlug[]) : [],
+        }
+      : null;
+  }
+
+  async listRoles(): Promise<RoleRecord[]> {
+    const { rows } = await this.pool.query<DbRoleRow>(
+      `SELECT id, slug, name, permissions FROM roles ORDER BY created_at ASC`,
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      permissions: Array.isArray(row.permissions) ? (row.permissions as PermissionSlug[]) : [],
+    }));
+  }
+
+  async updateRole(slug: RoleSlug, input: UpdateRoleInput): Promise<RoleRecord | null> {
+    const { rows } = await this.pool.query<DbRoleRow>(
+      `
+      UPDATE roles
+      SET name = COALESCE($2, name),
+          permissions = COALESCE($3::jsonb, permissions),
+          updated_at = NOW()
+      WHERE slug = $1
+      RETURNING id, slug, name, permissions
+      `,
+      [slug, input.name ?? null, input.permissions ? JSON.stringify(input.permissions) : null],
+    );
+
+    const row = rows[0];
+    if (!row) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      permissions: Array.isArray(row.permissions) ? (row.permissions as PermissionSlug[]) : [],
+    };
   }
 
   async storeRefreshToken(record: RefreshTokenRecord): Promise<void> {

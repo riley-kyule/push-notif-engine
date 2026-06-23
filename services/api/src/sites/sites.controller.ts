@@ -12,7 +12,7 @@ import { SitesService } from "./sites.service";
 
 @Controller("sites")
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles("super-admin", "admin", "editor")
+@Roles("super-admin", "admin", "sub-admin")
 export class SitesController {
   constructor(private readonly sitesService: SitesService) {}
 

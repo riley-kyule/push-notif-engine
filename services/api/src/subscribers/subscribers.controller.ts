@@ -35,7 +35,7 @@ export class SubscribersController {
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles("super-admin", "admin", "editor", "analyst")
+  @Roles("super-admin", "admin", "sub-admin")
   async list(@Query() query: ListSubscribersQueryDto): Promise<{ success: true; data: unknown }> {
     const result = await this.subscribersService.listSubscribers(query);
     return { success: true, data: result };
@@ -43,7 +43,7 @@ export class SubscribersController {
 
   @Get(":id")
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles("super-admin", "admin", "editor", "analyst")
+  @Roles("super-admin", "admin", "sub-admin")
   async get(@Param("id") id: string): Promise<{ success: true; data: unknown }> {
     const subscriber = await this.subscribersService.getSubscriber(id);
     return { success: true, data: subscriber };
@@ -51,7 +51,7 @@ export class SubscribersController {
 
   @Patch(":id/status")
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles("super-admin", "admin", "editor")
+  @Roles("super-admin", "admin", "sub-admin")
   async updateStatus(
     @Param("id") id: string,
     @Body() dto: UpdateSubscriberStatusDto,
