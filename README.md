@@ -9,6 +9,7 @@ Not a SaaS product. Not multi-tenant. Built for Exotic's own sites only.
 - [Architecture](#architecture)
 - [Local development setup](#local-development-setup)
 - [Authentication & roles](#authentication--roles)
+- [Backup](#backup)
 - [Sites](#sites)
 - [Subscribers](#subscribers)
 - [Browser push delivery](#browser-push-delivery)
@@ -32,9 +33,11 @@ Three services, one Postgres database, one Redis instance:
 ```
 apps/dashboard    Next.js 15 dashboard (port 3000) — admin UI
 services/api      NestJS API (port 3001) — REST API, auth, scheduling
-services/worker    BullMQ worker (no HTTP port) — actually sends pushes
-packages/*        Shared TypeScript types/utilities used by the above
+services/worker   BullMQ worker (no HTTP port) — actually sends pushes
+integrations/*    WordPress plugin, Magento module, Node.js/Laravel starter packages
 ```
+
+(There used to be a `packages/*` workspace for shared types/utilities — removed, it had zero real imports across the three services.)
 
 - **API and dashboard never send push notifications directly.** Every send goes through a BullMQ queue (`browser-push-dispatch`) so delivery is retried, rate-limited, and survives API restarts.
 - **The worker is the only process with web-push credentials in memory at send time.** It pulls jobs off the queue, fetches the site's VAPID keys, and calls the `web-push` library directly.
@@ -112,11 +115,11 @@ JWT-based, with refresh token rotation and Google sign-in support.
 - `POST /api/auth/login` → `{ accessToken (15min), refreshToken (30 days) }`. Refresh tokens are stored hashed (SHA-256) in `refresh_tokens`, rotated on every refresh.
 - `POST /api/auth/google` → accepts a Google ID token, verifies it against Google's tokeninfo endpoint, links the Google subject to the existing Exotic user record, and issues the same JWT pair.
 - `POST /api/auth/refresh` → issues a new pair, revokes the old refresh token.
-- Roles, most to least privileged: `super-admin > admin > sub-admin > customer-service`. Legacy `editor` and `analyst` slugs remain accepted as aliases so existing user records do not break during rollout. Enforced via `@Roles(...)` + `RolesGuard` on each controller/route.
-- Access control management lives at `GET /api/access-control/roles`, `GET /api/access-control/users`, `POST /api/access-control/users`, `PATCH /api/access-control/users/:id/role`, and `PATCH /api/access-control/roles/:slug`.
-- Role permissions are stored on the `roles` table as JSONB and audited when updated.
-- The dashboard `/access-control` page now handles user creation with first name, last name, email, role, and auto-generated username. Passwords are generated server-side for compatibility and are not part of the dashboard form.
-- All auth events (`auth.login.success`, `auth.login.failure`, `auth.google.login.success`, `auth.google.login.failure`, `auth.token.refreshed`) are written to `audit_logs`.
+- Roles, most to least privileged: `super-admin > admin > sub-admin > customer-service`. Legacy `editor`/`analyst` slugs (the original names for `sub-admin`/`customer-service`) are still accepted everywhere via `canonicalRoleSlug()` so existing user records and any external references don't break. Enforced via `@Roles(...)` + `RolesGuard` on each controller/route.
+- Each role's permission set lives on `roles.permissions` (JSONB) — 14 possible slugs (`users:manage`, `roles:manage`, `automations:manage`, `sites:manage`, `sites:settings`, `analytics:view`, `subscribers:view`, `campaigns:manage`, `campaigns:assigned`, `campaign-taxonomies:manage`, `segments:manage`, `audit-logs:view`, `system-health:view`, `backups:manage`). Only `super-admin` can edit another role's permissions or rename a role (`PATCH /api/access-control/roles/:slug`); `admin` and above can manage users.
+- Access control API: `GET /api/access-control/roles`, `GET /api/access-control/users`, `POST /api/access-control/users` (first/last name, email, role — no password field), `PATCH /api/access-control/users/:id/role`, `PATCH /api/access-control/roles/:slug` (name/permissions).
+- New users get an auto-generated, collision-checked username (lowercased first name, numeric suffix or timestamp if taken) and a random 24-byte password hash — nobody, including the creating admin, ever sees a plaintext password. The dashboard's `/access-control` page makes this explicit ("the system generates the username and a password behind the scenes") since Google sign-in is the intended path for these accounts.
+- All auth and access-control events (`auth.login.success/failure`, `auth.google.login.success/failure`, `auth.token.refreshed`, `access_control.user_created`, `access_control.user_role_updated`, `access_control.role_updated`) are written to `audit_logs`.
 - Passwords hashed with Argon2.
 - A custom Redis-backed rate limiter (`services/api/src/rate-limit/`) guards every route — default 120 req/min per IP, overridden per-route with `@RateLimit({ limit, ttl })` (login: 10/min, refresh: 30/min).
 
@@ -124,8 +127,17 @@ The dashboard stores the access/refresh tokens in HTTP-only cookies (`epe_access
 
 Google sign-in is the only supported SSO provider in the dashboard login UI. It uses the Google Identity Services button and only links to pre-provisioned Exotic user accounts whose email is already present in the system.
 
-The dashboard includes `/audit-logs` for reviewing authenticated actions, linked actor identity, target information, and metadata payloads.
-Backup operations live at `/platform/backup-config`, where admins can connect Dropbox or Google Drive, toggle automatic backups, inspect recent runs, and copy the recovery command for a manual restore.
+The dashboard includes `/audit-logs` (super-admin/admin only, rate-limited 60/min) for reviewing every audited action above plus site, campaign, segment, taxonomy, automation, and backup events — actor identity, target, and a metadata JSON blob per row.
+
+## Backup
+
+Full-system backups to a connected cloud provider, managed at `/platform/backup-config`.
+
+- Providers: **Dropbox** and **Google Drive**, connected via OAuth (`GET /api/backup/:provider/authorize-url` → `POST /api/backup/:provider/exchange`). Refresh tokens are encrypted at rest (`BACKUP_TOKEN_ENCRYPTION_KEY`).
+- A backup archive is a single `tar.gz` containing a real `pg_dump --format=custom` of the whole database plus every campaign media file — everything needed to restore or migrate the system, deliberately excluding `.env`/secrets.
+- Scheduling is a `@Cron(EVERY_HOUR)` check (`BackupSchedulerService`) against each connection's `auto_backup_enabled`/`frequency` (daily/weekly/monthly)/`next_backup_due_at` — or trigger one immediately with `POST /api/backup/:provider/run` (runs in the background, returns right away).
+- **Restore is manual, by design** — there's no one-click restore endpoint. The dashboard's restore toolkit card pre-fills the exact `pg_restore` command for the latest successful run with a copy button; campaign media is restored by extracting the archive's `media/` directory.
+- `GET /api/backup` (provider connection status) and `GET /api/backup/runs` (history: status, trigger, file name/size, error message) back the dashboard's summary cards and run history table.
 
 ## Sites
 
@@ -260,11 +272,12 @@ Campaign content labels are managed centrally instead of being hard-coded in the
 
 ## Workflow automation
 
-Phase 6 now includes a workflow console in the dashboard, RSS feed management, manual workflow event recording, and subscriber tag automation.
+Two related but distinct dashboard pages: **Automations** (`/automations`) manages the rule *definitions*; **Workflow** (`/workflow`) is the RSS feed manager and live event log for the engine that runs them.
 
-- `POST /api/workflow/events` and `GET /api/workflow/events` record and inspect workflow events.
-- `POST /api/workflow/rss-feeds`, `GET /api/workflow/rss-feeds`, `PATCH /api/workflow/rss-feeds/:id`, `DELETE /api/workflow/rss-feeds/:id`, and `POST /api/workflow/rss-feeds/:id/poll` manage RSS automation.
-- The dashboard `/workflow` page exposes feed controls, execution visibility, and event logging.
+- An automation (`GET/POST/PATCH/DELETE /api/automations(/:id)`) is `{ siteId, triggerEvent, status: active|paused, actions }`. Trigger events: `subscriber_registered | page_visit | click | api_event | rss_item_published`. Actions: `send_notification` (title/message/url/image/icon/buttons), `add_tag`/`remove_tag`, or `webhook` (url/method/payload).
+- `POST /api/workflow/events` records a trigger event (site, trigger, optional subscriber/campaign, payload) and synchronously executes every matching active automation for that site, marking the event `pending → completed`/`failed`. `GET /api/workflow/events` inspects the log. `subscriber_registered` fires automatically from real subscriber registration; `page_visit`/`api_event` are reported via the public `/workflow/track` endpoint (browser SDK, server-to-server); `click` fires from real push-click tracking.
+- RSS: `POST/GET/PATCH/DELETE /api/workflow/rss-feeds(/:id)` plus `POST /api/workflow/rss-feeds/:id/poll` for an on-demand check. A `@Cron("*/15 * * * *")` job polls every active feed automatically, parses RSS/Atom, and fires `rss_item_published` the first time a new item's GUID is seen.
+- The dashboard's `/workflow` page shows feed controls, a hero with feed/completed/pending/failed counts, and a recent-events feed; `/automations` shows summary cards (sites/rules/active rules) and the rule library itself.
 
 ## Analytics
 
@@ -303,7 +316,7 @@ Until that redirect URI is registered and the env var is set, the export menu st
 
 ## Dashboard
 
-Next.js 15 App Router. Pages: `/` (overview), `/analytics`, `/sites`, `/sites/new`, `/sites/:id`, `/sites/:id/edit`, `/campaigns`, `/campaigns/new`, `/campaigns/:id`, `/campaign-taxonomies`, `/subscribers`, `/subscribers/:id`, `/segments`, `/automations`, `/workflow`, `/audit-logs`, `/platform-health`, `/platform/backup-config`, `/login`.
+Next.js 15 App Router. Pages: `/` (overview), `/analytics`, `/sites`, `/sites/new`, `/sites/:id`, `/sites/:id/edit`, `/campaigns`, `/campaigns/new`, `/campaigns/:id`, `/campaign-taxonomies`, `/subscribers`, `/subscribers/:id`, `/segments`, `/automations`, `/workflow`, `/audit-logs`, `/platform-health`, `/platform/backup-config`, `/access-control`, `/login`.
 
 - **Auth:** `middleware.ts` gates every route except `/login` and `/api/dashboard/auth/*` on the presence of the `epe_access_token` cookie.
 - **Data fetching:** server components call the real NestJS API directly via `lib/server-api.ts`'s `apiFetch`/`apiJson`, which attach the Bearer token from the cookie automatically.
@@ -321,6 +334,8 @@ Next.js 15 App Router. Pages: `/` (overview), `/analytics`, `/sites`, `/sites/ne
 - Once a browser is subscribed, the SDK shows a bottom-left bell launcher with recent notifications and an unsubscribe action. The tray count is controlled per site in EPE.
 - The SDK handles the full subscribe flow: register the service worker → request notification permission → `PushManager.subscribe()` with the site's VAPID key → POST the resulting subscription to `/api/subscribers/register`.
 - Site Settings → Integrations → REST API provides per-site API key and auth token credentials for CRM-managed push and scheduling use cases. The auth token is shown only once when generated.
+- An `epe_push_engine_csp_nonce` filter lets a host site inject its CSP nonce into both the inline config script and the SDK `<script>` tag, for sites running a strict Content-Security-Policy.
+- The SDK fires a `page_visit` workflow trigger on every page load via the public `/workflow/track` endpoint (see [Workflow automation](#workflow-automation)).
 
 To onboard a new WordPress site: create the site in EPE, set the branding and VAPID details in the site record, install the plugin, then paste the API URL + Site Key into the plugin settings.
 
@@ -355,5 +370,6 @@ Each service uses Node's built-in test runner (`node --import tsx --test`), not 
 
 ## Known gaps
 
-- **Magento has a scaffold; Node.js and Laravel integrations are starter packages** (`integrations/node`, `integrations/laravel`) that generate the bootstrap snippet/service worker/manifest — neither is a drop-in plugin the way WordPress and Magento are.
 - **No automated PM2 boot-persistence test** — `pm2 save` + `pm2 startup` are documented in the runbook but haven't been tested through an actual server reboot, since that requires the real VPS.
+- **Mobile push device management is aggregate-only in the dashboard** — the Mobile Push panel shows device counts by platform/status, not a per-device list/drill-down. Acceptable for now; expand if a per-device view is ever needed.
+- **Access control is built but Google sign-in is the intended primary path** — staff accounts created via `/access-control` get a random, never-revealed password (Argon2-hashed); there's no "set/reset password" flow because the design assumes Google SSO for day-to-day sign-in. If a non-Google account ever needs password auth, that flow doesn't exist yet.
