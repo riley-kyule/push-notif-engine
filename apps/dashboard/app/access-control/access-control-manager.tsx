@@ -41,6 +41,26 @@ function extractErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+export function validateNewUserInput(firstName: string, lastName: string, email: string, roleSlug: string): string | null {
+  if (firstName.trim().length < 2) {
+    return "First name is required.";
+  }
+
+  if (lastName.trim().length < 2) {
+    return "Last name is required.";
+  }
+
+  if (!email.trim()) {
+    return "Email is required.";
+  }
+
+  if (!roleSlug.trim()) {
+    return "Role is required.";
+  }
+
+  return null;
+}
+
 function prettyRole(role: string): string {
   return role
     .split("-")
@@ -116,6 +136,12 @@ export function AccessControlManager({ initialRoles, initialUsers }: Props) {
     event.preventDefault();
     setStatus(null);
     setRevealedCredential(null);
+
+    const validationError = validateNewUserInput(firstName, lastName, email, roleSlug);
+    if (validationError) {
+      setStatus(validationError);
+      return;
+    }
 
     try {
       const result = await postJson<{ success: true; data: AccessControlUserWithPassword }>("/api/dashboard/access-control", {
@@ -295,7 +321,7 @@ export function AccessControlManager({ initialRoles, initialUsers }: Props) {
             <span className="badge neutral">Password sign-in</span>
           </div>
 
-          <form className="access-control-form" onSubmit={handleCreateUser}>
+          <form className="access-control-form" onSubmit={handleCreateUser} noValidate>
             <div className="access-control-form-grid">
               <label className="field">
                 <span>First name</span>

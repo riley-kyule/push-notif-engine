@@ -77,6 +77,30 @@ export function buildSiteRequestBody(values: SiteFormValues): Record<string, unk
   };
 }
 
+export function validateSiteForm(values: SiteFormValues): string | null {
+  if (values.name.trim().length < 2) {
+    return "Site name must be at least 2 characters.";
+  }
+
+  if (!values.url.trim()) {
+    return "Site URL is required.";
+  }
+
+  if (values.country.trim().length < 2) {
+    return "Country is required.";
+  }
+
+  if (values.language.trim().length < 2) {
+    return "Language is required.";
+  }
+
+  if (!values.platform.trim()) {
+    return "Platform is required.";
+  }
+
+  return null;
+}
+
 function PromptPreview({ values }: { values: SiteFormValues }) {
   const isBell = values.optInPromptType === "bell-icon";
   const isLightboxTwo = values.optInPromptType === "lightbox-2";
@@ -220,6 +244,12 @@ export function SiteEditor({
     event.preventDefault();
     setError(null);
 
+    const validationError = validateSiteForm(values);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
     startTransition(() => {
       void submitSite(mode, siteId ?? null, values)
         .then(() => {
@@ -233,7 +263,7 @@ export function SiteEditor({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="grid" style={{ gap: 16 }}>
+    <form onSubmit={handleSubmit} noValidate className="grid" style={{ gap: 16 }}>
       <div className="field">
         <label htmlFor="name">Site name</label>
         <input id="name" className="input" value={values.name} onChange={(e) => updateField("name", e.target.value)} />
