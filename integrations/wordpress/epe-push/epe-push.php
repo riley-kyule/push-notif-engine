@@ -2,8 +2,8 @@
 /**
  * Plugin Name: Exotic Push Engine
  * Description: Browser push integration for Exotic WordPress sites.
- * Version: 0.1.0
- * Author: Exotic Online Advertising
+ * Version: 1.0.1
+ * Author: Riley Kyule
  * Text Domain: exotic-push-engine
  */
 
@@ -82,7 +82,7 @@ final class Exotic_Push_Engine_Plugin {
         $config = self::get_site_config();
         $script_url = plugins_url('assets/epe-sdk.js', __FILE__);
 
-        wp_register_script('exotic-push-engine-sdk', $script_url, [], '0.1.0', true);
+        wp_register_script('exotic-push-engine-sdk', $script_url, [], '1.0.1', true);
         wp_enqueue_script('exotic-push-engine-sdk');
 
         wp_add_inline_script(
