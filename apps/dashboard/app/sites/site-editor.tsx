@@ -4,6 +4,8 @@ import type { FormEvent } from "react";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
+import { uploadMedia } from "../../lib/upload-media";
+
 type SiteEditorMode = "create" | "edit";
 
 interface SiteFormValues {
@@ -235,9 +237,47 @@ export function SiteEditor({
   const [values, setValues] = useState<SiteFormValues>(initialValues);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isUploadingIcon, setIsUploadingIcon] = useState(false);
+  const [isUploadingPromptIcon, setIsUploadingPromptIcon] = useState(false);
 
   function updateField<K extends keyof SiteFormValues>(key: K, value: SiteFormValues[K]) {
     setValues((current) => ({ ...current, [key]: value }));
+  }
+
+  // Uploads need a real site id to attach the asset to, so this is only
+  // available once a site exists -- i.e. in edit mode, not while creating one.
+  async function handleIconUpload(file: File | null) {
+    if (!file || !siteId) {
+      return;
+    }
+
+    setIsUploadingIcon(true);
+    setError(null);
+    try {
+      const asset = await uploadMedia(siteId, "icon", file);
+      updateField("iconUrl", asset.publicUrl);
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Unable to upload icon");
+    } finally {
+      setIsUploadingIcon(false);
+    }
+  }
+
+  async function handlePromptIconUpload(file: File | null) {
+    if (!file || !siteId) {
+      return;
+    }
+
+    setIsUploadingPromptIcon(true);
+    setError(null);
+    try {
+      const asset = await uploadMedia(siteId, "icon", file);
+      updateField("optInPromptIconUrl", asset.publicUrl);
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Unable to upload icon");
+    } finally {
+      setIsUploadingPromptIcon(false);
+    }
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -331,6 +371,16 @@ export function SiteEditor({
             onChange={(e) => updateField("iconUrl", e.target.value)}
             placeholder="https://example.com/icon.png"
           />
+          {siteId ? (
+            <label className="upload-field">
+              <span className="upload-field-button">{isUploadingIcon ? "Uploading..." : "Upload icon"}</span>
+              <input type="file" accept="image/*" onChange={(e) => void handleIconUpload(e.target.files?.[0] ?? null)} />
+            </label>
+          ) : (
+            <p className="subtle" style={{ marginTop: 8 }}>
+              Save the site first to upload an icon instead of pasting a URL.
+            </p>
+          )}
         </div>
         <div className="field">
           <label htmlFor="themeColor">Theme color</label>
@@ -436,6 +486,16 @@ export function SiteEditor({
                 onChange={(e) => updateField("optInPromptIconUrl", e.target.value)}
                 placeholder="https://example.com/prompt-icon.png"
               />
+              {siteId ? (
+                <label className="upload-field">
+                  <span className="upload-field-button">{isUploadingPromptIcon ? "Uploading..." : "Upload icon"}</span>
+                  <input type="file" accept="image/*" onChange={(e) => void handlePromptIconUpload(e.target.files?.[0] ?? null)} />
+                </label>
+              ) : (
+                <p className="subtle" style={{ marginTop: 8 }}>
+                  Save the site first to upload an icon instead of pasting a URL.
+                </p>
+              )}
             </div>
           </div>
 

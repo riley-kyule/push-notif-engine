@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { buildUrl, parseDateTime } from "./campaign-builder.utils";
+import { uploadMedia } from "../../../lib/upload-media";
 import type { CampaignTaxonomyChoice } from "../../_data/campaign-taxonomies";
 import type { SegmentChoice } from "../../_data/segments";
 import type { SiteChoice } from "../../_data/sites";
@@ -32,29 +33,6 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   }
 
   return (await response.json()) as T;
-}
-
-async function uploadMedia(siteId: string, kind: "image" | "icon", file: File): Promise<{ id: string; publicUrl: string }> {
-  const formData = new FormData();
-  formData.set("siteId", siteId);
-  formData.set("kind", kind);
-  formData.set("file", file);
-
-  const response = await fetch(buildUrl("/api/dashboard", "/campaign-media"), {
-    method: "POST",
-    body: formData,
-  });
-
-  if (!response.ok) {
-    throw new Error(`Upload failed with status ${response.status}`);
-  }
-
-  const payload = (await response.json()) as { success?: boolean; data?: { id: string; publicUrl: string } };
-  if (!payload.success || !payload.data) {
-    throw new Error("Upload failed");
-  }
-
-  return payload.data;
 }
 
 export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBuilderFormProps) {
