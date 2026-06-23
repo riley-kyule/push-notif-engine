@@ -9,10 +9,12 @@ export interface RedisConfig {
 export interface BrowserPushConfig {
   ackBaseUrl: string;
   sendConcurrency: number;
+  queueConcurrency: number;
 }
 
 export interface MobilePushConfig {
   sendConcurrency: number;
+  queueConcurrency: number;
 }
 
 function readConcurrencyEnv(name: string, fallback: number): number {
@@ -53,11 +55,17 @@ export function loadBrowserPushConfig(): BrowserPushConfig {
     // for a single small VPS (bounded by ulimit -n and the DB pool); raise it if the
     // host has the file-descriptor headroom and the push relays aren't throttling you.
     sendConcurrency: readConcurrencyEnv("BROWSER_PUSH_SEND_CONCURRENCY", 200),
+    // How many *jobs* (campaigns/one-off dispatches) this BullMQ Worker pulls and
+    // processes at once — distinct from sendConcurrency above, which is the fanout
+    // *within* a single job. BullMQ defaults this to 1 (jobs processed one at a
+    // time) if left unset; we set it explicitly so it's a real, tunable decision.
+    queueConcurrency: readConcurrencyEnv("BROWSER_PUSH_QUEUE_CONCURRENCY", 5),
   };
 }
 
 export function loadMobilePushConfig(): MobilePushConfig {
   return {
     sendConcurrency: readConcurrencyEnv("MOBILE_PUSH_SEND_CONCURRENCY", 200),
+    queueConcurrency: readConcurrencyEnv("MOBILE_PUSH_QUEUE_CONCURRENCY", 5),
   };
 }
