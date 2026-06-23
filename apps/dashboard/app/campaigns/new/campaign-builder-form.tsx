@@ -298,7 +298,7 @@ export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBui
 
         <div className="field">
           <label htmlFor="title">Title</label>
-          <input className="input" id="title" placeholder="e.g. Big Safari Sale" value={title} onChange={(event) => setTitle(event.target.value)} />
+          <input className="input" id="title" placeholder="e.g. Weekend Sale" value={title} onChange={(event) => setTitle(event.target.value)} />
         </div>
 
         <div className="field">

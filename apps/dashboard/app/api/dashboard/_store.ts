@@ -103,7 +103,7 @@ function seedCampaigns(): Map<string, DashboardCampaignRecord> {
     const detail = campaignDetails[item.id];
     records.set(item.id, {
       id: item.id,
-      siteId: item.site === "all sites" ? "site-3" : item.site === "exotic-africa.com" ? "site-1" : "site-2",
+      siteId: item.site === "all sites" ? "site-3" : item.site === "example.com" ? "site-1" : "site-2",
       name: item.name,
       channel: "web",
       type: item.type,
@@ -116,7 +116,7 @@ function seedCampaigns(): Map<string, DashboardCampaignRecord> {
       expirationAt: null,
       status: item.status,
       scheduledAt: item.scheduledAt === "Draft" ? null : now,
-      timezone: "Africa/Nairobi",
+      timezone: "UTC",
       recurrenceType: item.type === "recurring" ? "weekly" : null,
       recurrenceInterval: item.type === "recurring" ? 1 : null,
       recurrenceUntilAt: null,
@@ -137,8 +137,8 @@ const state: {
   sites: fallbackSiteChoices.map((site, index) => ({
     ...site,
     platform: index === 0 ? "WordPress" : index === 1 ? "Laravel" : "Other",
-    subscribers: index === 0 ? 2418400 : index === 1 ? 1184200 : 4200000,
-    vapidPublicKey: index === 0 ? "BExoticKey1" : index === 1 ? "BExoticKey2" : "BExoticKey3",
+    subscribers: 0,
+    vapidPublicKey: index === 0 ? "BFallbackKey1" : index === 1 ? "BFallbackKey2" : "BFallbackKey3",
     appName: site.appName,
     iconUrl: site.iconUrl,
     themeColor: site.themeColor,
@@ -173,7 +173,7 @@ function toSummary(record: DashboardCampaignRecord) {
     type: record.type,
     status: record.status,
     sent: record.sentAt ? "Sent" : "0",
-    ctr: record.status === "sent" ? "7.8%" : "0%",
+    ctr: "0%",
     scheduledAt:
       record.status === "draft"
         ? "Draft"
@@ -196,10 +196,10 @@ function toDetail(record: DashboardCampaignRecord) {
     iconLabel: record.iconUrl ? "Brand icon" : "Icon not set",
     buttons: record.buttons,
     metrics: {
-      sent: record.sentAt ? "184,311" : "0",
-      delivered: record.sentAt ? "181,990" : "0",
-      clicks: record.sentAt ? "14,187" : "0",
-      ctr: record.sentAt ? "7.8%" : "0%",
+      sent: "0",
+      delivered: "0",
+      clicks: "0",
+      ctr: "0%",
     },
     timeline: [
       { label: "Created", value: new Date(record.createdAt).toLocaleString(), tone: "neutral" as const },
