@@ -4,12 +4,21 @@ export function getApiBase(): string {
   return process.env.DASHBOARD_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:3001/api";
 }
 
-export async function getAuthToken(): Promise<string | undefined> {
-  const cookieStore = await cookies();
-  return cookieStore.get("epe_access_token")?.value;
+export function getApiTimeoutMs(): number {
+  const parsed = Number.parseInt(process.env.DASHBOARD_API_TIMEOUT_MS ?? "5000", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 5000;
 }
 
-export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+export async function getAuthToken(): Promise<string | undefined> {
+  try {
+    const cookieStore = await cookies();
+    return cookieStore.get("epe_access_token")?.value;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function apiFetch(path: string, init: RequestInit = {}, fetchImpl: typeof fetch = fetch): Promise<Response> {
   const token = await getAuthToken();
   const headers: Record<string, string> = {
     accept: "application/json",
@@ -20,16 +29,41 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
     headers["authorization"] = `Bearer ${token}`;
   }
 
-  return fetch(`${getApiBase()}${path}`, {
-    ...init,
-    cache: "no-store",
-    headers,
-  });
+  const controller = new AbortController();
+  const timeoutMs = getApiTimeoutMs();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  if (init.signal) {
+    if (init.signal.aborted) {
+      controller.abort();
+    } else {
+      const abortFromParent = () => controller.abort();
+      init.signal.addEventListener("abort", abortFromParent, { once: true });
+      controller.signal.addEventListener(
+        "abort",
+        () => {
+          init.signal?.removeEventListener("abort", abortFromParent);
+        },
+        { once: true },
+      );
+    }
+  }
+
+  try {
+    return await fetchImpl(`${getApiBase()}${path}`, {
+      ...init,
+      cache: "no-store",
+      headers,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
-export async function apiJson<T>(path: string, init?: RequestInit): Promise<T | null> {
+export async function apiJson<T>(path: string, init?: RequestInit, fetchImpl: typeof fetch = fetch): Promise<T | null> {
   try {
-    const res = await apiFetch(path, init);
+    const res = await apiFetch(path, init, fetchImpl);
     if (!res.ok) {
       return null;
     }

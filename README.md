@@ -380,6 +380,7 @@ When starting the stack manually, do not reuse a shell where `services/api/.env`
 
 - [VM setup checklist](./VM_SETUP.md) — Proxmox VM sizing, Ubuntu bootstrap commands, package install order, environment file layout, PM2 startup, and Nginx reverse proxy wiring.
 - [Proxmox remote access guide](./PROXMOX.md) — VPN-first access model plus the hardened port-forwarding fallback.
+- [VM update + Cloudflare Tunnel runbook](./docs/vm-cloudflare-tunnel.md) — safe git update flow on the VM, PM2 restart helper usage, dashboard/API timeout behavior, and public access through `push.exotic-online.com`.
 
 ## Testing
 
