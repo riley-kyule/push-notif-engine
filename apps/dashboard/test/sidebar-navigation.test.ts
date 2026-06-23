@@ -17,6 +17,7 @@ test("dashboard sidebar stays pruned to real, navigable destinations with plain-
   assert.ok(itemLabels.includes("Audience Groups"));
   assert.ok(itemLabels.includes("Automations"));
   assert.ok(itemLabels.includes("Activity Log"));
+  assert.ok(itemLabels.includes("Users & Roles"));
   assert.ok(itemLabels.includes("System Health"));
   assert.ok(itemLabels.includes("Backups"));
 

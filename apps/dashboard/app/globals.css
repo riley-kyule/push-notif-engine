@@ -1128,6 +1128,235 @@ a.nav-item[aria-current="page"] {
   padding-top: 2px;
 }
 
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.chip--muted {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+.access-control-workspace {
+  display: grid;
+  gap: 14px;
+}
+
+.access-control-intro {
+  display: grid;
+  gap: 10px;
+  background:
+    radial-gradient(circle at top right, rgba(234, 88, 12, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 248, 244, 0.94));
+  border: 1px solid rgba(234, 88, 12, 0.12);
+}
+
+.access-control-role-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.access-control-card {
+  display: grid;
+  gap: 12px;
+}
+
+.access-control-credential-reveal {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(22, 163, 74, 0.28);
+  background: linear-gradient(180deg, rgba(240, 253, 244, 0.9), rgba(255, 255, 255, 0.95));
+}
+
+.access-control-credential-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.access-control-credential-grid > div {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface-raised);
+  min-width: 0;
+}
+
+.access-control-credential-grid .mono {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.access-control-form {
+  display: grid;
+  gap: 12px;
+}
+
+.access-control-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.field span {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.access-control-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.access-control-role-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.access-control-role-tab {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 12px 14px;
+  text-align: left;
+  display: grid;
+  gap: 4px;
+  color: var(--text-primary);
+}
+
+.access-control-role-tab strong {
+  font-size: 14px;
+}
+
+.access-control-role-tab span {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.access-control-role-tab.is-active {
+  border-color: rgba(234, 88, 12, 0.35);
+  background: linear-gradient(180deg, rgba(234, 88, 12, 0.08), rgba(255, 255, 255, 0.95));
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.05);
+}
+
+.access-control-role-editor {
+  display: grid;
+  gap: 12px;
+}
+
+.access-control-role-editor-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.access-control-role-editor-head h3 {
+  margin: 4px 0 0;
+}
+
+.access-control-permission-groups {
+  display: grid;
+  gap: 10px;
+}
+
+.access-control-permission-group {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 251, 248, 0.92));
+}
+
+.access-control-permission-group-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.access-control-permission-list {
+  display: grid;
+  gap: 10px;
+}
+
+.access-control-permission-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  background: var(--surface);
+}
+
+.access-control-permission-item:hover {
+  border-color: rgba(234, 88, 12, 0.16);
+}
+
+.access-control-permission-item input {
+  margin-top: 2px;
+}
+
+.access-control-permission-item strong {
+  display: block;
+  font-size: 14px;
+}
+
+.access-control-permission-item small {
+  display: block;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.access-control-table {
+  min-width: 980px;
+}
+
+.access-control-table tbody tr:hover {
+  background: rgba(234, 88, 12, 0.03);
+}
+
+.access-control-inline select {
+  min-width: 170px;
+}
+
+.access-control-status {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--success-bg);
+  color: var(--success);
+  border: 1px solid rgba(22, 163, 74, 0.12);
+}
+
 .platform-health-hero {
   align-items: stretch;
 }
@@ -2504,6 +2733,12 @@ a.nav-item[aria-current="page"] {
 
 @media (max-width: 768px) {
   .dashboard-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .access-control-form-grid,
+  .access-control-role-tabs,
+  .access-control-credential-grid {
     grid-template-columns: 1fr;
   }
 

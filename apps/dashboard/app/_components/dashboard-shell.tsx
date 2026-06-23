@@ -33,6 +33,7 @@ export const dashboardNavigationSections: DashboardNavSection[] = [
   {
     label: "System",
     items: [
+      { href: "/access-control", label: "Users & Roles", description: "Manage who can access what", icon: "auth" },
       { href: "/audit-logs", label: "Activity Log", description: "See who did what, and when", icon: "platform" },
       { href: "/platform-health", label: "System Health", description: "Check that everything is running smoothly", icon: "health" },
       { href: "/platform/backup-config", label: "Backups", description: "Manage automatic backups of your data", icon: "platform" },
