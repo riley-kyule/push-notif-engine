@@ -25,7 +25,6 @@ export default function NewSitePage() {
             language: "en",
             platform: "WordPress",
             status: "active",
-            subscribers: 0,
             vapidPublicKey: "",
             appName: "",
             iconUrl: "",

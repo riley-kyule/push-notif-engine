@@ -35,7 +35,6 @@ export default async function EditSitePage({ params }: { params: Promise<{ id: s
             language: site.language,
             platform: site.platform,
             status: site.status,
-            subscribers: site.subscribers,
             vapidPublicKey: site.vapidPublicKey ?? "",
             appName: site.appName,
             iconUrl: site.iconUrl,

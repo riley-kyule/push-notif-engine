@@ -13,7 +13,6 @@ interface SiteFormValues {
   language: string;
   platform: string;
   status: "active" | "inactive";
-  subscribers: number;
   vapidPublicKey: string;
   appName: string;
   iconUrl: string;
@@ -157,7 +156,6 @@ async function submitSite(mode: SiteEditorMode, id: string | null, values: SiteF
     },
     body: JSON.stringify({
       ...values,
-      subscribers: Number(values.subscribers),
       vapidPublicKey: values.vapidPublicKey.trim() ? values.vapidPublicKey.trim() : null,
     }),
   });
@@ -231,7 +229,7 @@ export function SiteEditor({
           </select>
         </div>
       </div>
-      <div className="grid cards-3">
+      <div className="grid cards-2">
         <div className="field">
           <label htmlFor="platform">Platform</label>
           <select id="platform" className="select" value={values.platform} onChange={(e) => updateField("platform", e.target.value)}>
@@ -241,17 +239,6 @@ export function SiteEditor({
               </option>
             ))}
           </select>
-        </div>
-        <div className="field">
-          <label htmlFor="subscribers">Subscribers</label>
-          <input
-            id="subscribers"
-            className="input"
-            type="number"
-            min={0}
-            value={values.subscribers}
-            onChange={(e) => updateField("subscribers", Number(e.target.value))}
-          />
         </div>
         <div className="field">
           <label htmlFor="vapidPublicKey">VAPID public key</label>
