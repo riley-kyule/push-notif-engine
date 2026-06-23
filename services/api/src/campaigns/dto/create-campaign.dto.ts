@@ -1,5 +1,11 @@
 import { IsArray, IsIn, IsInt, IsOptional, IsString, IsUUID, IsUrl, Min, MinLength, ValidateNested } from "class-validator";
-import { Type } from "class-transformer";
+import { Transform, Type } from "class-transformer";
+
+// @IsOptional() only skips validation for null/undefined, not "" -- without
+// this, an empty string from an unfilled optional URL field still hits
+// @IsUrl() and fails, which is exactly what broke campaign creation whenever
+// the image/icon fields were left blank.
+const emptyStringToNull = Transform(({ value }) => (typeof value === "string" && value.trim() === "" ? null : value));
 
 const CAMPAIGN_TYPES = ["instant", "scheduled", "recurring"] as const;
 const CAMPAIGN_CHANNELS = ["web", "mobile", "all"] as const;
@@ -49,6 +55,7 @@ export class CreateCampaignDto {
   url!: string;
 
   @IsOptional()
+  @emptyStringToNull
   @IsUrl({ require_tld: false })
   imageUrl?: string | null;
 
@@ -57,6 +64,7 @@ export class CreateCampaignDto {
   imageAssetId?: string | null;
 
   @IsOptional()
+  @emptyStringToNull
   @IsUrl({ require_tld: false })
   iconUrl?: string | null;
 

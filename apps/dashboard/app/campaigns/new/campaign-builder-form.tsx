@@ -18,6 +18,26 @@ interface CampaignBuilderFormProps {
   taxonomies: CampaignTaxonomyChoice[];
 }
 
+function extractErrorMessage(payload: unknown, fallback: string): string {
+  if (!payload || typeof payload !== "object") {
+    return fallback;
+  }
+
+  // class-validator's default NestJS error shape is { message: string[] | string },
+  // forwarded as-is by the BFF route -- surface it instead of a bare status code.
+  const message = (payload as { message?: unknown; error?: { message?: unknown } }).message
+    ?? (payload as { error?: { message?: unknown } }).error?.message;
+
+  if (Array.isArray(message) && message.length > 0) {
+    return message.join(", ");
+  }
+  if (typeof message === "string" && message.trim().length > 0) {
+    return message;
+  }
+
+  return fallback;
+}
+
 async function postJson<T>(url: string, body: unknown): Promise<T> {
   const response = await fetch(url, {
     method: "POST",
@@ -28,11 +48,13 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
 
+  const payload = await response.json().catch(() => null);
+
   if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}`);
+    throw new Error(extractErrorMessage(payload, `Request failed with status ${response.status}`));
   }
 
-  return (await response.json()) as T;
+  return payload as T;
 }
 
 export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBuilderFormProps) {
@@ -139,8 +161,11 @@ export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBui
     title,
     message,
     url: destination,
-    imageUrl,
-    iconUrl,
+    // class-validator's @IsOptional() only skips empty/null/undefined values --
+    // an empty string still hits @IsUrl() and fails validation, so these must
+    // become null rather than "" when nothing was uploaded or pasted.
+    imageUrl: imageUrl.trim() ? imageUrl.trim() : null,
+    iconUrl: iconUrl.trim() ? iconUrl.trim() : null,
     imageAssetId,
     iconAssetId,
     buttons: showButtons ? previewButtons : [],
@@ -153,7 +178,33 @@ export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBui
     recurrenceUntilAt: type === "recurring" ? parseDateTime(schedule) : null,
   };
 
+  function validateCampaignForm(): string | null {
+    if (name.trim().length < 1) {
+      return "Campaign name is required.";
+    }
+    if (title.trim().length < 2) {
+      return "Notification title is required.";
+    }
+    if (message.trim().length < 2) {
+      return "Notification message is required.";
+    }
+    if (!destination.trim()) {
+      return "Destination URL is required.";
+    }
+    if (showButtons && (!primaryButtonUrl.trim() || !secondaryButtonUrl.trim())) {
+      return "Both action button URLs are required when action buttons are enabled.";
+    }
+
+    return null;
+  }
+
   async function saveDraft() {
+    const validationError = validateCampaignForm();
+    if (validationError) {
+      setStatusMessage(validationError);
+      return;
+    }
+
     setIsSavingDraft(true);
     setStatusMessage(null);
 
@@ -178,6 +229,12 @@ export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBui
   }
 
   async function scheduleCampaign() {
+    const validationError = validateCampaignForm();
+    if (validationError) {
+      setStatusMessage(validationError);
+      return;
+    }
+
     setIsScheduling(true);
     setStatusMessage(null);
 
