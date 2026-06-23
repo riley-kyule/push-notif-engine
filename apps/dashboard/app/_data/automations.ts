@@ -35,7 +35,7 @@ const fallbackAutomations: AutomationSummary[] = [
     triggerEvent: "subscriber_registered",
     status: "active",
     actionCount: 2,
-    title: "Welcome to Exotic",
+    title: "Welcome",
     message: "Thanks for subscribing.",
     url: "https://example.com/welcome",
     createdAt: "2026-06-20T08:00:00.000Z",

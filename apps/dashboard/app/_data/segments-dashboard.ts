@@ -28,8 +28,8 @@ const fallbackSegments: SegmentSummary[] = [
   {
     id: "segment-1",
     siteId: "site-1",
-    name: "Mobile South Africa",
-    description: "Mobile subscribers in South Africa",
+    name: "Mobile subscribers",
+    description: "Subscribers on a mobile device",
     status: "active",
     matchMode: "all",
     ruleCount: 2,

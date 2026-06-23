@@ -196,14 +196,14 @@ const demoHealth: PlatformHealthSummary = {
   ],
   siteHealth: {
     highestDelivery: [
-      { siteId: "site-1", siteName: "Exotic Africa", deliveryRate: 98.4, clickThroughRate: 7.1, totalDelivered: 184_211, totalFailed: 822 },
-      { siteId: "site-2", siteName: "Exotic Lifestyle", deliveryRate: 96.8, clickThroughRate: 6.4, totalDelivered: 141_804, totalFailed: 1_034 },
-      { siteId: "site-3", siteName: "Exotic News", deliveryRate: 95.2, clickThroughRate: 5.9, totalDelivered: 92_440, totalFailed: 1_208 },
+      { siteId: "site-1", siteName: "Site A", deliveryRate: 98.4, clickThroughRate: 7.1, totalDelivered: 184_211, totalFailed: 822 },
+      { siteId: "site-2", siteName: "Site B", deliveryRate: 96.8, clickThroughRate: 6.4, totalDelivered: 141_804, totalFailed: 1_034 },
+      { siteId: "site-3", siteName: "Site C", deliveryRate: 95.2, clickThroughRate: 5.9, totalDelivered: 92_440, totalFailed: 1_208 },
     ],
     lowestDelivery: [
-      { siteId: "site-4", siteName: "Exotic Entertainment", deliveryRate: 71.3, clickThroughRate: 3.2, totalDelivered: 74_211, totalFailed: 5_384 },
-      { siteId: "site-5", siteName: "Exotic Sports", deliveryRate: 74.8, clickThroughRate: 3.7, totalDelivered: 66_002, totalFailed: 4_901 },
-      { siteId: "site-6", siteName: "Exotic Travel", deliveryRate: 79.1, clickThroughRate: 4.1, totalDelivered: 82_550, totalFailed: 3_214 },
+      { siteId: "site-4", siteName: "Site D", deliveryRate: 71.3, clickThroughRate: 3.2, totalDelivered: 74_211, totalFailed: 5_384 },
+      { siteId: "site-5", siteName: "Site E", deliveryRate: 74.8, clickThroughRate: 3.7, totalDelivered: 66_002, totalFailed: 4_901 },
+      { siteId: "site-6", siteName: "Site F", deliveryRate: 79.1, clickThroughRate: 4.1, totalDelivered: 82_550, totalFailed: 3_214 },
     ],
   },
 };

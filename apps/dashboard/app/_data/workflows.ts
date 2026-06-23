@@ -42,10 +42,10 @@ const fallbackFeeds: WorkflowFeedSummary[] = [
   {
     id: "rss-1",
     siteId: "site-1",
-    name: "Travel News",
+    name: "Site News",
     feedUrl: "https://example.com/feed.xml",
     status: "active",
-    lastItemTitle: "Safari season update",
+    lastItemTitle: "Latest update",
     lastPolledAt: "2026-06-20 08:15",
   },
   {

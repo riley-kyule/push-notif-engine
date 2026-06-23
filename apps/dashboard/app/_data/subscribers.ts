@@ -36,6 +36,7 @@ interface SubscriberApiResponse<T> {
   data: T;
 }
 
+// Only rendered when the /subscribers API is unreachable.
 const fallbackSubscribers: SubscriberDetail[] = [
   {
     id: "subscriber-1",
@@ -43,7 +44,7 @@ const fallbackSubscribers: SubscriberDetail[] = [
     endpoint: "https://fcm.googleapis.com/fcm/send/epe-1",
     browser: "Chrome",
     deviceType: "mobile",
-    country: "South Africa",
+    country: "Unknown",
     language: "en",
     status: "active",
     lastSeenAt: "2026-06-16 08:40",
@@ -51,7 +52,7 @@ const fallbackSubscribers: SubscriberDetail[] = [
     historyCount: 3,
     history: [
       { id: "history-1", campaign: "Launch Week", status: "delivered", channel: "web", timestamp: "2026-06-16 08:30" },
-      { id: "history-2", campaign: "Safari Sale", status: "clicked", channel: "web", timestamp: "2026-06-15 11:10" },
+      { id: "history-2", campaign: "Weekend Sale", status: "clicked", channel: "web", timestamp: "2026-06-15 11:10" },
       { id: "history-3", campaign: "Weekly Roundup", status: "sent", channel: "web", timestamp: "2026-06-14 09:00" },
     ],
   },
@@ -61,7 +62,7 @@ const fallbackSubscribers: SubscriberDetail[] = [
     endpoint: "https://updates.push.apple.com/3/device/epe-2",
     browser: "Safari",
     deviceType: "desktop",
-    country: "Kenya",
+    country: "Unknown",
     language: "en",
     status: "active",
     lastSeenAt: "2026-06-15 15:05",
@@ -69,7 +70,7 @@ const fallbackSubscribers: SubscriberDetail[] = [
     historyCount: 2,
     history: [
       { id: "history-4", campaign: "Launch Week", status: "delivered", channel: "web", timestamp: "2026-06-16 08:30" },
-      { id: "history-5", campaign: "Safari Sale", status: "sent", channel: "web", timestamp: "2026-06-15 11:10" },
+      { id: "history-5", campaign: "Weekend Sale", status: "sent", channel: "web", timestamp: "2026-06-15 11:10" },
     ],
   },
   {
@@ -78,7 +79,7 @@ const fallbackSubscribers: SubscriberDetail[] = [
     endpoint: "https://fcm.googleapis.com/fcm/send/epe-3",
     browser: "Firefox",
     deviceType: "desktop",
-    country: "Nigeria",
+    country: "Unknown",
     language: "en",
     status: "inactive",
     lastSeenAt: "2026-06-05 12:00",
