@@ -23,6 +23,6 @@ import { PostgresSitesRepository } from "./postgres-sites.repository";
       useClass: PostgresSitesRepository,
     },
   ],
-  exports: [SitesService],
+  exports: [SitesService, RestApiAuthGuard, RestApiAuthService],
 })
 export class SitesModule {}

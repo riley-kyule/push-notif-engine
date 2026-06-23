@@ -145,7 +145,10 @@ export function MobilePushPanel({ site }: { site: SiteSummary }) {
   return (
     <section className="card" style={{ marginTop: 18 }}>
       <h3>Mobile Push (APNs / FCM)</h3>
-      <p className="subtle">Native iOS and Android push credentials and registered devices for this site.</p>
+      <p className="subtle">
+        Native iOS and Android push credentials and registered devices for this site. Once configured, your app
+        registers its own devices using the REST API credentials below — staff don&apos;t register devices manually.
+      </p>
 
       <div className="grid cards-4" style={{ marginTop: 12 }}>
         <article className="card">

@@ -45,7 +45,11 @@ export function RestApiPanel({ site }: { site: SiteSummary }) {
   return (
     <section className="card" style={{ marginTop: 18 }}>
       <h3>REST API</h3>
-      <p className="subtle">Use these site-scoped credentials for CRM-driven push and scheduling requests.</p>
+      <p className="subtle">
+        Use these site-scoped credentials for CRM-driven push and scheduling requests, and to let your iOS/Android app
+        register devices for native push (send as <code className="mono">X-EPE-Site-Key</code> and{" "}
+        <code className="mono">Authorization: Bearer</code> against <code className="mono">/api/sites/{site.id}/mobile-devices/*</code>).
+      </p>
 
       <div className="grid cards-2" style={{ marginTop: 12 }}>
         <article className="card">

@@ -8,6 +8,19 @@ export interface MobilePushDevice {
   platform: "ios" | "android";
 }
 
+// Thrown by both senders on a non-success response so the processor can tell a
+// dead/uninstalled device token (404/410 — mark expired) apart from a transient or
+// configuration failure (everything else — leave the device active, let BullMQ retry).
+export class MobilePushSendError extends Error {
+  constructor(
+    message: string,
+    public readonly statusCode: number,
+  ) {
+    super(message);
+    this.name = "MobilePushSendError";
+  }
+}
+
 export interface MobilePushSender {
   send(
     credentials: MobilePushCredentialsRecord,
@@ -78,7 +91,7 @@ export class ApnsMobilePushSender implements MobilePushSender {
 
     const client = http2.connect("https://api.push.apple.com");
     try {
-      const response = await new Promise<{ statusCode?: number; headers: http2.IncomingHttpHeaders }>((resolve, reject) => {
+      const response = await new Promise<{ statusCode?: number; headers: http2.IncomingHttpHeaders; body: string }>((resolve, reject) => {
         const headers: http2.OutgoingHttpHeaders = {
           ":method": "POST",
           ":path": `/3/device/${device.deviceToken}`,
@@ -93,15 +106,26 @@ export class ApnsMobilePushSender implements MobilePushSender {
         const request = client.request(headers);
 
         request.setEncoding("utf8");
+        let responseBody = "";
+        request.on("data", (chunk: string) => {
+          responseBody += chunk;
+        });
         request.on("response", (headers) => {
-          request.on("end", () => resolve({ statusCode: Number(headers[":status"]), headers }));
+          request.on("end", () => resolve({ statusCode: Number(headers[":status"]), headers, body: responseBody }));
         });
         request.on("error", reject);
         request.end(body);
       });
 
       if (response.statusCode !== 200) {
-        throw new Error(`APNs responded with ${response.statusCode}`);
+        const reason = (() => {
+          try {
+            return (JSON.parse(response.body) as { reason?: string }).reason;
+          } catch {
+            return undefined;
+          }
+        })();
+        throw new MobilePushSendError(`APNs responded with ${response.statusCode}${reason ? ` (${reason})` : ""}`, response.statusCode ?? 0);
       }
 
       return {
@@ -148,7 +172,7 @@ export class FcmMobilePushSender implements MobilePushSender {
     });
 
     if (!tokenResponse.ok) {
-      throw new Error(`Unable to obtain FCM token: ${tokenResponse.status}`);
+      throw new MobilePushSendError(`Unable to obtain FCM token: ${tokenResponse.status}`, tokenResponse.status);
     }
 
     const tokenData = (await tokenResponse.json()) as { access_token: string };
@@ -178,7 +202,9 @@ export class FcmMobilePushSender implements MobilePushSender {
     );
 
     if (!response.ok) {
-      throw new Error(`FCM responded with ${response.status}`);
+      const errorBody = await response.json().catch(() => null) as { error?: { status?: string; message?: string } } | null;
+      const detail = errorBody?.error?.status ?? errorBody?.error?.message;
+      throw new MobilePushSendError(`FCM responded with ${response.status}${detail ? ` (${detail})` : ""}`, response.status);
     }
 
     const data = (await response.json()) as { name?: string };

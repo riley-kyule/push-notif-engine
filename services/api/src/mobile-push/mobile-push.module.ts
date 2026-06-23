@@ -7,6 +7,7 @@ import { SitesModule } from "../sites/sites.module";
 import { loadRedisConfig } from "../queue/redis.config";
 import { MOBILE_CLICKS_REPOSITORY, MOBILE_CREDENTIALS_REPOSITORY, MOBILE_DEVICES_REPOSITORY, MOBILE_PUSH_QUEUE, MobilePushService } from "./mobile-push.service";
 import { MobilePushController } from "./mobile-push.controller";
+import { PublicMobilePushController } from "./public-mobile-push.controller";
 import { MOBILE_PUSH_QUEUE_NAME } from "./mobile-push.constants";
 import { PostgresMobileClicksRepository } from "./postgres-mobile-clicks.repository";
 import { PostgresMobileCredentialsRepository } from "./postgres-mobile-credentials.repository";
@@ -30,7 +31,7 @@ function createMobilePushQueue(): Queue {
 
 @Module({
   imports: [DatabaseModule, SitesModule],
-  controllers: [MobilePushController],
+  controllers: [MobilePushController, PublicMobilePushController],
   providers: [
     MobilePushService,
     {
