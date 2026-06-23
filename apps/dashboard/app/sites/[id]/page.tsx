@@ -8,6 +8,7 @@ import { SiteAnalyticsPanel } from "../site-analytics-panel";
 import { RestApiPanel } from "../rest-api-panel";
 import { getSiteAnalytics } from "../../../lib/site-analytics";
 import { getConnectionStatus, getSiteById } from "../sites.utils";
+import { CheckConnectionButton } from "./check-connection-button";
 import { SiteActions } from "./site-actions";
 
 export default async function SiteDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -46,6 +47,7 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
             {connection.label}
           </p>
           <p className="subtle">Plugin connection is detected from its own config requests to the API</p>
+          <CheckConnectionButton siteId={site.id} />
         </article>
         <article className="card">
           <h3>Branding</h3>
