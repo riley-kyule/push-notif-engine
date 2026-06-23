@@ -42,7 +42,6 @@ export function SiteAnalyticsPanel({
       <div style={{ marginTop: 18 }}>
         <LineChart
           points={analytics.last30Days.subscriberGrowth.map((item) => ({ label: item.date, value: item.newSubscribers }))}
-          formatValue={formatNumber}
         />
       </div>
 

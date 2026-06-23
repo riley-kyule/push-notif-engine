@@ -243,8 +243,8 @@ export class PostgresAuthRepository implements AuthRepository {
         google_subject,
         email_verified_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      RETURNING id, first_name, last_name, username, email, name, password_hash, $11::text AS role_slug, is_active, auth_provider, google_subject, email_verified_at, NULL::timestamptz AS last_login_at
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING id, first_name, last_name, username, email, name, password_hash, $12::text AS role_slug, is_active, auth_provider, google_subject, email_verified_at, NULL::timestamptz AS last_login_at
       `,
       [
         role.id,
