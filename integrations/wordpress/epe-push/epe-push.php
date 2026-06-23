@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Exotic Push Engine
  * Description: Browser push integration for Exotic WordPress sites.
- * Version: 1.0.1
+ * Version: 1.0.2
  * Author: Riley Kyule
  * Text Domain: exotic-push-engine
  */
@@ -22,7 +22,6 @@ final class Exotic_Push_Engine_Plugin {
         add_action('template_redirect', [__CLASS__, 'maybe_serve_assets']);
         add_action('wp_enqueue_scripts', [__CLASS__, 'enqueue_sdk']);
         add_filter('wp_inline_script_attributes', [__CLASS__, 'add_inline_script_nonce'], 10, 2);
-        add_filter('script_loader_tag', [__CLASS__, 'add_script_tag_nonce'], 10, 2);
         add_action('wp_head', [__CLASS__, 'inject_manifest_link']);
         add_action('admin_menu', [__CLASS__, 'register_admin_menu']);
         add_action('admin_init', [__CLASS__, 'register_settings']);
@@ -80,10 +79,15 @@ final class Exotic_Push_Engine_Plugin {
 
     public static function enqueue_sdk(): void {
         $config = self::get_site_config();
-        $script_url = plugins_url('assets/epe-sdk.js', __FILE__);
 
-        wp_register_script('exotic-push-engine-sdk', $script_url, [], '1.0.1', true);
+        // Registered with no src and loaded purely as a vehicle for inline content
+        // below -- see the comment on add_inline_script_nonce() for why the SDK is
+        // inlined rather than loaded as an external <script src> file.
+        wp_register_script('exotic-push-engine-sdk', '', [], '1.0.2', true);
         wp_enqueue_script('exotic-push-engine-sdk');
+
+        $sdk_path = plugin_dir_path(__FILE__) . 'assets/epe-sdk.js';
+        $sdk_source = file_exists($sdk_path) ? (string) file_get_contents($sdk_path) : '';
 
         wp_add_inline_script(
             'exotic-push-engine-sdk',
@@ -112,14 +116,14 @@ final class Exotic_Push_Engine_Plugin {
                 'optInPromptApproveButtonBackgroundColor' => sanitize_text_field((string) $config['opt_in_prompt_approve_button_background_color']),
                 'optInPromptRepromptDelayDays' => (int) $config['opt_in_prompt_reprompt_delay_days'],
                 'optInPromptRecentNotificationsLimit' => (int) $config['opt_in_prompt_recent_notifications_limit'],
-            ]) . ';',
+            ]) . ';' . "\n" . $sdk_source,
             'before'
         );
     }
 
     // Hosts running a strict Content-Security-Policy without 'unsafe-inline' can
-    // supply their per-request nonce via this filter so our inline config script
-    // (and the SDK <script> tag that loads alongside it) are allowed to execute.
+    // supply their per-request nonce via this filter so our inline SDK script is
+    // allowed to execute.
     private static function get_csp_nonce(): string {
         $nonce = apply_filters('epe_push_engine_csp_nonce', '');
         return is_string($nonce) ? $nonce : '';
@@ -143,23 +147,6 @@ final class Exotic_Push_Engine_Plugin {
         $attributes['data-cfasync'] = 'false';
 
         return $attributes;
-    }
-
-    public static function add_script_tag_nonce(string $tag, string $handle): string {
-        if ($handle !== 'exotic-push-engine-sdk') {
-            return $tag;
-        }
-
-        if (!str_contains($tag, 'data-cfasync=')) {
-            $tag = str_replace(' src=', ' data-cfasync="false" src=', $tag);
-        }
-
-        $nonce = self::get_csp_nonce();
-        if ($nonce === '' || str_contains($tag, 'nonce=')) {
-            return $tag;
-        }
-
-        return str_replace(' src=', ' nonce="' . esc_attr($nonce) . '" src=', $tag);
     }
 
     public static function inject_manifest_link(): void {
