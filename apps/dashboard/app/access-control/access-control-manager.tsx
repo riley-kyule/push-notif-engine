@@ -33,6 +33,14 @@ function slugify(value: string): string {
     .replace(/^\d+/, "");
 }
 
+function extractErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
 function prettyRole(role: string): string {
   return role
     .split("-")
@@ -90,9 +98,9 @@ export function AccessControlManager({ initialRoles, initialUsers }: Props) {
   );
 
   const generatedUsername = useMemo(() => {
-    const base = slugify(firstName);
+    const base = slugify(`${firstName}${lastName ? `-${lastName}` : ""}`);
     return base.length > 0 ? base : "username";
-  }, [firstName]);
+  }, [firstName, lastName]);
 
   const groupedPermissions = useMemo(() => groupPermissions(PERMISSIONS), []);
   const roleCount = roles.length;
@@ -126,7 +134,7 @@ export function AccessControlManager({ initialRoles, initialUsers }: Props) {
       setRoleSlug(initialRoles[0]?.slug ?? "sub-admin");
       setRevealedCredential({ heading: `Created ${result.data.name}`, username: result.data.username, password: result.data.password });
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Unable to create user");
+      setStatus(extractErrorMessage(error, "Unable to create user"));
     }
   }
 
@@ -145,7 +153,7 @@ export function AccessControlManager({ initialRoles, initialUsers }: Props) {
       );
       setRevealedCredential({ heading: `Reset password for ${user.name}`, username: result.data.username, password: result.data.password });
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Unable to reset password");
+      setStatus(extractErrorMessage(error, "Unable to reset password"));
     } finally {
       setResettingUserId(null);
     }
@@ -185,7 +193,7 @@ export function AccessControlManager({ initialRoles, initialUsers }: Props) {
       setRoles((current) => current.map((role) => (role.slug === selectedRole.slug ? result.data : role)));
       setStatus(`Updated ${result.data.name}.`);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Unable to save role");
+      setStatus(extractErrorMessage(error, "Unable to save role"));
     } finally {
       setSavingRole(null);
     }
@@ -202,7 +210,7 @@ export function AccessControlManager({ initialRoles, initialUsers }: Props) {
       setUsers((current) => current.map((user) => (user.id === userId ? result.data : user)));
       setStatus(`Updated ${result.data.name}'s role.`);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Unable to update user role");
+      setStatus(extractErrorMessage(error, "Unable to update user role"));
     }
   }
 

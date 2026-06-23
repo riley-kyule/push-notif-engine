@@ -23,7 +23,19 @@ export async function GET(): Promise<Response> {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  const body = await request.json();
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      {
+        success: false,
+        error: { message: "Invalid request body" },
+      },
+      { status: 400 },
+    );
+  }
+
   const res = await apiFetch("/access-control/users", {
     method: "POST",
     body: JSON.stringify(body),
