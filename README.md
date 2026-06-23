@@ -23,6 +23,7 @@ Not a SaaS product. Not multi-tenant. Built for Exotic's own sites only.
 - [WordPress plugin](#wordpress-plugin)
 - [Other platform integrations](#other-platform-integrations)
 - [Production deployment](#production-deployment)
+- [Infrastructure runbooks](#infrastructure-runbooks)
 - [Testing](#testing)
 - [Known gaps](#known-gaps)
 
@@ -240,14 +241,12 @@ Campaign action buttons are stored as a JSON array of `{ label, url }`. The dash
 
 Uploaded campaign media is stored in object storage via the API layer, not on the API host's local disk. The database tracks only metadata and object keys. Media is automatically purged three days after the associated campaign push has been marked delivered. If a campaign is cloned, its attached media is duplicated so the retention rule on the original campaign does not break the clone.
 
-The API expects these environment variables for campaign media storage:
+The API supports two campaign media backends:
 
-- `CAMPAIGN_MEDIA_STORAGE_BUCKET`
-- `CAMPAIGN_MEDIA_STORAGE_REGION`
-- `CAMPAIGN_MEDIA_STORAGE_ENDPOINT`
-- `CAMPAIGN_MEDIA_STORAGE_ACCESS_KEY_ID`
-- `CAMPAIGN_MEDIA_STORAGE_SECRET_ACCESS_KEY`
-- `CAMPAIGN_MEDIA_STORAGE_FORCE_PATH_STYLE`
+- `CAMPAIGN_MEDIA_STORAGE_BACKEND=local` stores uploaded media on the VM filesystem under `CAMPAIGN_MEDIA_STORAGE_ROOT`
+- `CAMPAIGN_MEDIA_STORAGE_BACKEND=s3` uses S3-compatible object storage and requires bucket, region, and credential settings
+
+For the current VM setup, local filesystem storage is the default and requires no Cloudflare R2 or other object-storage account. If you later move to object storage, prefer Cloudflare R2 for this project.
 
 ### The scheduler
 
@@ -371,6 +370,11 @@ Full step-by-step runbook: [`infrastructure/deployment/cpanel.md`](infrastructur
 - **`infrastructure/nginx/epe.conf`** — reverse proxy config. Two things in here are easy to get wrong and were both bugs in an earlier version of this file: the API has a global `/api` route prefix that `proxy_pass` must preserve rather than strip, and the dashboard's own `/api/dashboard/*` BFF routes must be matched and routed to the dashboard (port 3000) *before* the generic `/api/*` block sends everything else to the real API (port 3001). Both are now correct and were verified against a real local nginx instance, not just read through.
 
 All three of the above were actually run end-to-end locally (PM2 managing all three services, nginx proxying real requests through to them, a full login → create campaign → send → worker-processes-the-job round trip) before being considered done — not just written and assumed correct.
+
+## Infrastructure runbooks
+
+- [VM setup checklist](./VM_SETUP.md) — Proxmox VM sizing, Ubuntu bootstrap commands, package install order, environment file layout, PM2 startup, and Nginx reverse proxy wiring.
+- [Proxmox remote access guide](./PROXMOX.md) — VPN-first access model plus the hardened port-forwarding fallback.
 
 ## Testing
 

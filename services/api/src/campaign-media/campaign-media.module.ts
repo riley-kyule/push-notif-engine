@@ -6,6 +6,7 @@ import { CAMPAIGN_MEDIA_REPOSITORY, CAMPAIGN_MEDIA_STORAGE } from "./campaign-me
 import { CampaignMediaController } from "./campaign-media.controller";
 import { CampaignMediaSchedulerService } from "./campaign-media-scheduler.service";
 import { CampaignMediaService } from "./campaign-media.service";
+import { LocalCampaignMediaStorageService } from "./local-campaign-media-storage.service";
 import { PostgresCampaignMediaRepository } from "./postgres-campaign-media.repository";
 import { S3CampaignMediaStorageService } from "./s3-campaign-media-storage.service";
 
@@ -15,14 +16,16 @@ import { S3CampaignMediaStorageService } from "./s3-campaign-media-storage.servi
   providers: [
     CampaignMediaService,
     CampaignMediaSchedulerService,
-    S3CampaignMediaStorageService,
     {
       provide: CAMPAIGN_MEDIA_REPOSITORY,
       useClass: PostgresCampaignMediaRepository,
     },
     {
       provide: CAMPAIGN_MEDIA_STORAGE,
-      useExisting: S3CampaignMediaStorageService,
+      useFactory: () =>
+        (process.env.CAMPAIGN_MEDIA_STORAGE_BACKEND ?? "local") === "s3"
+          ? new S3CampaignMediaStorageService()
+          : new LocalCampaignMediaStorageService(),
     },
   ],
   exports: [CampaignMediaService, CAMPAIGN_MEDIA_STORAGE],
