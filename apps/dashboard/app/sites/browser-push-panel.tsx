@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 
 import type { SiteSummary } from "./sites.utils";
 import {
@@ -18,9 +19,36 @@ interface BrowserPushPanelState {
 }
 
 export function BrowserPushPanel({ site }: { site: SiteSummary }) {
+  const router = useRouter();
   const [state, setState] = useState<BrowserPushPanelState | null>(null);
   const [demoMessage, setDemoMessage] = useState<string | null>(null);
+  const [vapidError, setVapidError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isGeneratingVapid, startVapidGeneration] = useTransition();
+
+  function handleGenerateVapid() {
+    if (
+      site.vapidPublicKey &&
+      !window.confirm("Regenerate VAPID keys? Every existing browser push subscriber for this site will stop receiving notifications and must re-subscribe.")
+    ) {
+      return;
+    }
+
+    setVapidError(null);
+    startVapidGeneration(() => {
+      void fetch(`/api/dashboard/sites/${site.id}/generate-vapid`, { method: "POST" })
+        .then(async (response) => {
+          const payload = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
+          if (!response.ok) {
+            throw new Error(payload?.error?.message ?? "Unable to generate VAPID keys");
+          }
+          router.refresh();
+        })
+        .catch((error) => {
+          setVapidError(error instanceof Error ? error.message : "Unable to generate VAPID keys");
+        });
+    });
+  }
 
   function handleRegister() {
     startTransition(() => {
@@ -98,7 +126,12 @@ export function BrowserPushPanel({ site }: { site: SiteSummary }) {
         <button className="button secondary" type="button" onClick={handleDemoPreview} disabled={isPending}>
           Send Demo Notification
         </button>
+        <button className="button secondary" type="button" onClick={handleGenerateVapid} disabled={isGeneratingVapid}>
+          {isGeneratingVapid ? "Generating..." : site.vapidPublicKey ? "Regenerate VAPID keys" : "Generate VAPID keys"}
+        </button>
       </div>
+
+      {vapidError ? <p className="badge failed" style={{ justifyContent: "flex-start", marginTop: 12 }}>{vapidError}</p> : null}
 
       {demoMessage ? (
         <div className="card" style={{ marginTop: 16 }}>

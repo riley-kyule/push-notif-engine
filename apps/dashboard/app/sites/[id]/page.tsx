@@ -52,6 +52,8 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
 
       <section className="card" style={{ marginTop: 18 }}>
         <h3>Integrations</h3>
+        <p className="subtle">Site Key (WordPress plugin &amp; SDK)</p>
+        <p className="mono">{site.id}</p>
         <p className="subtle">Site URL</p>
         <p>{site.url}</p>
         <p className="subtle">Icon URL</p>
