@@ -28,6 +28,8 @@ test("health controller reports database and storage status", async () => {
         };
       },
     } as never,
+    {} as never,
+    { async log() { return undefined; } } as never,
   );
 
   const health = await controller.getHealth();
@@ -62,6 +64,8 @@ test("health controller rejects when storage is unreachable", async () => {
         };
       },
     } as never,
+    {} as never,
+    { async log() { return undefined; } } as never,
   );
 
   await assert.rejects(() => controller.getStorageHealth(), (error: unknown) => {
@@ -99,6 +103,8 @@ test("health controller returns platform summary", async () => {
         };
       },
     } as never,
+    {} as never,
+    { async log() { return undefined; } } as never,
   );
 
   const health = await controller.getPlatformHealth();

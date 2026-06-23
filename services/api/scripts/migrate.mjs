@@ -2,15 +2,43 @@
 // Idempotent migration runner. Tracks applied migrations in a `schema_migrations`
 // table so re-running this script (e.g. on every deploy) only applies new files.
 //
-// Usage: DATABASE_URL=postgresql://... node scripts/migrate.mjs
+// Usage: node scripts/migrate.mjs (reads services/api/.env automatically)
+//     or: DATABASE_URL=postgresql://... node scripts/migrate.mjs
 
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Pool } from "pg";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const migrationsDir = path.resolve(__dirname, "../../../infrastructure/database/migrations");
+
+// PM2 parses services/api/.env itself (see ecosystem.config.js) and injects it
+// into the app's environment, but running this script directly in a shell --
+// which is the normal way to run migrations during a deploy -- has no .env
+// loaded at all. Mirror that same parsing here so `npm run migrate` works
+// standalone instead of silently requiring DATABASE_URL to already be exported.
+function loadEnvFile() {
+  const envPath = path.resolve(__dirname, "../.env");
+  if (!existsSync(envPath)) {
+    return;
+  }
+
+  for (const line of readFileSync(envPath, "utf8").split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+    const eq = trimmed.indexOf("=");
+    if (eq === -1) {
+      continue;
+    }
+    const key = trimmed.slice(0, eq).trim();
+    if (process.env[key] === undefined) {
+      process.env[key] = trimmed.slice(eq + 1).trim();
+    }
+  }
+}
 
 function readRequiredEnv(name) {
   const value = process.env[name];
@@ -21,6 +49,7 @@ function readRequiredEnv(name) {
 }
 
 async function main() {
+  loadEnvFile();
   const pool = new Pool({ connectionString: readRequiredEnv("DATABASE_URL") });
 
   try {
