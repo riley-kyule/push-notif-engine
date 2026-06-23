@@ -2,7 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import type { Pool } from "pg";
 
 import { DATABASE_POOL } from "../database/database.constants";
-import type { MobileDeviceCountSummary, MobileDevicesRepository, RegisterMobileDeviceInput, UpdateMobileDeviceStatusInput } from "./mobile-devices.repository";
+import type { ListMobileDevicesFilter, MobileDeviceCountSummary, MobileDevicesRepository, RegisterMobileDeviceInput, UpdateMobileDeviceStatusInput } from "./mobile-devices.repository";
 import type { MobileDeviceRecord, MobilePlatform } from "./mobile-push.types";
 
 interface DbMobileDeviceRow {
@@ -125,6 +125,42 @@ export class PostgresMobileDevicesRepository implements MobileDevicesRepository 
     );
 
     return rows.map((row) => this.mapRow(row));
+  }
+
+  async listBySite(siteId: string, filter: ListMobileDevicesFilter): Promise<{ items: MobileDeviceRecord[]; total: number }> {
+    const conditions = ["site_id = $1"];
+    const params: unknown[] = [siteId];
+
+    if (filter.platform) {
+      params.push(filter.platform);
+      conditions.push(`platform = $${params.length}`);
+    }
+
+    if (filter.status) {
+      params.push(filter.status);
+      conditions.push(`status = $${params.length}`);
+    }
+
+    const whereClause = conditions.join(" AND ");
+
+    const { rows: countRows } = await this.pool.query<{ total: number }>(
+      `SELECT COUNT(*)::int AS total FROM mobile_devices WHERE ${whereClause}`,
+      params,
+    );
+
+    params.push(filter.limit, filter.offset);
+    const { rows } = await this.pool.query<DbMobileDeviceRow>(
+      `
+      SELECT id, site_id, platform, device_token, country, language, status, last_seen_at, created_at, updated_at
+      FROM mobile_devices
+      WHERE ${whereClause}
+      ORDER BY last_seen_at DESC NULLS LAST, created_at DESC
+      LIMIT $${params.length - 1} OFFSET $${params.length}
+      `,
+      params,
+    );
+
+    return { items: rows.map((row) => this.mapRow(row)), total: countRows[0]?.total ?? 0 };
   }
 
   async countBySite(siteId: string): Promise<MobileDeviceCountSummary> {

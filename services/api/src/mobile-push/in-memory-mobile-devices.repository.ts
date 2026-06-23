@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 
-import type { MobileDeviceCountSummary, MobileDevicesRepository, RegisterMobileDeviceInput, UpdateMobileDeviceStatusInput, UpdateMobileDeviceTokenInput } from "./mobile-devices.repository";
+import type { ListMobileDevicesFilter, MobileDeviceCountSummary, MobileDevicesRepository, RegisterMobileDeviceInput, UpdateMobileDeviceStatusInput, UpdateMobileDeviceTokenInput } from "./mobile-devices.repository";
 import type { MobileDeviceRecord, MobilePlatform } from "./mobile-push.types";
 
 export class InMemoryMobileDevicesRepository implements MobileDevicesRepository {
@@ -88,6 +88,22 @@ export class InMemoryMobileDevicesRepository implements MobileDevicesRepository 
       if (platform !== "all" && item.platform !== platform) return false;
       return item.status === "active";
     });
+  }
+
+  async listBySite(siteId: string, filter: ListMobileDevicesFilter): Promise<{ items: MobileDeviceRecord[]; total: number }> {
+    const matching = Array.from(this.items.values())
+      .filter((item) => {
+        if (item.siteId !== siteId) return false;
+        if (filter.platform && item.platform !== filter.platform) return false;
+        if (filter.status && item.status !== filter.status) return false;
+        return true;
+      })
+      .sort((a, b) => (b.lastSeenAt?.getTime() ?? 0) - (a.lastSeenAt?.getTime() ?? 0));
+
+    return {
+      items: matching.slice(filter.offset, filter.offset + filter.limit),
+      total: matching.length,
+    };
   }
 
   async countBySite(siteId: string): Promise<MobileDeviceCountSummary> {

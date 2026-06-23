@@ -28,6 +28,13 @@ export interface MobileDeviceCountSummary {
   expired: number;
 }
 
+export interface ListMobileDevicesFilter {
+  platform?: MobilePlatform;
+  status?: MobileDeviceStatus;
+  limit: number;
+  offset: number;
+}
+
 export interface MobileDevicesRepository {
   register(input: RegisterMobileDeviceInput): Promise<MobileDeviceRecord>;
   findBySiteAndToken(siteId: string, platform: MobilePlatform, deviceToken: string): Promise<MobileDeviceRecord | null>;
@@ -35,5 +42,6 @@ export interface MobileDevicesRepository {
   refreshToken(siteId: string, platform: MobilePlatform, currentDeviceToken: string, nextDeviceToken: string): Promise<MobileDeviceRecord | null>;
   updateStatus(id: string, input: UpdateMobileDeviceStatusInput): Promise<MobileDeviceRecord | null>;
   listEligible(siteId: string, platform: MobilePlatform | "all"): Promise<MobileDeviceRecord[]>;
+  listBySite(siteId: string, filter: ListMobileDevicesFilter): Promise<{ items: MobileDeviceRecord[]; total: number }>;
   countBySite(siteId: string): Promise<MobileDeviceCountSummary>;
 }

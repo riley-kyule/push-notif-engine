@@ -22,6 +22,28 @@ interface MobileDeviceCountSummary {
   expired: number;
 }
 
+type MobileDevicePlatform = "ios" | "android";
+type MobileDeviceStatus = "active" | "invalid" | "expired";
+
+interface MobileDeviceRow {
+  id: string;
+  platform: MobileDevicePlatform;
+  deviceToken: string;
+  country: string | null;
+  language: string | null;
+  status: MobileDeviceStatus;
+  lastSeenAt: string | null;
+}
+
+const DEVICE_PAGE_SIZE = 10;
+
+function maskToken(token: string): string {
+  if (token.length <= 12) {
+    return token;
+  }
+  return `${token.slice(0, 8)}…${token.slice(-4)}`;
+}
+
 interface CredentialsForm {
   apnsKeyId: string;
   apnsTeamId: string;
@@ -50,6 +72,64 @@ export function MobilePushPanel({ site }: { site: SiteSummary }) {
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [dispatchMessage, setDispatchMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  const [deviceRows, setDeviceRows] = useState<MobileDeviceRow[]>([]);
+  const [deviceTotal, setDeviceTotal] = useState(0);
+  const [devicePage, setDevicePage] = useState(1);
+  const [platformFilter, setPlatformFilter] = useState<MobileDevicePlatform | "">("");
+  const [statusFilter, setStatusFilter] = useState<MobileDeviceStatus | "">("");
+  const [devicesLoading, setDevicesLoading] = useState(false);
+  const [revokingDeviceId, setRevokingDeviceId] = useState<string | null>(null);
+  const [deviceError, setDeviceError] = useState<string | null>(null);
+
+  function loadDeviceList(page: number, platform: MobileDevicePlatform | "", status: MobileDeviceStatus | "") {
+    setDevicesLoading(true);
+    setDeviceError(null);
+    const query = new URLSearchParams({ page: String(page), limit: String(DEVICE_PAGE_SIZE) });
+    if (platform) query.set("platform", platform);
+    if (status) query.set("status", status);
+
+    void fetch(`/api/dashboard/sites/${site.id}/mobile-devices?${query.toString()}`)
+      .then((response) => response.json())
+      .then((payload: { success?: boolean; data?: { items: MobileDeviceRow[]; total: number } }) => {
+        if (!payload.success || !payload.data) {
+          throw new Error("Unable to load devices");
+        }
+        setDeviceRows(payload.data.items);
+        setDeviceTotal(payload.data.total);
+      })
+      .catch(() => setDeviceError("Unable to load devices"))
+      .finally(() => setDevicesLoading(false));
+  }
+
+  useEffect(() => {
+    loadDeviceList(devicePage, platformFilter, statusFilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [site.id, devicePage, platformFilter, statusFilter]);
+
+  function handleRevokeDevice(device: MobileDeviceRow) {
+    if (!window.confirm("Revoke this device? It will stop receiving push notifications.")) {
+      return;
+    }
+
+    setRevokingDeviceId(device.id);
+    void fetch("/api/dashboard/mobile-devices/invalidate", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ siteId: site.id, platform: device.platform, deviceToken: device.deviceToken }),
+    })
+      .then(async (response) => {
+        const payload = (await response.json().catch(() => null)) as { success?: boolean } | null;
+        if (!response.ok || !payload?.success) {
+          throw new Error("Unable to revoke device");
+        }
+        loadDeviceList(devicePage, platformFilter, statusFilter);
+      })
+      .catch(() => setDeviceError("Unable to revoke device"))
+      .finally(() => setRevokingDeviceId(null));
+  }
+
+  const deviceTotalPages = Math.max(1, Math.ceil(deviceTotal / DEVICE_PAGE_SIZE));
 
   useEffect(() => {
     void fetch(`/api/dashboard/sites/${site.id}/mobile-credentials`)
@@ -173,6 +253,110 @@ export function MobilePushPanel({ site }: { site: SiteSummary }) {
         <p className="subtle" style={{ marginTop: 12 }}>
           {devices.active} active &middot; {devices.invalid} invalid &middot; {devices.expired} expired
         </p>
+      ) : null}
+
+      <div className="actions" style={{ marginTop: 18, alignItems: "center" }}>
+        <strong>Registered devices</strong>
+        <select
+          className="select"
+          value={platformFilter}
+          onChange={(event) => {
+            setDevicePage(1);
+            setPlatformFilter(event.target.value as MobileDevicePlatform | "");
+          }}
+        >
+          <option value="">All platforms</option>
+          <option value="ios">iOS</option>
+          <option value="android">Android</option>
+        </select>
+        <select
+          className="select"
+          value={statusFilter}
+          onChange={(event) => {
+            setDevicePage(1);
+            setStatusFilter(event.target.value as MobileDeviceStatus | "");
+          }}
+        >
+          <option value="">All statuses</option>
+          <option value="active">Active</option>
+          <option value="invalid">Invalid</option>
+          <option value="expired">Expired</option>
+        </select>
+      </div>
+
+      <table className="table" style={{ marginTop: 12 }}>
+        <thead>
+          <tr>
+            <th>Device</th>
+            <th>Platform</th>
+            <th>Country</th>
+            <th>Language</th>
+            <th>Last Seen</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {deviceRows.map((device) => (
+            <tr key={device.id}>
+              <td>
+                <code>{maskToken(device.deviceToken)}</code>
+              </td>
+              <td>{device.platform === "ios" ? "iOS" : "Android"}</td>
+              <td>{device.country ?? "—"}</td>
+              <td>{device.language ?? "—"}</td>
+              <td className="subtle">{device.lastSeenAt ? new Date(device.lastSeenAt).toLocaleString() : "Never"}</td>
+              <td>
+                <span className={`badge ${device.status}`}>{device.status}</span>
+              </td>
+              <td>
+                {device.status === "active" ? (
+                  <button
+                    className="button secondary"
+                    type="button"
+                    onClick={() => handleRevokeDevice(device)}
+                    disabled={revokingDeviceId === device.id}
+                  >
+                    {revokingDeviceId === device.id ? "Revoking..." : "Revoke"}
+                  </button>
+                ) : null}
+              </td>
+            </tr>
+          ))}
+          {!devicesLoading && deviceRows.length === 0 ? (
+            <tr>
+              <td colSpan={7} className="subtle">
+                No devices registered yet.
+              </td>
+            </tr>
+          ) : null}
+        </tbody>
+      </table>
+
+      {deviceError ? <p className="badge failed" style={{ justifyContent: "flex-start", marginTop: 8 }}>{deviceError}</p> : null}
+
+      {deviceTotalPages > 1 ? (
+        <div className="actions" style={{ marginTop: 8 }}>
+          <button
+            className="button secondary"
+            type="button"
+            onClick={() => setDevicePage((current) => Math.max(1, current - 1))}
+            disabled={devicePage <= 1 || devicesLoading}
+          >
+            Previous
+          </button>
+          <span className="subtle">
+            Page {devicePage} of {deviceTotalPages}
+          </span>
+          <button
+            className="button secondary"
+            type="button"
+            onClick={() => setDevicePage((current) => Math.min(deviceTotalPages, current + 1))}
+            disabled={devicePage >= deviceTotalPages || devicesLoading}
+          >
+            Next
+          </button>
+        </div>
       ) : null}
 
       <div className="grid cards-2" style={{ marginTop: 18 }}>

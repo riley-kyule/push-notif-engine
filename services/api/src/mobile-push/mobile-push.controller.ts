@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, UseGuards } from "@nestjs/common";
-import { IsIn, IsString, IsUrl, MinLength } from "class-validator";
+import { Body, Controller, Get, Param, Patch, Post, Put, Query, UseGuards } from "@nestjs/common";
+import { IsIn, IsOptional, IsString, IsUrl, MinLength } from "class-validator";
 
 import { Roles } from "../auth/decorators/roles.decorator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
@@ -10,6 +10,24 @@ import { RegisterMobileDeviceDto } from "./dto/register-mobile-device.dto";
 import { RefreshMobileDeviceDto } from "./dto/refresh-mobile-device.dto";
 import { UpsertMobileCredentialsDto } from "./dto/upsert-mobile-credentials.dto";
 import { MobilePushService } from "./mobile-push.service";
+
+class ListMobileDevicesQueryDto {
+  @IsOptional()
+  @IsIn(["ios", "android"])
+  platform?: "ios" | "android";
+
+  @IsOptional()
+  @IsIn(["active", "invalid", "expired"])
+  status?: "active" | "invalid" | "expired";
+
+  @IsOptional()
+  @IsString()
+  page?: string;
+
+  @IsOptional()
+  @IsString()
+  limit?: string;
+}
 
 class RecordMobilePushClickDto {
   @IsString()
@@ -29,7 +47,7 @@ class RecordMobilePushClickDto {
 
 @Controller()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles("super-admin", "admin", "editor")
+@Roles("super-admin", "admin", "sub-admin")
 export class MobilePushController {
   constructor(private readonly mobilePushService: MobilePushService) {}
 
@@ -52,6 +70,24 @@ export class MobilePushController {
   async getDeviceSummary(@Param("siteId") siteId: string): Promise<{ success: true; data: unknown }> {
     const summary = await this.mobilePushService.getDeviceSummary(siteId);
     return { success: true, data: summary };
+  }
+
+  @Get("sites/:siteId/mobile-devices")
+  async listDevices(
+    @Param("siteId") siteId: string,
+    @Query() query: ListMobileDevicesQueryDto,
+  ): Promise<{ success: true; data: unknown }> {
+    const page = Math.max(1, Number.parseInt(query.page ?? "1", 10) || 1);
+    const limit = Math.min(100, Math.max(1, Number.parseInt(query.limit ?? "25", 10) || 25));
+
+    const result = await this.mobilePushService.listDevices(siteId, {
+      ...(query.platform ? { platform: query.platform } : {}),
+      ...(query.status ? { status: query.status } : {}),
+      limit,
+      offset: (page - 1) * limit,
+    });
+
+    return { success: true, data: { ...result, page, limit } };
   }
 
   @Post("mobile-devices/register")

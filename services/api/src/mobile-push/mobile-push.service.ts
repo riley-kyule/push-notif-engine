@@ -10,7 +10,7 @@ import { RefreshMobileDeviceDto } from "./dto/refresh-mobile-device.dto";
 import { InvalidateMobileDeviceDto } from "./dto/invalidate-mobile-device.dto";
 import { CreateMobilePushDispatchDto } from "./dto/create-mobile-push-dispatch.dto";
 import type { MobileCredentialsRepository } from "./mobile-credentials.repository";
-import type { MobileDeviceCountSummary, MobileDevicesRepository } from "./mobile-devices.repository";
+import type { ListMobileDevicesFilter, MobileDeviceCountSummary, MobileDevicesRepository } from "./mobile-devices.repository";
 import type { MobilePushJobPayload, MobilePushCredentialsRecord, MobileDeviceRecord } from "./mobile-push.types";
 
 export const MOBILE_PUSH_QUEUE = Symbol("MOBILE_PUSH_QUEUE");
@@ -64,6 +64,11 @@ export class MobilePushService {
 
   async getDeviceSummary(siteId: string): Promise<MobileDeviceCountSummary> {
     return this.devicesRepository.countBySite(siteId);
+  }
+
+  async listDevices(siteId: string, filter: ListMobileDevicesFilter): Promise<{ items: MobileDeviceRecord[]; total: number }> {
+    await this.sitesService.getSite(siteId);
+    return this.devicesRepository.listBySite(siteId, filter);
   }
 
   private toCredentialsSummary(record: MobilePushCredentialsRecord): MobileCredentialsSummary {
