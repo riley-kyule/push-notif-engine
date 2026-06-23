@@ -371,7 +371,10 @@ Full step-by-step runbook: [`infrastructure/deployment/cpanel.md`](infrastructur
 
 All three of the above were actually run end-to-end locally (PM2 managing all three services via `ecosystem.config.js`, nginx proxying real requests through to them, a full login → create campaign → send → worker-processes-the-job round trip) before being considered done — not just written and assumed correct.
 
-When starting the stack manually, do not reuse a shell where `services/api/.env` was sourced. `PORT=3001` from the API will leak into the dashboard unless you start each process in an isolated env. The repo-level PM2 ecosystem file avoids that class of bug and is the preferred startup path.
+When starting the stack manually, do not reuse a shell where `services/api/.env` was sourced. `PORT=3001` from the API will leak into the dashboard unless you start each process in an isolated env. The repo-level PM2 ecosystem file avoids that class of bug and is the preferred startup path. The helper scripts in `scripts/` wrap that flow:
+
+- `scripts/pm2-bootstrap.sh` starts a clean PM2 stack from `ecosystem.config.js`
+- `scripts/pm2-restart.sh` reloads the ecosystem file with updated env values
 
 ## Infrastructure runbooks
 
