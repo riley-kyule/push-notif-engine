@@ -200,8 +200,7 @@
         z-index: 2147483000;
         display: flex;
         padding: 16px;
-        background: rgba(15, 23, 42, 0.45);
-        backdrop-filter: blur(10px);
+        pointer-events: none;
         animation: epeOptinFade 180ms ease-out;
       }
       .epe-optin-backdrop--lightbox-1 {
@@ -238,6 +237,7 @@
         background: #ffffff;
         box-shadow: 0 30px 90px rgba(15, 23, 42, 0.25);
         animation: epeOptinRise 220ms ease-out;
+        pointer-events: auto;
       }
       .epe-optin-panel[data-type="lightbox-2"] {
         width: min(760px, 100%);
@@ -442,7 +442,7 @@
 
         clearLocalUnsubscribe();
 
-        return fetch(config.apiUrl + "/api/subscribers/register", {
+        return fetch(config.apiUrl + "/subscribers/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -653,7 +653,7 @@
 
       return subscription.unsubscribe().then(function () {
         var unsubscribeRequest = config.apiUrl && getSiteKey()
-          ? fetch(config.apiUrl + "/api/subscribers/unsubscribe", {
+          ? fetch(config.apiUrl + "/subscribers/unsubscribe", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
