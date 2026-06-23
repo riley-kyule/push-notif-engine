@@ -312,10 +312,30 @@ JS;
     }
 
     public static function sanitize_settings(array $input): array {
-        return [
+        $old_settings = self::get_settings();
+
+        $sanitized = [
             'api_url'  => isset($input['api_url'])  ? esc_url_raw((string) $input['api_url'])                 : '',
             'site_key' => isset($input['site_key']) ? sanitize_text_field((string) $input['site_key']) : '',
         ];
+
+        // Settings changes should take effect immediately rather than waiting out the
+        // 15-minute site config cache, so clear both the old and new cache entries.
+        self::clear_site_config_cache((string) $old_settings['api_url'], (string) $old_settings['site_key']);
+        self::clear_site_config_cache($sanitized['api_url'], $sanitized['site_key']);
+
+        return $sanitized;
+    }
+
+    private static function site_config_cache_key(string $api_url, string $site_key): string {
+        return 'epe_push_engine_site_config_' . md5($api_url . '|' . $site_key);
+    }
+
+    private static function clear_site_config_cache(string $api_url, string $site_key): void {
+        if ($api_url === '' || $site_key === '') {
+            return;
+        }
+        delete_transient(self::site_config_cache_key($api_url, $site_key));
     }
 
     private static function get_site_config(): array {
@@ -348,7 +368,7 @@ JS;
             return $defaults;
         }
 
-        $cache_key = 'epe_push_engine_site_config_' . md5((string) $settings['api_url'] . '|' . (string) $settings['site_key']);
+        $cache_key = self::site_config_cache_key((string) $settings['api_url'], (string) $settings['site_key']);
         $cached = get_transient($cache_key);
         if (is_array($cached)) {
             return array_merge($defaults, $cached);
