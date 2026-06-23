@@ -369,7 +369,9 @@ Full step-by-step runbook: [`infrastructure/deployment/cpanel.md`](infrastructur
 - **`services/api/scripts/migrate.mjs`** (run via `npm run migrate` from `services/api`) — idempotent migration runner. Tracks applied files in a `schema_migrations` table, so it's safe to run on every deploy, including the first one.
 - **`infrastructure/nginx/epe.conf`** — reverse proxy config. Two things in here are easy to get wrong and were both bugs in an earlier version of this file: the API has a global `/api` route prefix that `proxy_pass` must preserve rather than strip, and the dashboard's own `/api/dashboard/*` BFF routes must be matched and routed to the dashboard (port 3000) *before* the generic `/api/*` block sends everything else to the real API (port 3001). Both are now correct and were verified against a real local nginx instance, not just read through.
 
-All three of the above were actually run end-to-end locally (PM2 managing all three services, nginx proxying real requests through to them, a full login → create campaign → send → worker-processes-the-job round trip) before being considered done — not just written and assumed correct.
+All three of the above were actually run end-to-end locally (PM2 managing all three services via `ecosystem.config.js`, nginx proxying real requests through to them, a full login → create campaign → send → worker-processes-the-job round trip) before being considered done — not just written and assumed correct.
+
+When starting the stack manually, do not reuse a shell where `services/api/.env` was sourced. `PORT=3001` from the API will leak into the dashboard unless you start each process in an isolated env. The repo-level PM2 ecosystem file avoids that class of bug and is the preferred startup path.
 
 ## Infrastructure runbooks
 
