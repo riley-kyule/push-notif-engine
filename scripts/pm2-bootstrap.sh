@@ -18,4 +18,5 @@ pm2 delete epe-worker >/dev/null 2>&1 || true
 pm2 delete epe-dashboard >/dev/null 2>&1 || true
 
 pm2 start ecosystem.config.js
+pm2 save
 pm2 status

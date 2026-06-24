@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import AnalyticsPage, { buildAnalyticsOverviewCards } from "../app/analytics/page";
+import AnalyticsPage from "../app/analytics/page";
+import { buildAnalyticsOverviewCards } from "../app/analytics/analytics-overview";
 
 test("analytics dashboard page exists", () => {
   assert.equal(typeof AnalyticsPage, "function");
