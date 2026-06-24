@@ -482,7 +482,12 @@
       return Promise.resolve([]);
     }
 
-    return fetch(config.apiUrl + "/sites/public/" + encodeURIComponent(getSiteKey()) + "/notifications?limit=" + clampLimit(limit), {
+    var notificationsUrl = config.apiUrl + "/sites/public/" + encodeURIComponent(getSiteKey()) + "/notifications";
+    if (typeof limit !== "undefined") {
+      notificationsUrl += "?limit=" + clampLimit(limit);
+    }
+
+    return fetch(notificationsUrl, {
       headers: { Accept: "application/json" },
     })
       .then(function (response) {
@@ -733,7 +738,7 @@
     state.tray = tray;
     updateBellPosition();
 
-    fetchRecentNotifications(config.optInPromptRecentNotificationsLimit).then(function (notifications) {
+    fetchRecentNotifications().then(function (notifications) {
       state.trayItems = notifications;
       list.innerHTML = "";
 

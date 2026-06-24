@@ -378,6 +378,7 @@ JS;
             'opt_in_prompt_approve_button_text_color' => '#ffffff',
             'opt_in_prompt_approve_button_background_color' => '#ea580c',
             'opt_in_prompt_reprompt_delay_days' => 30,
+            'opt_in_prompt_recent_notifications_limit' => 3,
         ];
 
         if ($settings['api_url'] === '' || $settings['site_key'] === '') {
