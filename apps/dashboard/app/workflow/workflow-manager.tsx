@@ -2,6 +2,7 @@
 
 import type { FormEvent } from "react";
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import type { SiteChoice } from "../_data/sites";
@@ -77,6 +78,13 @@ function tryParseJson(value: string): Record<string, unknown> {
 
 function formatRelative(value: string): string {
   return value || "Not yet polled";
+}
+
+// Seed/test sites without a real country on file fall back to the literal
+// string "Unknown" -- showing "Site A - Unknown" in a dropdown reads as
+// broken data rather than an unset field, so drop the suffix instead.
+function formatSiteOptionLabel(site: SiteChoice): string {
+  return site.country && site.country !== "Unknown" ? `${site.name} - ${site.country}` : site.name;
 }
 
 export function WorkflowManager({ sites: allSites, feeds, events }: WorkflowManagerProps) {
@@ -244,7 +252,7 @@ export function WorkflowManager({ sites: allSites, feeds, events }: WorkflowMana
               <select id="workflow-feed-site" name="siteId" className="select" defaultValue={sites[0]?.id ?? ""}>
                 {sites.map((site) => (
                   <option key={site.id} value={site.id}>
-                    {site.name} - {site.country}
+                    {formatSiteOptionLabel(site)}
                   </option>
                 ))}
               </select>
@@ -295,7 +303,13 @@ export function WorkflowManager({ sites: allSites, feeds, events }: WorkflowMana
             </div>
           ) : null}
 
+          <div className="workflow-list-heading">
+            <h4>Your feeds</h4>
+            <span className="subtle">{feeds.length}</span>
+          </div>
+
           <div className="workflow-feed-list">
+            {feeds.length === 0 ? <p className="subtle">No RSS feeds yet -- add one above.</p> : null}
             {feeds.map((feed) => (
               <article key={feed.id} className="workflow-feed-card">
                 <div className="workflow-feed-card-header">
@@ -344,7 +358,6 @@ export function WorkflowManager({ sites: allSites, feeds, events }: WorkflowMana
               <p className="eyebrow">Event logging</p>
               <h3>Manually record automation triggers.</h3>
             </div>
-            <span className="badge sent">Queued</span>
           </div>
 
           <form className="workflow-form" onSubmit={handleRecordEvent}>
@@ -353,7 +366,7 @@ export function WorkflowManager({ sites: allSites, feeds, events }: WorkflowMana
               <select id="workflow-event-site" name="siteId" className="select" defaultValue={sites[0]?.id ?? ""}>
                 {sites.map((site) => (
                   <option key={site.id} value={site.id}>
-                    {site.name} - {site.country}
+                    {formatSiteOptionLabel(site)}
                   </option>
                 ))}
               </select>
@@ -407,7 +420,10 @@ export function WorkflowManager({ sites: allSites, feeds, events }: WorkflowMana
           ) : null}
 
           <div className="workflow-reference">
-            <h4>Supported actions</h4>
+            <h4>What an automation can do with this trigger</h4>
+            <p className="subtle">
+              Set these up on the <Link href="/automations">Automations page</Link> -- this panel only records test events.
+            </p>
             <div className="workflow-action-list">
               {Object.entries(actionLabels).map(([value, label]) => (
                 <div key={value} className="workflow-action-pill">
