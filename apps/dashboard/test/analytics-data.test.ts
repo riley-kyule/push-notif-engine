@@ -98,6 +98,76 @@ test("analytics dashboard data falls back to all sites when no sites exist", asy
   }
 });
 
+test("analytics dashboard data includes the full site list when more than one page exists", async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.includes("/sites?limit=500&offset=0")) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              items: Array.from({ length: 25 }, (_, index) => ({
+                id: `site-${index + 1}`,
+                name: `Site ${index + 1}`,
+                url: `https://site-${index + 1}.example.com`,
+                country: "GH",
+                timezone: "UTC",
+                language: "en",
+                status: "active",
+                appName: `Site ${index + 1}`,
+                iconUrl: "",
+                themeColor: "#1c1917",
+                optInPromptType: "lightbox-1",
+                optInPromptAnimation: "slide-in",
+                optInPromptBackgroundColor: "#ffffff",
+                optInPromptHeadline: "Headline",
+                optInPromptHeadlineTextColor: "#111111",
+                optInPromptText: "Body copy",
+                optInPromptTextColor: "#444444",
+                optInPromptIconUrl: "",
+                optInPromptCancelButtonLabel: "Not now",
+                optInPromptCancelButtonTextColor: "#ffffff",
+                optInPromptCancelButtonBackgroundColor: "#111111",
+                optInPromptApproveButtonLabel: "Enable",
+                optInPromptApproveButtonTextColor: "#ffffff",
+                optInPromptApproveButtonBackgroundColor: "#ea580c",
+                optInPromptRepromptDelayDays: 30,
+                optInPromptRecentNotificationsLimit: 3,
+                restApiKeyId: null,
+                restApiAuthTokenLast4: null,
+                restApiCredentialsGeneratedAt: null,
+              })),
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+
+      if (url.endsWith("/campaigns")) {
+        return new Response(JSON.stringify({ success: true, data: { items: [] } }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({ success: true, data: null }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as typeof fetch;
+
+    const data = await getAnalyticsDashboardData({ preset: "30d", days: "30" });
+    assert.equal(data.sites.length, 25);
+    assert.equal(data.sites[0]?.id, "site-1");
+    assert.equal(data.sites.at(-1)?.id, "site-25");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("requesting siteId 'site-3' resolves to the All Sites aggregate even with real sites present, instead of silently defaulting to the newest one", async () => {
   const originalFetch = globalThis.fetch;
   try {
