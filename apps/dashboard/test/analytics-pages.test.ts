@@ -49,11 +49,11 @@ test("analytics overview failures card can deep-link to the failed time series",
       failedDeliveryReason: "410 Gone Subscription no longer valid",
       failedDeliveryReasonCount: 19,
     },
-    { failureHref: "/analytics?section=time&metric=failed#analytics-performance-explorer" },
+    { failureHref: "/analytics?section=failures#analytics-performance-explorer" },
   );
 
   const failuresCard = cards.find((card) => card.label === "Failures");
 
   assert.ok(failuresCard);
-  assert.equal(failuresCard?.href, "/analytics?section=time&metric=failed#analytics-performance-explorer");
+  assert.equal(failuresCard?.href, "/analytics?section=failures#analytics-performance-explorer");
 });
