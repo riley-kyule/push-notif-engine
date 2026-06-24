@@ -12,6 +12,7 @@ import type { SiteChoice } from "../../_data/sites";
 
 type CampaignType = "instant" | "scheduled" | "recurring";
 type CampaignChannel = "web" | "mobile" | "all";
+type CampaignRecurrenceType = "daily" | "weekly" | "monthly";
 type BuilderStep = "content" | "audience" | "schedule" | "review";
 
 const BUILDER_STEPS: { key: BuilderStep; label: string }[] = [
@@ -70,7 +71,11 @@ async function postJson<T>(url: string, body?: unknown): Promise<T> {
   return payload as T;
 }
 
-export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBuilderFormProps) {
+export function CampaignBuilderForm({ sites: allSites, segments, taxonomies }: CampaignBuilderFormProps) {
+  // A campaign always sends through one site's VAPID keys and subscriber
+  // pool -- "All Sites" (site-3) isn't a real site, so selecting it would
+  // 404 on submit. Excluded here rather than left in as a trap.
+  const sites = useMemo(() => allSites.filter((site) => site.id !== "site-3"), [allSites]);
   const [step, setStep] = useState<BuilderStep>("content");
   const [siteId, setSiteId] = useState(sites[0]?.id ?? "site-1");
   const [segmentId, setSegmentId] = useState<string>("");
@@ -82,6 +87,8 @@ export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBui
   const [type, setType] = useState<CampaignType>("scheduled");
   const [contentType, setContentType] = useState(taxonomies.find((taxonomy) => taxonomy.slug === "promotion")?.slug ?? taxonomies[0]?.slug ?? "promotion");
   const [schedule, setSchedule] = useState("");
+  const [recurrenceType, setRecurrenceType] = useState<CampaignRecurrenceType>("weekly");
+  const [recurrenceInterval, setRecurrenceInterval] = useState(1);
   const [imageUrl, setImageUrl] = useState("");
   const [iconUrl, setIconUrl] = useState("");
   const [imageAssetId, setImageAssetId] = useState<string | null>(null);
@@ -100,6 +107,9 @@ export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBui
   const [isSubmittingPrimary, setIsSubmittingPrimary] = useState(false);
 
   const isInstant = type === "instant";
+  const recurrenceUnitLabel = recurrenceType === "daily" ? "day" : recurrenceType === "weekly" ? "week" : "month";
+  const recurrenceSummary =
+    recurrenceInterval === 1 ? `Every ${recurrenceUnitLabel}` : `Every ${recurrenceInterval} ${recurrenceUnitLabel}s`;
 
   const previewButtons = useMemo(
     () =>
@@ -191,8 +201,8 @@ export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBui
     status: "draft" as const,
     scheduledAt: isInstant ? null : localTimeInZoneToUtcIso(schedule, siteTimezone),
     timezone: siteTimezone,
-    recurrenceType: type === "recurring" ? "weekly" : null,
-    recurrenceInterval: type === "recurring" ? 1 : null,
+    recurrenceType: type === "recurring" ? recurrenceType : null,
+    recurrenceInterval: type === "recurring" ? recurrenceInterval : null,
     recurrenceUntilAt: type === "recurring" ? localTimeInZoneToUtcIso(schedule, siteTimezone) : null,
   };
 
@@ -274,8 +284,8 @@ export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBui
       await postJson(buildUrl("/api/dashboard", `/campaigns/${created.data.id}/schedule`), {
         scheduledAt,
         timezone: siteTimezone,
-        recurrenceType: type === "recurring" ? "weekly" : null,
-        recurrenceInterval: type === "recurring" ? 1 : null,
+        recurrenceType: type === "recurring" ? recurrenceType : null,
+        recurrenceInterval: type === "recurring" ? recurrenceInterval : null,
         recurrenceUntilAt: type === "recurring" ? scheduledAt : null,
       });
     }
@@ -506,14 +516,41 @@ export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBui
               </div>
             ) : (
               <div className="field">
-                <label htmlFor="schedule">Send time</label>
+                <label htmlFor="schedule">{type === "recurring" ? "Starts at" : "Send time"}</label>
                 <input className="input" id="schedule" type="datetime-local" value={schedule} onChange={(event) => setSchedule(event.target.value)} />
-                <p className="subtle">
-                  Local time at the selected site ({siteTimezone}).
-                  {type === "recurring" ? " Recurs weekly from this time." : ""}
-                </p>
+                <p className="subtle">Local time at the selected site ({siteTimezone}).</p>
               </div>
             )}
+
+            {type === "recurring" ? (
+              <div className="grid cards-2">
+                <div className="field">
+                  <label htmlFor="recurrenceType">Repeats</label>
+                  <select
+                    className="select"
+                    id="recurrenceType"
+                    value={recurrenceType}
+                    onChange={(event) => setRecurrenceType(event.target.value as CampaignRecurrenceType)}
+                  >
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label htmlFor="recurrenceInterval">Every</label>
+                  <input
+                    className="input"
+                    id="recurrenceInterval"
+                    type="number"
+                    min={1}
+                    value={recurrenceInterval}
+                    onChange={(event) => setRecurrenceInterval(Math.max(1, Number(event.target.value) || 1))}
+                  />
+                  <p className="subtle">{recurrenceSummary}</p>
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -536,6 +573,12 @@ export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBui
                 <span className="subtle">Send time</span>
                 <strong>{isInstant ? "Immediately" : schedule || "Not set"}</strong>
               </div>
+              {type === "recurring" ? (
+                <div className="field">
+                  <span className="subtle">Repeats</span>
+                  <strong>{recurrenceSummary}</strong>
+                </div>
+              ) : null}
               <div className="field">
                 <span className="subtle">Title</span>
                 <strong>{title || "Not set"}</strong>
@@ -609,6 +652,7 @@ export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBui
           <p className="subtle">
             Send time: {isInstant ? "Immediately" : schedule || "—"} ({siteTimezone})
           </p>
+          {type === "recurring" ? <p className="subtle">Repeats: {recurrenceSummary}</p> : null}
           <p className="subtle">Destination: {destination}</p>
           <p className="subtle">
             Audience: {segmentsForSite.find((segment) => segment.id === segmentId)?.name ?? "All active subscribers"}

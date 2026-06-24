@@ -79,7 +79,10 @@ function formatRelative(value: string): string {
   return value || "Not yet polled";
 }
 
-export function WorkflowManager({ sites, feeds, events }: WorkflowManagerProps) {
+export function WorkflowManager({ sites: allSites, feeds, events }: WorkflowManagerProps) {
+  // RSS feeds and recorded events always belong to one real site -- "All
+  // Sites" (site-3) isn't a real site, so picking it here would 404.
+  const sites = useMemo(() => allSites.filter((site) => site.id !== "site-3"), [allSites]);
   const router = useRouter();
   const [feedNotice, setFeedNotice] = useState<string | null>(null);
   const [eventNotice, setEventNotice] = useState<string | null>(null);
