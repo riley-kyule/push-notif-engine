@@ -10,6 +10,7 @@ function buildQuery(params: {
   preset: string;
   days: number;
   section?: string;
+  metric?: string;
   startDate?: string;
   endDate?: string;
   compareMode?: string;
@@ -23,6 +24,9 @@ function buildQuery(params: {
   search.set("days", String(params.days));
   if (params.section) {
     search.set("section", params.section);
+  }
+  if (params.metric) {
+    search.set("metric", params.metric);
   }
   if (params.startDate) {
     search.set("startDate", params.startDate);
@@ -71,7 +75,7 @@ function formatPercent(value: number): string {
   return `${value}%`;
 }
 
-export function buildAnalyticsOverviewCards(overview: DashboardOverview) {
+export function buildAnalyticsOverviewCards(overview: DashboardOverview, options?: { failureHref?: string }) {
   return [
     {
       label: "Total subscribers",
@@ -94,6 +98,7 @@ export function buildAnalyticsOverviewCards(overview: DashboardOverview) {
       detail: overview.failedDeliveryReason
         ? `Most common cause: ${overview.failedDeliveryReason} (${formatNumber(overview.failedDeliveryReasonCount)} events)`
         : "Queue and delivery exceptions",
+      href: overview.failedDeliveryReason ? options?.failureHref : undefined,
     },
   ];
 }
@@ -101,12 +106,12 @@ export function buildAnalyticsOverviewCards(overview: DashboardOverview) {
 export default async function AnalyticsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ days?: string; preset?: string; section?: string; startDate?: string; endDate?: string; compareMode?: string; compareStartDate?: string; compareEndDate?: string; siteId?: string; campaignId?: string }>;
+  searchParams: Promise<{ days?: string; preset?: string; section?: string; metric?: string; startDate?: string; endDate?: string; compareMode?: string; compareStartDate?: string; compareEndDate?: string; siteId?: string; campaignId?: string }>;
 }) {
   const query = await searchParams;
   const dashboard = await getAnalyticsDashboardData(query);
   const activeSection = typeof query.section === "string" ? query.section : "site";
-  const overviewCards = buildAnalyticsOverviewCards(dashboard.overview);
+  const activeMetric = typeof query.metric === "string" ? query.metric : undefined;
   const currentFilters = {
     preset: dashboard.selectedPreset,
     days: dashboard.days,
@@ -122,7 +127,28 @@ export default async function AnalyticsPage({
     siteId: dashboard.selectedSite.id,
     ...(dashboard.selectedCampaign ? { campaignId: dashboard.selectedCampaign.id } : {}),
     section: activeSection,
+    ...(activeMetric ? { metric: activeMetric } : {}),
   };
+  const overviewCards = buildAnalyticsOverviewCards(dashboard.overview, {
+    failureHref:
+      buildQuery({
+        preset: dashboard.selectedPreset,
+        days: dashboard.days,
+        ...(dashboard.selectedPreset === "custom" && dashboard.range.days > 1 ? { endDate: dashboard.range.endDate } : {}),
+        ...(dashboard.selectedPreset === "custom" ? { startDate: dashboard.range.startDate } : {}),
+        compareMode: dashboard.compareMode,
+        ...(dashboard.compareMode === "custom" && dashboard.comparisonRange
+          ? {
+              compareStartDate: dashboard.comparisonRange.startDate,
+              compareEndDate: dashboard.comparisonRange.endDate,
+            }
+          : {}),
+        siteId: dashboard.selectedSite.id,
+        ...(dashboard.selectedCampaign ? { campaignId: dashboard.selectedCampaign.id } : {}),
+        section: "time",
+        metric: "failed",
+      }) + "#analytics-performance-explorer",
+  });
 
   const buildSeries = <T,>(
     data: T[],
@@ -310,17 +336,27 @@ export default async function AnalyticsPage({
       <div className="analytics-page">
         <section className="analytics-summary-grid">
           {overviewCards.map((item) => (
-            <article key={item.label} className="card analytics-summary-card">
-              <p className="analytics-summary-label">{item.label}</p>
-              <p className="analytics-summary-value">{item.value}</p>
-              <p className="analytics-summary-detail">{item.detail}</p>
-            </article>
+            item.href ? (
+              <Link key={item.label} className="card analytics-summary-card overview-summary-link" href={item.href} aria-label={`${item.label}: ${item.value}`}>
+                <p className="analytics-summary-label">{item.label}</p>
+                <p className="analytics-summary-value">{item.value}</p>
+                <p className="analytics-summary-detail">{item.detail}</p>
+                <span className="overview-summary-cta">Open failures view</span>
+              </Link>
+            ) : (
+              <article key={item.label} className="card analytics-summary-card">
+                <p className="analytics-summary-label">{item.label}</p>
+                <p className="analytics-summary-value">{item.value}</p>
+                <p className="analytics-summary-detail">{item.detail}</p>
+              </article>
+            )
           ))}
         </section>
 
         <AnalyticsPerformanceExplorer
           sections={performanceSections}
           initialSectionKey={activeSection}
+          initialMetricKey={activeMetric}
           exportOptions={exportOptions}
           controls={
             <AnalyticsRangePicker
