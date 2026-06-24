@@ -20,6 +20,7 @@ export type DashboardNavIcon =
   | "health"
   | "auth"
   | "logout"
+  | "media"
   | "planned";
 
 export interface DashboardNavItem {
@@ -159,6 +160,14 @@ export function SidebarIcon({ name }: { name: DashboardNavIcon }) {
         <svg {...common}>
           <path d="M8.5 11V8.5a3.5 3.5 0 1 1 7 0V11" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
           <path d="M7 11h10v8H7z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+        </svg>
+      );
+    case "media":
+      return (
+        <svg {...common}>
+          <rect x="4.5" y="5.5" width="15" height="13" rx="2" stroke="currentColor" strokeWidth="1.7" />
+          <circle cx="9" cy="10" r="1.4" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M5.5 16.5 9.5 13l3 2.5 3-3.5 3 4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       );
     case "logout":

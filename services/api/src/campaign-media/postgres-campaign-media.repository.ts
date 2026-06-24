@@ -5,8 +5,6 @@ import { DATABASE_POOL } from "../database/database.constants";
 import type { CampaignMediaRepository, CreateCampaignMediaInput } from "./campaign-media.repository";
 import type { CampaignMediaKind, CampaignMediaRecord } from "./campaign-media.types";
 
-const MAX_GALLERY_RESULTS = 60;
-
 interface DbCampaignMediaRow {
   id: string;
   site_id: string;
@@ -83,28 +81,37 @@ export class PostgresCampaignMediaRepository implements CampaignMediaRepository 
     return rows.map((row) => this.mapRow(row));
   }
 
-  async listBySiteId(siteId: string, kind?: CampaignMediaKind): Promise<CampaignMediaRecord[]> {
-    const params: Array<string | number> = [siteId];
-    let kindClause = "";
-    if (kind) {
-      params.push(kind);
-      kindClause = `AND kind = $${params.length}`;
+  async listGallery(filters: { siteId?: string; kind?: CampaignMediaKind; limit: number; offset: number }): Promise<{
+    items: CampaignMediaRecord[];
+    total: number;
+  }> {
+    const where: string[] = [];
+    const params: Array<string | number> = [];
+
+    if (filters.siteId) {
+      params.push(filters.siteId);
+      where.push(`site_id = $${params.length}`);
     }
-    params.push(MAX_GALLERY_RESULTS);
+    if (filters.kind) {
+      params.push(filters.kind);
+      where.push(`kind = $${params.length}`);
+    }
 
-    const { rows } = await this.pool.query<DbCampaignMediaRow>(
-      `
-      SELECT *
-      FROM campaign_media_assets
-      WHERE site_id = $1
-      ${kindClause}
-      ORDER BY created_at DESC
-      LIMIT $${params.length}
-      `,
-      params,
-    );
+    const whereClause = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
+    const listParams = [...params, filters.limit, filters.offset];
 
-    return rows.map((row) => this.mapRow(row));
+    const [itemsResult, countResult] = await Promise.all([
+      this.pool.query<DbCampaignMediaRow>(
+        `SELECT * FROM campaign_media_assets ${whereClause} ORDER BY created_at DESC LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
+        listParams,
+      ),
+      this.pool.query<{ total: number }>(`SELECT COUNT(*)::int AS total FROM campaign_media_assets ${whereClause}`, params),
+    ]);
+
+    return {
+      items: itemsResult.rows.map((row) => this.mapRow(row)),
+      total: countResult.rows[0]?.total ?? 0,
+    };
   }
 
   async attachToCampaign(assetId: string, campaignId: string): Promise<CampaignMediaRecord | null> {

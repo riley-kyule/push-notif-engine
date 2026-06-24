@@ -3,8 +3,6 @@ import { randomUUID } from "node:crypto";
 import type { CampaignMediaRepository, CreateCampaignMediaInput } from "./campaign-media.repository";
 import type { CampaignMediaKind, CampaignMediaRecord } from "./campaign-media.types";
 
-const MAX_GALLERY_RESULTS = 60;
-
 function clone(record: CampaignMediaRecord): CampaignMediaRecord {
   return { ...record };
 }
@@ -40,13 +38,19 @@ export class InMemoryCampaignMediaRepository implements CampaignMediaRepository 
     return this.assets.filter((asset) => asset.campaignId === campaignId).map(clone);
   }
 
-  async listBySiteId(siteId: string, kind?: CampaignMediaKind): Promise<CampaignMediaRecord[]> {
-    return this.assets
-      .filter((asset) => asset.siteId === siteId)
-      .filter((asset) => !kind || asset.kind === kind)
-      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
-      .slice(0, MAX_GALLERY_RESULTS)
-      .map(clone);
+  async listGallery(filters: { siteId?: string; kind?: CampaignMediaKind; limit: number; offset: number }): Promise<{
+    items: CampaignMediaRecord[];
+    total: number;
+  }> {
+    const matches = this.assets
+      .filter((asset) => !filters.siteId || asset.siteId === filters.siteId)
+      .filter((asset) => !filters.kind || asset.kind === filters.kind)
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+
+    return {
+      items: matches.slice(filters.offset, filters.offset + filters.limit).map(clone),
+      total: matches.length,
+    };
   }
 
   async attachToCampaign(assetId: string, campaignId: string): Promise<CampaignMediaRecord | null> {
