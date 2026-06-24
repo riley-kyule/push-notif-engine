@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 
 import { apiFetch } from "../../../../lib/server-api";
 
-export async function GET(): Promise<Response> {
-  const res = await apiFetch("/automations");
+export async function GET(request: Request): Promise<Response> {
+  const url = new URL(request.url);
+  const query = url.search ? url.search : "";
+  const res = await apiFetch(`/automations${query}`);
   const data = await res.json().catch(() => ({ success: false, error: { message: "Invalid API response" } }));
   return NextResponse.json(data, { status: res.status });
 }

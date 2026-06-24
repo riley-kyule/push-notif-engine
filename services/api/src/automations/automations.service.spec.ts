@@ -108,15 +108,12 @@ test("seedDefaultAutomations only fills in the missing trigger if one default al
   assert.equal(created[0]?.triggerEvent, "subscriber_unsubscribed");
 });
 
-test("seedDefaultAutomations with no siteId seeds every site once", async () => {
+test("seedDefaultAutomations with no siteId creates global defaults", async () => {
   const { service } = createService();
 
   const created = await service.seedDefaultAutomations(null);
-  assert.equal(created.length, 4);
-  assert.deepEqual(
-    created.map((automation) => automation.siteId).sort(),
-    ["site-1", "site-1", "site-2", "site-2"],
-  );
+  assert.equal(created.length, 2);
+  assert.deepEqual(created.map((automation) => automation.siteId), [null, null]);
 });
 
 test("an All Sites automation (no siteId) is active for every site without duplicating it per site", async () => {

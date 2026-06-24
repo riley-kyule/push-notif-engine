@@ -155,12 +155,7 @@ export class AutomationsService {
   // that trigger (default or custom), so re-running this never duplicates.
   async seedDefaultAutomations(siteId: string | null, actorUserId?: string): Promise<AutomationRecord[]> {
     if (!siteId) {
-      const sites = await this.sitesService.listSites({ limit: 500, offset: 0 });
-      const created: AutomationRecord[] = [];
-      for (const site of sites.items) {
-        created.push(...(await this.seedDefaultAutomationsForSite(site.id, actorUserId)));
-      }
-      return created;
+      return this.seedGlobalDefaultAutomations(actorUserId);
     }
 
     return this.seedDefaultAutomationsForSite(siteId, actorUserId);
@@ -199,6 +194,48 @@ export class AutomationsService {
             title: "Sorry to see you go",
             message: "You've been unsubscribed from notifications. You can re-enable them anytime.",
             url: site.url,
+            status: "active",
+          } as CreateAutomationDto,
+          actorUserId,
+        ),
+      );
+    }
+
+    return created;
+  }
+
+  private async seedGlobalDefaultAutomations(actorUserId?: string): Promise<AutomationRecord[]> {
+    const existing = await this.automationsRepository.list({ limit: 1000, offset: 0 });
+    const existingGlobalTriggers = new Set(existing.items.filter((automation) => automation.siteId === null).map((automation) => automation.triggerEvent));
+    const created: AutomationRecord[] = [];
+
+    if (!existingGlobalTriggers.has("subscriber_registered")) {
+      created.push(
+        await this.createAutomation(
+          {
+            siteId: null,
+            name: "Welcome push",
+            triggerEvent: "subscriber_registered",
+            title: "Welcome to Exotic Push Engine!",
+            message: "Thanks for subscribing - we'll keep you posted with updates you won't want to miss.",
+            url: "https://example.com",
+            status: "active",
+          } as CreateAutomationDto,
+          actorUserId,
+        ),
+      );
+    }
+
+    if (!existingGlobalTriggers.has("subscriber_unsubscribed")) {
+      created.push(
+        await this.createAutomation(
+          {
+            siteId: null,
+            name: "Unsubscribe notice",
+            triggerEvent: "subscriber_unsubscribed",
+            title: "Sorry to see you go",
+            message: "You've been unsubscribed from notifications. You can re-enable them anytime.",
+            url: "https://example.com",
             status: "active",
           } as CreateAutomationDto,
           actorUserId,

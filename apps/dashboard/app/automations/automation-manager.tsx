@@ -175,9 +175,8 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
           </div>
         </div>
         <p className="subtle">
-          Creates a welcome push (on subscribe) and an unsubscribe notice (on unsubscribe) for a site, or for every
-          site when All Sites is selected, if they don't already have automations on those triggers. Safe to run more
-          than once.
+          Creates a welcome push (on subscribe) and an unsubscribe notice (on unsubscribe) for a site, or as a
+          global All Sites automation that applies to future sites too. Safe to run more than once.
         </p>
         <form onSubmit={handleSeedDefaults} className="grid cards-2" style={{ marginTop: 12, alignItems: "end" }}>
           <div className="field">
