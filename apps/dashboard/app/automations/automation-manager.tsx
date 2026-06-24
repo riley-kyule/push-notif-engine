@@ -4,6 +4,8 @@ import type { FormEvent } from "react";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
+import { postJson } from "../../lib/api-client";
+import { useToast } from "../_components/toast";
 import type { SiteChoice } from "../_data/sites";
 import type { AutomationStatus, AutomationSummary, AutomationTriggerEvent } from "../_data/automations";
 
@@ -15,25 +17,6 @@ const triggerLabels: Record<AutomationTriggerEvent, string> = {
   api_event: "API event",
   rss_item_published: "RSS item published",
 };
-
-async function postJson<T>(url: string, body: unknown, method = "POST"): Promise<T> {
-  const response = await fetch(url, {
-    method,
-    headers: { "content-type": "application/json", accept: "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  const payload = (await response.json().catch(() => null)) as
-    | (T & { error?: { message?: string } })
-    | { error?: { message?: string } }
-    | null;
-
-  if (!response.ok) {
-    throw new Error(payload?.error?.message ?? `Request failed with status ${response.status}`);
-  }
-
-  return payload as T;
-}
 
 const ALL_SITES_VALUE = "__all_sites__";
 
@@ -61,8 +44,8 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
   const [status, setStatus] = useState<AutomationStatus>("active");
   const [editingAutomationId, setEditingAutomationId] = useState<string | null>(null);
 
+  const toast = useToast();
   const [defaultsSiteId, setDefaultsSiteId] = useState(ALL_SITES_VALUE);
-  const [notice, setNotice] = useState<string | null>(null);
   const [busyAutomationId, setBusyAutomationId] = useState<string | null>(null);
   const [isCreating, startCreate] = useTransition();
   const [isSeeding, startSeed] = useTransition();
@@ -81,7 +64,6 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
   }
 
   function beginEdit(automation: AutomationSummary) {
-    setNotice(null);
     setEditingAutomationId(automation.id);
     setSiteId(automation.siteId ?? ALL_SITES_VALUE);
     setName(automation.name);
@@ -103,11 +85,10 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
     event.preventDefault();
 
     if (!siteId || !name.trim() || !title.trim() || !message.trim() || !url.trim()) {
-      setNotice("Site, name, title, message, and URL are required.");
+      toast.showError("Site, name, title, message, and URL are required.");
       return;
     }
 
-    setNotice(null);
     startCreate(() => {
       const payload = {
         siteId: siteId === ALL_SITES_VALUE ? null : siteId,
@@ -124,53 +105,52 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
       const endpoint = isEditing ? `/api/dashboard/automations/${editingAutomationId}` : "/api/dashboard/automations";
       void postJson(endpoint, payload, isEditing ? "PATCH" : "POST")
         .then(() => {
-          setNotice(isEditing ? "Automation updated." : "Automation created.");
+          toast.showSuccess(isEditing ? `Automation "${name.trim()}" updated.` : `Automation "${name.trim()}" created.`);
           resetForm();
           router.refresh();
         })
         .catch((error) => {
-          setNotice(error instanceof Error ? error.message : isEditing ? "Unable to update automation." : "Unable to create automation.");
+          toast.showError(error instanceof Error ? error.message : isEditing ? "Unable to update automation." : "Unable to create automation.");
         });
     });
   }
 
   function handleSeedDefaults(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setNotice(null);
     startSeed(() => {
       void postJson<{ data: unknown[] }>("/api/dashboard/automations/seed-defaults", {
         siteId: defaultsSiteId === ALL_SITES_VALUE ? null : defaultsSiteId,
       })
         .then((result) => {
           const createdCount = Array.isArray(result?.data) ? result.data.length : 0;
-          setNotice(
-            createdCount > 0
-              ? `Created ${createdCount} default automation${createdCount === 1 ? "" : "s"}.`
-              : defaultsSiteId === ALL_SITES_VALUE
+          if (createdCount > 0) {
+            toast.showSuccess(`Created ${createdCount} default automation${createdCount === 1 ? "" : "s"}.`);
+          } else {
+            toast.showToast(
+              defaultsSiteId === ALL_SITES_VALUE
                 ? "A welcome push already covers all sites -- find it in the Automation library below and edit it directly if its title or URL need changing."
                 : "Defaults already exist for this site -- find it in the Automation library below and edit it directly if it needs changing.",
-          );
+              "info",
+            );
+          }
           router.refresh();
         })
         .catch((error) => {
-          setNotice(error instanceof Error ? error.message : "Unable to set up default automations.");
+          toast.showError(error instanceof Error ? error.message : "Unable to set up default automations.");
         });
     });
   }
 
   function toggleStatus(automation: AutomationSummary) {
-    setNotice(null);
     setBusyAutomationId(automation.id);
-    void postJson(
-      `/api/dashboard/automations/${automation.id}`,
-      { status: automation.status === "active" ? "paused" : "active" },
-      "PATCH",
-    )
+    const nextStatus = automation.status === "active" ? "paused" : "active";
+    void postJson(`/api/dashboard/automations/${automation.id}`, { status: nextStatus }, "PATCH")
       .then(() => {
+        toast.showSuccess(`"${automation.name}" ${nextStatus}.`);
         router.refresh();
       })
       .catch((error) => {
-        setNotice(error instanceof Error ? error.message : "Unable to update automation.");
+        toast.showError(error instanceof Error ? error.message : "Unable to update automation.");
       })
       .finally(() => {
         setBusyAutomationId(null);
@@ -182,14 +162,14 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
       return;
     }
 
-    setNotice(null);
     setBusyAutomationId(automation.id);
     void postJson(`/api/dashboard/automations/${automation.id}`, undefined, "DELETE")
       .then(() => {
+        toast.showSuccess(`Automation "${automation.name}" deleted.`);
         router.refresh();
       })
       .catch((error) => {
-        setNotice(error instanceof Error ? error.message : "Unable to delete automation.");
+        toast.showError(error instanceof Error ? error.message : "Unable to delete automation.");
       })
       .finally(() => {
         setBusyAutomationId(null);
@@ -339,11 +319,6 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
         </form>
       </section>
 
-      {notice ? (
-        <p className="badge neutral" style={{ justifyContent: "flex-start" }}>
-          {notice}
-        </p>
-      ) : null}
 
       <section className="card">
         <div className="panel-heading">

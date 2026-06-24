@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type FormEvent } from "react";
 
+import { useToast } from "../_components/toast";
 import type { AccessControlPermission, AccessControlRole, AccessControlUser, AccessControlUserWithPassword } from "./page";
 
 type Props = {
@@ -95,6 +96,7 @@ async function postJson<T>(url: string, body: unknown, method = "POST"): Promise
 }
 
 export function AccessControlManager({ initialRoles, initialUsers }: Props) {
+  const toast = useToast();
   const [roles, setRoles] = useState(initialRoles);
   const [users, setUsers] = useState(initialUsers);
   const [selectedRoleSlug, setSelectedRoleSlug] = useState(initialRoles[0]?.slug ?? "super-admin");
@@ -103,7 +105,6 @@ export function AccessControlManager({ initialRoles, initialUsers }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [roleSlug, setRoleSlug] = useState(initialRoles[0]?.slug ?? "sub-admin");
-  const [status, setStatus] = useState<string | null>(null);
   const [savingRole, setSavingRole] = useState<string | null>(null);
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
   const [revealedCredential, setRevealedCredential] = useState<{ heading: string; username: string; password: string } | null>(null);
@@ -134,12 +135,11 @@ export function AccessControlManager({ initialRoles, initialUsers }: Props) {
 
   async function handleCreateUser(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setStatus(null);
     setRevealedCredential(null);
 
     const validationError = validateNewUserInput(firstName, lastName, email, roleSlug);
     if (validationError) {
-      setStatus(validationError);
+      toast.showError(validationError);
       return;
     }
 
@@ -159,8 +159,9 @@ export function AccessControlManager({ initialRoles, initialUsers }: Props) {
       setPassword("");
       setRoleSlug(initialRoles[0]?.slug ?? "sub-admin");
       setRevealedCredential({ heading: `Created ${result.data.name}`, username: result.data.username, password: result.data.password });
+      toast.showSuccess(`User "${result.data.name}" created.`);
     } catch (error) {
-      setStatus(extractErrorMessage(error, "Unable to create user"));
+      toast.showError(extractErrorMessage(error, "Unable to create user."));
     }
   }
 
@@ -169,7 +170,6 @@ export function AccessControlManager({ initialRoles, initialUsers }: Props) {
       return;
     }
 
-    setStatus(null);
     setResettingUserId(user.id);
     try {
       const result = await postJson<{ success: true; data: AccessControlUserWithPassword }>(
@@ -178,8 +178,9 @@ export function AccessControlManager({ initialRoles, initialUsers }: Props) {
         "PATCH",
       );
       setRevealedCredential({ heading: `Reset password for ${user.name}`, username: result.data.username, password: result.data.password });
+      toast.showSuccess(`Password reset for "${user.name}".`);
     } catch (error) {
-      setStatus(extractErrorMessage(error, "Unable to reset password"));
+      toast.showError(extractErrorMessage(error, "Unable to reset password."));
     } finally {
       setResettingUserId(null);
     }
@@ -205,7 +206,6 @@ export function AccessControlManager({ initialRoles, initialUsers }: Props) {
     }
 
     setSavingRole(selectedRole.slug);
-    setStatus(null);
     try {
       const payload = {
         name: selectedRole.name,
@@ -217,16 +217,15 @@ export function AccessControlManager({ initialRoles, initialUsers }: Props) {
         "PATCH",
       );
       setRoles((current) => current.map((role) => (role.slug === selectedRole.slug ? result.data : role)));
-      setStatus(`Updated ${result.data.name}.`);
+      toast.showSuccess(`Updated ${result.data.name}.`);
     } catch (error) {
-      setStatus(extractErrorMessage(error, "Unable to save role"));
+      toast.showError(extractErrorMessage(error, "Unable to save role."));
     } finally {
       setSavingRole(null);
     }
   }
 
   async function handleUserRoleChange(userId: string, nextRole: string) {
-    setStatus(null);
     try {
       const result = await postJson<{ success: true; data: AccessControlUser }>(
         `/api/dashboard/access-control/users/${encodeURIComponent(userId)}/role`,
@@ -234,9 +233,9 @@ export function AccessControlManager({ initialRoles, initialUsers }: Props) {
         "PATCH",
       );
       setUsers((current) => current.map((user) => (user.id === userId ? result.data : user)));
-      setStatus(`Updated ${result.data.name}'s role.`);
+      toast.showSuccess(`Updated ${result.data.name}'s role.`);
     } catch (error) {
-      setStatus(extractErrorMessage(error, "Unable to update user role"));
+      toast.showError(extractErrorMessage(error, "Unable to update user role."));
     }
   }
 
@@ -510,8 +509,6 @@ export function AccessControlManager({ initialRoles, initialUsers }: Props) {
             </tbody>
           </table>
         </div>
-
-        {status ? <p className="access-control-status">{status}</p> : null}
       </article>
     </section>
   );

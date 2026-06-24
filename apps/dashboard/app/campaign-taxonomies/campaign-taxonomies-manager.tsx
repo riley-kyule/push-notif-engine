@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 
+import { useToast } from "../_components/toast";
 import type { CampaignTaxonomyChoice } from "../_data/campaign-taxonomies";
 
 function emptyForm() {
@@ -18,7 +19,7 @@ export function CampaignTaxonomiesManager({ initialTaxonomies }: { initialTaxono
   const [taxonomies, setTaxonomies] = useState(initialTaxonomies);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm());
-  const [message, setMessage] = useState<string | null>(null);
+  const toast = useToast();
   const [isPending, startTransition] = useTransition();
 
   const editingTaxonomy = useMemo(() => taxonomies.find((taxonomy) => taxonomy.id === editingId) ?? null, [editingId, taxonomies]);
@@ -44,7 +45,6 @@ export function CampaignTaxonomiesManager({ initialTaxonomies }: { initialTaxono
   }
 
   function submitForm() {
-    setMessage(null);
     startTransition(() => {
       const payload = {
         slug: form.slug,
@@ -75,36 +75,36 @@ export function CampaignTaxonomiesManager({ initialTaxonomies }: { initialTaxono
 
           if (editingId) {
             reload(taxonomies.map((taxonomy) => (taxonomy.id === editingId ? data.data! : taxonomy)));
-            setMessage("Taxonomy updated.");
+            toast.showSuccess(`Taxonomy "${data.data.label}" updated.`);
           } else {
             reload([...taxonomies, data.data]);
-            setMessage("Taxonomy added.");
+            toast.showSuccess(`Taxonomy "${data.data.label}" added.`);
           }
 
           beginCreate();
         })
         .catch((error) => {
-          setMessage(error instanceof Error ? error.message : "Unable to save taxonomy");
+          toast.showError(error instanceof Error ? error.message : "Unable to save taxonomy.");
         });
     });
   }
 
   function handleDelete(id: string) {
-    setMessage(null);
+    const taxonomy = taxonomies.find((entry) => entry.id === id);
     startTransition(() => {
       void fetch(`/api/dashboard/campaign-taxonomies/${id}`, { method: "DELETE" })
         .then(async (response) => {
           if (!response.ok) {
             throw new Error("Unable to delete taxonomy");
           }
-          reload(taxonomies.filter((taxonomy) => taxonomy.id !== id));
+          reload(taxonomies.filter((entry) => entry.id !== id));
           if (editingId === id) {
             beginCreate();
           }
-          setMessage("Taxonomy deleted.");
+          toast.showSuccess(`Taxonomy "${taxonomy?.label ?? id}" deleted.`);
         })
         .catch((error) => {
-          setMessage(error instanceof Error ? error.message : "Unable to delete taxonomy");
+          toast.showError(error instanceof Error ? error.message : "Unable to delete taxonomy.");
         });
     });
   }
@@ -165,7 +165,6 @@ export function CampaignTaxonomiesManager({ initialTaxonomies }: { initialTaxono
             {editingId ? "Update taxonomy" : "Add taxonomy"}
           </button>
         </div>
-        {message ? <p className="subtle" style={{ marginTop: 12 }}>{message}</p> : null}
       </section>
 
       <section className="card">

@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { buildUrl, localTimeInZoneToUtcIso } from "./campaign-builder.utils";
+import { postJson } from "../../../lib/api-client";
 import { uploadMedia } from "../../../lib/upload-media";
 import { MediaGalleryPicker } from "../../_components/media-gallery-picker";
+import { useToast } from "../../_components/toast";
 import type { CampaignTaxonomyChoice } from "../../_data/campaign-taxonomies";
 import type { SegmentChoice } from "../../_data/segments";
 import type { SiteChoice } from "../../_data/sites";
@@ -28,49 +30,6 @@ interface CampaignBuilderFormProps {
   sites: SiteChoice[];
   segments: SegmentChoice[];
   taxonomies: CampaignTaxonomyChoice[];
-}
-
-function extractErrorMessage(payload: unknown, fallback: string): string {
-  if (!payload || typeof payload !== "object") {
-    return fallback;
-  }
-
-  // class-validator's default NestJS error shape is { message: string[] | string },
-  // forwarded as-is by the BFF route -- surface it instead of a bare status code.
-  const message = (payload as { message?: unknown; error?: { message?: unknown } }).message
-    ?? (payload as { error?: { message?: unknown } }).error?.message;
-
-  if (Array.isArray(message) && message.length > 0) {
-    return message.join(", ");
-  }
-  if (typeof message === "string" && message.trim().length > 0) {
-    return message;
-  }
-
-  return fallback;
-}
-
-async function postJson<T>(url: string, body?: unknown): Promise<T> {
-  const init: RequestInit = {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      accept: "application/json",
-    },
-  };
-  if (body !== undefined) {
-    init.body = JSON.stringify(body);
-  }
-
-  const response = await fetch(url, init);
-
-  const payload = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    throw new Error(extractErrorMessage(payload, `Request failed with status ${response.status}`));
-  }
-
-  return payload as T;
 }
 
 export function CampaignBuilderForm({ sites: allSites, segments, taxonomies }: CampaignBuilderFormProps) {
@@ -104,7 +63,7 @@ export function CampaignBuilderForm({ sites: allSites, segments, taxonomies }: C
   const [primaryButtonUrl, setPrimaryButtonUrl] = useState(destination);
   const [secondaryButtonLabel, setSecondaryButtonLabel] = useState("Dismiss");
   const [secondaryButtonUrl, setSecondaryButtonUrl] = useState(destination);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const toast = useToast();
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isSubmittingPrimary, setIsSubmittingPrimary] = useState(false);
 
@@ -152,15 +111,14 @@ export function CampaignBuilderForm({ sites: allSites, segments, taxonomies }: C
     }
 
     setIsUploadingImage(true);
-    setStatusMessage(null);
     try {
       const asset = await uploadMedia(uploadSiteId, "image", file);
       setImageAssetId(asset.id);
       setImageUrl(asset.publicUrl);
       setImageFileName(file.name);
-      setStatusMessage("Campaign image uploaded");
+      toast.showSuccess("Campaign image uploaded.");
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Unable to upload image");
+      toast.showError(error instanceof Error ? error.message : "Unable to upload image.");
     } finally {
       setIsUploadingImage(false);
     }
@@ -172,15 +130,14 @@ export function CampaignBuilderForm({ sites: allSites, segments, taxonomies }: C
     }
 
     setIsUploadingIcon(true);
-    setStatusMessage(null);
     try {
       const asset = await uploadMedia(uploadSiteId, "icon", file);
       setIconAssetId(asset.id);
       setIconUrl(asset.publicUrl);
       setIconFileName(file.name);
-      setStatusMessage("Campaign icon uploaded");
+      toast.showSuccess("Campaign icon uploaded.");
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Unable to upload icon");
+      toast.showError(error instanceof Error ? error.message : "Unable to upload icon.");
     } finally {
       setIsUploadingIcon(false);
     }
@@ -325,51 +282,68 @@ export function CampaignBuilderForm({ sites: allSites, segments, taxonomies }: C
   async function saveDraft() {
     const validationError = validateCampaignForm();
     if (validationError) {
-      setStatusMessage(validationError);
+      toast.showError(validationError);
       return;
     }
 
     setIsSavingDraft(true);
-    setStatusMessage(null);
 
     try {
       const targets = getTargetSites();
       if (targets.length <= 1 && targets[0]) {
-        const id = await saveDraftFor(targets[0]);
-        setStatusMessage(`Draft saved (${id})`);
+        await saveDraftFor(targets[0]);
+        toast.showSuccess(`Draft "${name.trim()}" saved.`);
       } else {
         const { successCount, failures } = await runAcrossSites(targets, saveDraftFor);
-        setStatusMessage(summarizeBroadcast("Draft saved", successCount, targets.length, failures));
+        toast.showToast(summarizeBroadcast("Draft saved", successCount, targets.length, failures), failures.length > 0 ? "error" : "success");
       }
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Unable to save draft");
+      toast.showError(error instanceof Error ? error.message : "Unable to save draft.");
     } finally {
       setIsSavingDraft(false);
     }
   }
 
+  function formatScheduleForDisplay(raw: string): string {
+    if (!raw) {
+      return "the selected time";
+    }
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) {
+      return raw;
+    }
+    return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(parsed);
+  }
+
   async function submitPrimaryAction() {
     const validationError = validateCampaignForm();
     if (validationError) {
-      setStatusMessage(validationError);
+      toast.showError(validationError);
       return;
     }
 
     setIsSubmittingPrimary(true);
-    setStatusMessage(null);
 
     try {
       const targets = getTargetSites();
       const action = isInstant ? sendInstantCampaignFor : scheduleCampaignFor;
       if (targets.length <= 1 && targets[0]) {
-        const id = await action(targets[0]);
-        setStatusMessage(isInstant ? `Campaign sent (${id})` : `Campaign scheduled (${id})`);
+        await action(targets[0]);
+        toast.showSuccess(
+          isInstant
+            ? `Campaign "${name.trim()}" sent.`
+            : `Campaign "${name.trim()}" scheduled for ${formatScheduleForDisplay(schedule)} (${siteTimezone}).`,
+        );
       } else {
         const { successCount, failures } = await runAcrossSites(targets, action);
-        setStatusMessage(summarizeBroadcast(isInstant ? "Sent" : "Scheduled", successCount, targets.length, failures));
+        // Each site gets the same wall-clock time in its own local timezone
+        // (scheduleCampaignFor resolves it per-target), so naming one
+        // timezone here would misrepresent the others.
+        const verb = isInstant ? "Sent" : `Scheduled for ${formatScheduleForDisplay(schedule)} local time at each site`;
+        toast.showToast(summarizeBroadcast(verb, successCount, targets.length, failures), failures.length > 0 ? "error" : "success");
       }
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Unable to submit campaign");
+      toast.showError(error instanceof Error ? error.message : "Unable to submit campaign.");
     } finally {
       setIsSubmittingPrimary(false);
     }
@@ -659,7 +633,7 @@ export function CampaignBuilderForm({ sites: allSites, segments, taxonomies }: C
             </div>
 
             <div className="actions" style={{ justifyContent: "space-between", marginTop: 24 }}>
-              <span className="subtle">{statusMessage ?? "Save as draft, or submit when ready."}</span>
+              <span className="subtle">Save as draft, or submit when ready.</span>
               <div className="actions">
                 <Link href="/campaigns" className="button secondary">
                   Back to campaigns
@@ -675,7 +649,7 @@ export function CampaignBuilderForm({ sites: allSites, segments, taxonomies }: C
           </div>
         ) : (
           <div className="actions" style={{ justifyContent: "space-between", marginTop: 24 }}>
-            <span className="subtle">{statusMessage ?? "Fill in each section, then review and submit."}</span>
+            <span className="subtle">Fill in each section, then review and submit.</span>
             <div className="actions">
               <button className="button secondary" type="button" onClick={saveDraft} disabled={isSavingDraft || isSubmittingPrimary}>
                 {isSavingDraft ? "Saving..." : "Save Draft"}

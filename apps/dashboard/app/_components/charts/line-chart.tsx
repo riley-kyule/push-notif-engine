@@ -86,9 +86,15 @@ export function LineChart({
       return;
     }
 
+    // The SVG fills the canvas div at 100% width with no letterboxing (its
+    // viewBox aspect ratio matches the rendered box), so a pointer's pixel
+    // position maps linearly to the full 0..width viewBox range -- not to
+    // the padLeft..width-padRight plot area. Scaling by the inner plot
+    // width here previously skewed the hit-test away from the actual
+    // cursor position, worse the further a point sat from chart center.
     const rect = currentTarget.getBoundingClientRect();
     const ratio = rect.width > 0 ? (clientX - rect.left) / rect.width : 0;
-    const chartX = padLeft + Math.min(Math.max(ratio, 0), 1) * (width - padLeft - padRight);
+    const chartX = Math.min(Math.max(ratio, 0), 1) * width;
     let closestIndex = 0;
     let closestDistance = Number.POSITIVE_INFINITY;
 

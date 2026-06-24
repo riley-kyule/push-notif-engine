@@ -2,16 +2,16 @@
 
 import { useState, useTransition } from "react";
 
+import { useToast } from "../_components/toast";
 import type { SiteSummary } from "./sites.utils";
 
 export function RestApiPanel({ site }: { site: SiteSummary }) {
+  const toast = useToast();
   const [generatedToken, setGeneratedToken] = useState<string | null>(null);
   const [generatedKeyId, setGeneratedKeyId] = useState<string | null>(site.restApiKeyId);
-  const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function handleGenerate() {
-    setError(null);
     startTransition(() => {
       void fetch(`/api/dashboard/sites/${site.id}/rest-api-credentials`, {
         method: "POST",
@@ -27,9 +27,10 @@ export function RestApiPanel({ site }: { site: SiteSummary }) {
 
           setGeneratedKeyId(payload.data.site?.restApiKeyId ?? null);
           setGeneratedToken(payload.data.authToken);
+          toast.showSuccess("REST API credentials generated.");
         })
         .catch((generateError) => {
-          setError(generateError instanceof Error ? generateError.message : "Unable to generate REST API credentials");
+          toast.showError(generateError instanceof Error ? generateError.message : "Unable to generate REST API credentials.");
         });
     });
   }
@@ -83,7 +84,6 @@ export function RestApiPanel({ site }: { site: SiteSummary }) {
           : "The auth token is shown once when generated. After that, only the key id and token suffix are retained for reference."}
       </p>
 
-      {error ? <p className="badge failed" style={{ justifyContent: "flex-start" }}>{error}</p> : null}
     </section>
   );
 }
