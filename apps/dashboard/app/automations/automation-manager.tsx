@@ -147,8 +147,8 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
             createdCount > 0
               ? `Created ${createdCount} default automation${createdCount === 1 ? "" : "s"}.`
               : defaultsSiteId === ALL_SITES_VALUE
-                ? "Defaults already exist for all sites -- nothing to add."
-                : "Defaults already exist for this site -- nothing to add.",
+                ? "A welcome push already covers all sites -- find it in the Automation library below and edit it directly if its title or URL need changing."
+                : "Defaults already exist for this site -- find it in the Automation library below and edit it directly if it needs changing.",
           );
           router.refresh();
         })
@@ -294,6 +294,12 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
             <div className="field">
               <label htmlFor="automation-url">Destination URL</label>
               <input id="automation-url" className="input" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://yoursite.com" />
+              {siteId === ALL_SITES_VALUE ? (
+                <p className="subtle">
+                  Applies to every site, so use {"{{site_name}}"} and {"{{site_url}}"} here (and in the title) instead of one
+                  fixed site -- each subscriber's own site is filled in when the push actually sends.
+                </p>
+              ) : null}
             </div>
           </div>
 

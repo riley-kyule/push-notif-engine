@@ -81,12 +81,14 @@ export class AutomationsService {
     };
 
     const automation = await this.automationsRepository.create(input);
-    await this.auditService.log({
+    void this.auditService.log({
       actorUserId: actorUserId ?? null,
       action: "automation.created",
       targetType: "automation",
       targetId: automation.id,
       metadata: { siteId: automation.siteId, name: automation.name, triggerEvent: automation.triggerEvent },
+    }).catch((error) => {
+      this.logger.error(`Failed to audit creation for automation ${automation.id}`, error as Error);
     });
     return automation;
   }
@@ -112,12 +114,14 @@ export class AutomationsService {
       throw new NotFoundException("Automation not found");
     }
 
-    await this.auditService.log({
+    void this.auditService.log({
       actorUserId: actorUserId ?? null,
       action: "automation.updated",
       targetType: "automation",
       targetId: updated.id,
       metadata: { changes: dto },
+    }).catch((error) => {
+      this.logger.error(`Failed to audit update for automation ${updated.id}`, error as Error);
     });
 
     return updated;
@@ -194,12 +198,16 @@ export class AutomationsService {
       created.push(
         await this.createAutomation(
           {
+            // {{site_name}} / {{site_url}} are resolved per-subscriber's
+            // real site at send time -- this one automation stays correct
+            // for every current and future site instead of pointing
+            // everyone at a single hardcoded destination.
             siteId: null,
             name: "Welcome push",
             triggerEvent: "subscriber_registered",
-            title: "Welcome to Exotic Push Engine!",
+            title: "Welcome to {{site_name}}!",
             message: "Thanks for subscribing - we'll keep you posted with updates you won't want to miss.",
-            url: "https://example.com",
+            url: "{{site_url}}",
             status: "active",
           } as CreateAutomationDto,
           actorUserId,
