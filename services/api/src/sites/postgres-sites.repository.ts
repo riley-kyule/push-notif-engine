@@ -3,7 +3,7 @@ import type { Pool } from "pg";
 
 import { DATABASE_POOL } from "../database/database.constants";
 import type { SiteListFilters, SiteListResult, SiteRecord, SiteRestApiCredentialsRecord, SiteStatus } from "./sites.types";
-import type { CreateSiteInput, SitesRepository, UpdateSiteInput } from "./sites.repository";
+import type { CreateSiteInput, SiteAutomationDefaultsRecord, SitesRepository, UpdateSiteInput } from "./sites.repository";
 
 interface DbSiteRow {
   id: string;
@@ -202,6 +202,25 @@ export class PostgresSitesRepository implements SitesRepository {
 
     const row = rows[0];
     return row ? this.mapRow(row) : null;
+  }
+
+  async findAutomationDefaultsById(id: string): Promise<SiteAutomationDefaultsRecord | null> {
+    const { rows } = await this.pool.query<{
+      id: string;
+      name: string;
+      url: string;
+    }>(
+      `
+      SELECT id, name, url
+      FROM sites
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [id],
+    );
+
+    const row = rows[0];
+    return row ? { id: row.id, name: row.name, url: row.url } : null;
   }
 
   async findByUrl(url: string): Promise<SiteRecord | null> {

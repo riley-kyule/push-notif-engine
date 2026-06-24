@@ -10,6 +10,9 @@ function createService(overrides: { dispatchCalls?: unknown[] } = {}) {
     async getSite() {
       return { id: "site-1", appName: "Exotic Travel", url: "https://exotic-travel.example.com" };
     },
+    async getSiteAutomationDefaults() {
+      return { id: "site-1", name: "Exotic Travel", url: "https://exotic-travel.example.com" };
+    },
     async listSites() {
       return {
         items: [{ id: "site-1" }, { id: "site-2" }] as Array<{ id: string }>,
@@ -139,6 +142,9 @@ test("creating an All Sites automation never looks up a site", async () => {
     async getSite() {
       throw new Error("must not validate a site for a global automation");
     },
+    async getSiteAutomationDefaults() {
+      throw new Error("must not validate a site for a global automation");
+    },
   };
   const repository = new InMemoryAutomationsRepository();
   const service = new AutomationsService(sitesService as never, createFakeAuditService(), repository as never);
@@ -153,6 +159,30 @@ test("creating an All Sites automation never looks up a site", async () => {
   });
 
   assert.equal(created.siteId, null);
+});
+
+test("creating a site-scoped automation does not look up the site record", async () => {
+  const sitesService = {
+    async getSite() {
+      throw new Error("must not validate a site for automation creation");
+    },
+    async getSiteAutomationDefaults() {
+      return { id: "site-1", name: "Exotic Travel", url: "https://exotic-travel.example.com" };
+    },
+  };
+  const repository = new InMemoryAutomationsRepository();
+  const service = new AutomationsService(sitesService as never, createFakeAuditService(), repository as never);
+
+  const created = await service.createAutomation({
+    siteId: "site-1",
+    name: "Welcome push",
+    triggerEvent: "subscriber_registered",
+    title: "Welcome!",
+    message: "Thanks for subscribing",
+    url: "https://example.com/welcome",
+  });
+
+  assert.equal(created.siteId, "site-1");
 });
 
 test("deleteAutomation succeeds even if audit logging fails", async () => {

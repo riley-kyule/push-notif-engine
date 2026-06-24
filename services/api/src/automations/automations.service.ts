@@ -66,10 +66,6 @@ export class AutomationsService {
   ) {}
 
   async createAutomation(dto: CreateAutomationDto, actorUserId?: string): Promise<AutomationRecord> {
-    if (dto.siteId) {
-      await this.sitesService.getSite(dto.siteId);
-    }
-
     const input: CreateAutomationInput = {
       siteId: dto.siteId ?? null,
       name: dto.name,
@@ -164,7 +160,7 @@ export class AutomationsService {
   }
 
   private async seedDefaultAutomationsForSite(siteId: string, actorUserId?: string): Promise<AutomationRecord[]> {
-    const site = await this.sitesService.getSite(siteId);
+    const site = await this.sitesService.getSiteAutomationDefaults(siteId);
     const existing = await this.automationsRepository.list({ siteId, limit: 100, offset: 0 });
     const existingTriggers = new Set(existing.items.map((automation) => automation.triggerEvent));
     const created: AutomationRecord[] = [];
@@ -176,7 +172,7 @@ export class AutomationsService {
             siteId,
             name: "Welcome push",
             triggerEvent: "subscriber_registered",
-            title: `Welcome to ${site.appName}!`,
+            title: `Welcome to ${site.name}!`,
             message: "Thanks for subscribing - we'll keep you posted with updates you won't want to miss.",
             url: site.url,
             status: "active",
