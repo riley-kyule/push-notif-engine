@@ -3088,29 +3088,49 @@ a.nav-item[aria-current="page"] {
   font-size: 0.75rem;
 }
 
-.audit-action {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: rgba(254, 215, 170, 0.32);
-  color: #9a3412;
-  border: 1px solid rgba(251, 146, 60, 0.18);
-  font-size: 0.75rem;
-  white-space: nowrap;
+.audit-details-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  max-width: 360px;
 }
 
-.audit-metadata {
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-size: 0.72rem;
+.audit-details-row {
+  display: grid;
+  grid-template-columns: minmax(90px, auto) 1fr;
+  gap: 8px;
+  font-size: 0.78rem;
+}
+
+.audit-details-row dt {
   color: var(--text-secondary);
-  background: rgba(250, 250, 249, 0.7);
-  border: 1px solid rgba(231, 229, 228, 0.85);
-  border-radius: 12px;
-  padding: 10px 12px;
-  max-width: 420px;
+}
+
+.audit-details-row dd {
+  margin: 0;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.filter-panel {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.filter-panel summary {
+  cursor: pointer;
+  list-style: none;
+  display: inline-flex;
+}
+
+.filter-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.filter-panel[open] summary {
+  margin-bottom: 0;
 }
 
 .report-toolbar {
@@ -3226,5 +3246,26 @@ a.nav-item[aria-current="page"] {
 
   .field-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+.page-transition {
+  animation: page-fade-in 200ms ease-out;
+}
+
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-transition {
+    animation: none;
   }
 }

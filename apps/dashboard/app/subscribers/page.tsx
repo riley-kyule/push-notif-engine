@@ -1,8 +1,7 @@
 import Link from "next/link";
 
 import { DashboardShell } from "../_components/dashboard-shell";
-import { buildHref } from "../_components/list-controls.utils";
-import { PageSizeSelect, Pagination } from "../_components/list-controls";
+import { FilterSelect, PageSizeSelect, Pagination } from "../_components/list-controls";
 import { getSubscriberList, getSubscriberStatusCounts, type SubscriberSortField } from "../_data/subscribers";
 import { fallbackSiteChoices, getSiteChoices } from "../_data/sites";
 import { SubscribersTable } from "./subscribers-table";
@@ -105,50 +104,31 @@ export default async function SubscribersPage({
           ))}
         </div>
 
-        <div className="grid cards-2" style={{ marginBottom: 14 }}>
+        <div className="grid cards-3" style={{ marginBottom: 14 }}>
           <div className="field" style={{ marginBottom: 0 }}>
-            <span className="subtle">Site</span>
-            <div className="actions" style={{ marginTop: 6, flexWrap: "wrap" }}>
-              <Link
-                href={buildHref("/subscribers", { ...currentParams, siteId: undefined, page: "1" })}
-                className={`button secondary ${!query.siteId ? "is-disabled" : ""}`}
-              >
-                All sites
-              </Link>
-              {realSites.map((site) => (
-                <Link
-                  key={site.id}
-                  href={buildHref("/subscribers", { ...currentParams, siteId: site.id, page: "1" })}
-                  className={`button secondary ${query.siteId === site.id ? "is-disabled" : ""}`}
-                >
-                  {site.name}
-                </Link>
-              ))}
-            </div>
+            <label htmlFor="site-filter" className="subtle">
+              Site
+            </label>
+            <FilterSelect
+              basePath="/subscribers"
+              currentParams={currentParams}
+              paramKey="siteId"
+              allLabel="All sites"
+              options={realSites.map((site) => ({ value: site.id, label: site.name }))}
+            />
           </div>
           <div className="field" style={{ marginBottom: 0 }}>
-            <span className="subtle">Device</span>
-            <div className="actions" style={{ marginTop: 6, flexWrap: "wrap" }}>
-              <Link
-                href={buildHref("/subscribers", { ...currentParams, deviceType: undefined, page: "1" })}
-                className={`button secondary ${!query.deviceType ? "is-disabled" : ""}`}
-              >
-                All devices
-              </Link>
-              {DEVICE_TYPES.map((device) => (
-                <Link
-                  key={device}
-                  href={buildHref("/subscribers", { ...currentParams, deviceType: device, page: "1" })}
-                  className={`button secondary ${query.deviceType === device ? "is-disabled" : ""}`}
-                >
-                  {device}
-                </Link>
-              ))}
-            </div>
+            <label htmlFor="device-filter" className="subtle">
+              Device
+            </label>
+            <FilterSelect
+              basePath="/subscribers"
+              currentParams={currentParams}
+              paramKey="deviceType"
+              allLabel="All devices"
+              options={DEVICE_TYPES.map((device) => ({ value: device, label: device }))}
+            />
           </div>
-        </div>
-
-        <div className="actions" style={{ justifyContent: "flex-end", marginBottom: 14 }}>
           <PageSizeSelect basePath="/subscribers" currentParams={currentParams} pageSize={pageSize} />
         </div>
 

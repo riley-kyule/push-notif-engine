@@ -1,25 +1,23 @@
-import Link from "next/link";
-
 import { DashboardShell } from "../_components/dashboard-shell";
-import { buildHref } from "../_components/list-controls.utils";
-import { PageSizeSelect, Pagination } from "../_components/list-controls";
+import { FilterSelect, PageSizeSelect, Pagination } from "../_components/list-controls";
 import {
   describeAction,
+  flattenMetadata,
   getActionCategory,
   getAuditLogPage,
   getCategoryLabel,
   getKnownCategories,
+  getTargetTypeLabel,
   type AuditLogRow,
 } from "../_data/audit-logs";
 
 const ROLES = ["super-admin", "admin", "sub-admin", "customer-service", "editor", "analyst"] as const;
 const DATE_PRESETS = [
   { key: "today", label: "Today", days: 1 },
-  { key: "7d", label: "7 days", days: 7 },
-  { key: "30d", label: "30 days", days: 30 },
+  { key: "7d", label: "Last 7 days", days: 7 },
+  { key: "30d", label: "Last 30 days", days: 30 },
 ] as const;
 const GROUP_BY_OPTIONS = [
-  { key: "", label: "No grouping" },
   { key: "category", label: "Activity" },
   { key: "actorRole", label: "Role" },
   { key: "actor", label: "User" },
@@ -96,6 +94,8 @@ export default async function AuditLogsPage({
     groups.set("", result.items);
   }
 
+  const activeFilterCount = [query.category, query.actorRole, query.date, query.groupBy].filter(Boolean).length;
+
   return (
     <DashboardShell
       eyebrow="System"
@@ -103,87 +103,63 @@ export default async function AuditLogsPage({
       description="Track authentication, permissions, and operational changes across the platform, in plain language."
     >
       <section className="card audit-logs-panel">
-        <div className="grid cards-2" style={{ marginBottom: 14 }}>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <span className="subtle">Activity</span>
-            <div className="actions" style={{ marginTop: 6, flexWrap: "wrap" }}>
-              <Link
-                href={buildHref("/audit-logs", { ...currentParams, category: undefined, page: "1" })}
-                className={`button secondary ${!query.category ? "is-disabled" : ""}`}
-              >
-                All activity
-              </Link>
-              {getKnownCategories().map((category) => (
-                <Link
-                  key={category}
-                  href={buildHref("/audit-logs", { ...currentParams, category, page: "1" })}
-                  className={`button secondary ${query.category === category ? "is-disabled" : ""}`}
-                >
-                  {getCategoryLabel(category)}
-                </Link>
-              ))}
+        <details className="filter-panel">
+          <summary className="button secondary">
+            Filters{activeFilterCount > 0 ? ` (${activeFilterCount} active)` : ""}
+          </summary>
+          <div className="grid cards-2" style={{ marginTop: 14 }}>
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="category-filter" className="subtle">
+                Activity
+              </label>
+              <FilterSelect
+                basePath="/audit-logs"
+                currentParams={currentParams}
+                paramKey="category"
+                allLabel="All activity"
+                options={getKnownCategories().map((category) => ({ value: category, label: getCategoryLabel(category) }))}
+              />
+            </div>
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="role-filter" className="subtle">
+                Role
+              </label>
+              <FilterSelect
+                basePath="/audit-logs"
+                currentParams={currentParams}
+                paramKey="actorRole"
+                allLabel="All roles"
+                options={ROLES.map((role) => ({ value: role, label: role }))}
+              />
+            </div>
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="date-filter" className="subtle">
+                Date
+              </label>
+              <FilterSelect
+                basePath="/audit-logs"
+                currentParams={currentParams}
+                paramKey="date"
+                allLabel="All time"
+                options={DATE_PRESETS.map((entry) => ({ value: entry.key, label: entry.label }))}
+              />
+            </div>
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="group-by-filter" className="subtle">
+                Group by
+              </label>
+              <FilterSelect
+                basePath="/audit-logs"
+                currentParams={currentParams}
+                paramKey="groupBy"
+                allLabel="No grouping"
+                options={GROUP_BY_OPTIONS.map((entry) => ({ value: entry.key, label: entry.label }))}
+              />
             </div>
           </div>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <span className="subtle">Role</span>
-            <div className="actions" style={{ marginTop: 6, flexWrap: "wrap" }}>
-              <Link
-                href={buildHref("/audit-logs", { ...currentParams, actorRole: undefined, page: "1" })}
-                className={`button secondary ${!query.actorRole ? "is-disabled" : ""}`}
-              >
-                All roles
-              </Link>
-              {ROLES.map((role) => (
-                <Link
-                  key={role}
-                  href={buildHref("/audit-logs", { ...currentParams, actorRole: role, page: "1" })}
-                  className={`button secondary ${query.actorRole === role ? "is-disabled" : ""}`}
-                >
-                  {role}
-                </Link>
-              ))}
-            </div>
-          </div>
-        </div>
+        </details>
 
-        <div className="grid cards-2" style={{ marginBottom: 14 }}>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <span className="subtle">Date</span>
-            <div className="actions" style={{ marginTop: 6, flexWrap: "wrap" }}>
-              <Link
-                href={buildHref("/audit-logs", { ...currentParams, date: undefined, page: "1" })}
-                className={`button secondary ${!query.date ? "is-disabled" : ""}`}
-              >
-                All time
-              </Link>
-              {DATE_PRESETS.map((entry) => (
-                <Link
-                  key={entry.key}
-                  href={buildHref("/audit-logs", { ...currentParams, date: entry.key, page: "1" })}
-                  className={`button secondary ${query.date === entry.key ? "is-disabled" : ""}`}
-                >
-                  {entry.label}
-                </Link>
-              ))}
-            </div>
-          </div>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <span className="subtle">Group by</span>
-            <div className="actions" style={{ marginTop: 6, flexWrap: "wrap" }}>
-              {GROUP_BY_OPTIONS.map((entry) => (
-                <Link
-                  key={entry.label}
-                  href={buildHref("/audit-logs", { ...currentParams, groupBy: entry.key || undefined, page: "1" })}
-                  className={`button secondary ${groupBy === entry.key ? "is-disabled" : ""}`}
-                >
-                  {entry.label}
-                </Link>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="report-toolbar">
+        <div className="report-toolbar" style={{ marginTop: 14 }}>
           <div>
             <strong>{result.total.toLocaleString()} events</strong>
             <span>Most recent first</span>
@@ -203,32 +179,43 @@ export default async function AuditLogsPage({
                 <thead>
                   <tr>
                     <th>Time</th>
-                    <th>Activity</th>
+                    <th>What happened</th>
                     <th>Target</th>
                     <th>Details</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row) => (
-                    <tr key={row.id}>
-                      <td className="subtle">{formatTimestamp(row.createdAt)}</td>
-                      <td>
-                        <div className="stack-tight">
-                          <strong>{describeAction(row)}</strong>
-                          <span className="subtle">{row.actorEmail ?? "No actor"} · {row.actorRole ?? "system"}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="stack-tight">
-                          <span>{row.targetType ?? "—"}</span>
-                          <span className="subtle mono">{row.targetId ?? "—"}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <pre className="audit-metadata">{JSON.stringify(row.metadata, null, 2)}</pre>
-                      </td>
-                    </tr>
-                  ))}
+                  {rows.map((row) => {
+                    const details = flattenMetadata(row.metadata);
+                    return (
+                      <tr key={row.id}>
+                        <td className="subtle">{formatTimestamp(row.createdAt)}</td>
+                        <td>
+                          <div className="stack-tight">
+                            <strong>{describeAction(row)}</strong>
+                            <span className="subtle">
+                              {row.actorEmail ?? "No actor"} · {row.actorRole ?? "system"}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="subtle">{getTargetTypeLabel(row.targetType)}</td>
+                        <td>
+                          {details.length === 0 ? (
+                            <span className="subtle">—</span>
+                          ) : (
+                            <dl className="audit-details-list">
+                              {details.map((detail) => (
+                                <div key={detail.label} className="audit-details-row">
+                                  <dt>{detail.label}</dt>
+                                  <dd>{detail.value}</dd>
+                                </div>
+                              ))}
+                            </dl>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
