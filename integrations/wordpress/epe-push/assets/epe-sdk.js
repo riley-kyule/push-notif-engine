@@ -160,7 +160,15 @@
         continue;
       }
 
-      var intersectsBottomLeft = rect.left <= 140 && rect.bottom >= viewportHeight - 140;
+      // Only treat an element as a "bottom bar" we need to avoid if it's
+      // actually anchored flush against the bottom edge -- not merely
+      // overlapping the bottom-left region. Tall fixed elements (off-canvas
+      // nav drawers, full-height overlays many themes leave in the DOM at
+      // opacity:0 rather than display:none) satisfy the old, looser check
+      // and were pushing the bell's offset up by nearly a full viewport
+      // height, landing it near the top of the page or off-screen entirely.
+      var isFlushToBottom = Math.abs(viewportHeight - rect.bottom) <= 24;
+      var intersectsBottomLeft = rect.left <= 140 && isFlushToBottom;
       if (!intersectsBottomLeft) {
         continue;
       }
@@ -168,7 +176,9 @@
       offset = Math.max(offset, Math.max(0, viewportHeight - rect.top) + 16);
     }
 
-    return offset;
+    // Safety net regardless of the heuristic above: never let a single
+    // obstruction push the launcher further than this from the bottom edge.
+    return Math.min(offset, 200);
   }
 
   function updateBellPosition() {
