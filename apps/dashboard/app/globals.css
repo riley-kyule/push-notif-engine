@@ -2467,13 +2467,18 @@ a.nav-item[aria-current="page"] {
 }
 
 .line-chart-summary {
+  display: grid;
+  gap: 4px;
+  padding: 0 2px 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.line-chart-summary-row {
   display: flex;
   justify-content: space-between;
   gap: 12px;
   align-items: center;
-  padding: 0 2px;
-  color: var(--text-secondary);
-  font-size: 12px;
 }
 
 .line-chart-summary strong {
@@ -2483,9 +2488,14 @@ a.nav-item[aria-current="page"] {
   text-transform: uppercase;
 }
 
-.line-chart-summary span {
+.line-chart-summary-row span {
   font-weight: 700;
   color: var(--text-primary);
+}
+
+.line-chart-summary-secondary {
+  font-size: 11px;
+  color: var(--text-secondary);
 }
 
 .line-chart-tooltip {

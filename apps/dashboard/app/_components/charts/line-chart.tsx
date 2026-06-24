@@ -67,6 +67,20 @@ export function LineChart({
   const activePoint = activeIndex === null ? null : coords[activeIndex] ?? null;
   const activeValue = activePoint ? formatAxisValue(activePoint.point.value) : "Hover a point";
 
+  // The summary box used to just say "Hover data" / "Hover a point" until a
+  // user moved their mouse over the chart -- useless at a glance. It now
+  // always shows the latest value plus the average and peak, computed from
+  // the same points already rendered, so the chart is informative on its
+  // own and hover only adds drill-in detail.
+  const latestCoord = coords[coords.length - 1] ?? null;
+  const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const peakCoord = coords.reduce<typeof coords[number] | null>(
+    (best, coord) => (!best || coord.point.value > best.point.value ? coord : best),
+    null,
+  );
+  const headlinePoint = activePoint ?? latestCoord;
+  const headlineLabel = activePoint ? "Selected" : "Latest";
+
   function setActiveFromClientX(clientX: number, currentTarget: HTMLElement) {
     if (coords.length === 0) {
       return;
@@ -114,8 +128,13 @@ export function LineChart({
       }}
     >
       <div className="line-chart-summary">
-        <strong>Hover data</strong>
-        <span>{activePoint ? `${activePoint.point.label} · ${activeValue}` : activeValue}</span>
+        <div className="line-chart-summary-row">
+          <strong>{headlineLabel}</strong>
+          <span>{headlinePoint ? `${headlinePoint.point.label} · ${formatAxisValue(headlinePoint.point.value)}` : "No data"}</span>
+        </div>
+        <span className="line-chart-summary-secondary">
+          Avg {formatAxisValue(average)} · Peak {peakCoord ? `${formatAxisValue(peakCoord.point.value)} (${peakCoord.point.label})` : "—"}
+        </span>
       </div>
 
       <div
