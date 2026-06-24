@@ -33,6 +33,12 @@ export interface AuditLogPage {
 }
 
 export interface AuditLogQuery {
+  category?: string | undefined;
+  actorRole?: string | undefined;
+  actorUserId?: string | undefined;
+  createdAfter?: string | undefined;
+  createdBefore?: string | undefined;
+  sortDir?: "asc" | "desc" | undefined;
   limit: number;
   offset: number;
 }
@@ -56,8 +62,36 @@ export class AuditService {
   }
 
   async list(query: AuditLogQuery): Promise<AuditLogPage> {
-    const limit = Math.max(1, Math.min(query.limit, 100));
+    const limit = Math.max(1, Math.min(query.limit, 500));
     const offset = Math.max(0, query.offset);
+
+    const where: string[] = [];
+    const params: Array<string | number> = [];
+
+    if (query.category) {
+      params.push(`${query.category}.%`);
+      where.push(`a.action LIKE $${params.length}`);
+    }
+    if (query.actorRole) {
+      params.push(query.actorRole);
+      where.push(`r.slug = $${params.length}`);
+    }
+    if (query.actorUserId) {
+      params.push(query.actorUserId);
+      where.push(`a.actor_user_id = $${params.length}`);
+    }
+    if (query.createdAfter) {
+      params.push(query.createdAfter);
+      where.push(`a.created_at >= $${params.length}`);
+    }
+    if (query.createdBefore) {
+      params.push(query.createdBefore);
+      where.push(`a.created_at <= $${params.length}`);
+    }
+
+    const whereClause = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
+    const sortDir = query.sortDir === "asc" ? "ASC" : "DESC";
+    const listParams = [...params, limit, offset];
 
     const [itemsResult, totalResult] = await Promise.all([
       this.pool.query<{
@@ -89,12 +123,22 @@ export class AuditService {
         FROM audit_logs a
         LEFT JOIN users u ON u.id = a.actor_user_id
         LEFT JOIN roles r ON r.id = u.role_id
-        ORDER BY a.created_at DESC, a.id DESC
-        LIMIT $1 OFFSET $2
+        ${whereClause}
+        ORDER BY a.created_at ${sortDir}, a.id ${sortDir}
+        LIMIT $${listParams.length - 1} OFFSET $${listParams.length}
         `,
-        [limit, offset],
+        listParams,
       ),
-      this.pool.query<{ count: string }>("SELECT COUNT(*)::text AS count FROM audit_logs"),
+      this.pool.query<{ count: string }>(
+        `
+        SELECT COUNT(*)::text AS count
+        FROM audit_logs a
+        LEFT JOIN users u ON u.id = a.actor_user_id
+        LEFT JOIN roles r ON r.id = u.role_id
+        ${whereClause}
+        `,
+        params,
+      ),
     ]);
 
     const items: AuditLogRecord[] = itemsResult.rows.map((row) => ({

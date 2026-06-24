@@ -48,3 +48,44 @@ test("audit service logs events and lists them in reverse chronological order", 
   assert.equal(page.items[0]?.action, "auth.login.success");
   assert.equal(page.items[0]?.actorEmail, "admin@example.com");
 });
+
+test("audit service filters by category, role, actor, and date range", async () => {
+  const queries: Array<{ sql: string; params: unknown[] | undefined }> = [];
+  const pool = {
+    async query(sql: string, params?: unknown[]) {
+      queries.push({ sql, params });
+      if (sql.includes("COUNT(*)::text")) {
+        return { rows: [{ count: "0" }] };
+      }
+      return { rows: [] };
+    },
+  };
+
+  const auditService = new AuditService(pool as never);
+  await auditService.list({
+    category: "site",
+    actorRole: "admin",
+    actorUserId: "user-1",
+    createdAfter: "2026-01-01T00:00:00.000Z",
+    createdBefore: "2026-12-31T23:59:59.000Z",
+    limit: 25,
+    offset: 0,
+  });
+
+  const listQuery = queries.find((entry) => entry.sql.includes("LIMIT"));
+  assert.ok(listQuery);
+  assert.match(listQuery.sql, /a\.action LIKE \$1/);
+  assert.match(listQuery.sql, /r\.slug = \$2/);
+  assert.match(listQuery.sql, /a\.actor_user_id = \$3/);
+  assert.match(listQuery.sql, /a\.created_at >= \$4/);
+  assert.match(listQuery.sql, /a\.created_at <= \$5/);
+  assert.deepEqual(listQuery.params, [
+    "site.%",
+    "admin",
+    "user-1",
+    "2026-01-01T00:00:00.000Z",
+    "2026-12-31T23:59:59.000Z",
+    25,
+    0,
+  ]);
+});
