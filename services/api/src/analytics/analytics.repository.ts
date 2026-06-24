@@ -54,7 +54,7 @@ interface SitePerformanceRow {
 }
 
 interface HourPerformanceRow {
-  hour: string;
+  bucket: string;
   total_delivered: string;
   total_sent: string;
   total_failed: string;
@@ -422,7 +422,7 @@ export class AnalyticsRepository {
 
   async getTimePerformance(days: number, siteId?: string): Promise<
     Array<{
-      hour: number;
+      bucket: string;
       totalDelivered: number;
       totalSent: number;
       totalFailed: number;
@@ -431,21 +431,30 @@ export class AnalyticsRepository {
       clickThroughRate: number;
     }>
   > {
+    // Hourly buckets only make sense within a single day -- across a wider
+    // range, bucketing by calendar day is what lets the chart actually show
+    // a trend over the selected range instead of collapsing every day onto
+    // the same 24 hour-of-day buckets.
+    const granularity = days <= 1 ? "hour" : "day";
+    const params: Array<string | number> = siteId ? [days, siteId, granularity] : [days, granularity];
+    const siteParamIndex = siteId ? 2 : null;
+    const granularityParamIndex = siteId ? 3 : 2;
+
     const { rows } = await this.pool.query<HourPerformanceRow>(
       `
       SELECT
-        EXTRACT(HOUR FROM created_at AT TIME ZONE 'UTC')::int AS hour,
+        date_trunc($${granularityParamIndex}, created_at AT TIME ZONE 'UTC') AS bucket,
         COUNT(*) FILTER (WHERE status = 'delivered') AS total_delivered,
         COUNT(*) FILTER (WHERE status = 'sent') AS total_sent,
         COUNT(*) FILTER (WHERE status = 'failed') AS total_failed,
         COUNT(*) FILTER (WHERE clicked_at IS NOT NULL) AS total_clicked
       FROM push_delivery_events
       WHERE created_at >= NOW() - ($1 || ' days')::interval
-      ${siteId ? "AND site_id = $2" : ""}
-      GROUP BY EXTRACT(HOUR FROM created_at AT TIME ZONE 'UTC')
-      ORDER BY hour ASC
+      ${siteParamIndex ? `AND site_id = $${siteParamIndex}` : ""}
+      GROUP BY bucket
+      ORDER BY bucket ASC
       `,
-      siteId ? [days, siteId] : [days],
+      params,
     );
 
     return rows.map((row) => {
@@ -457,7 +466,7 @@ export class AnalyticsRepository {
       const successfullyHandedOff = totalSent + totalDelivered;
 
       return {
-        hour: Number.parseInt(row.hour, 10),
+        bucket: new Date(row.bucket).toISOString(),
         totalDelivered,
         totalSent,
         totalFailed,

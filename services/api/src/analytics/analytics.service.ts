@@ -132,8 +132,8 @@ export class AnalyticsService {
       case "time-performance": {
         const rows = await this.getTimePerformance(input.days);
         return {
-          headers: ["hour", "totalDelivered", "totalSent", "totalFailed", "totalClicked", "deliveryRate", "clickThroughRate"],
-          rows: rows.map((row) => [row.hour, row.totalDelivered, row.totalSent, row.totalFailed, row.totalClicked, row.deliveryRate, row.clickThroughRate]),
+          headers: ["bucket", "totalDelivered", "totalSent", "totalFailed", "totalClicked", "deliveryRate", "clickThroughRate"],
+          rows: rows.map((row) => [row.bucket, row.totalDelivered, row.totalSent, row.totalFailed, row.totalClicked, row.deliveryRate, row.clickThroughRate]),
         };
       }
       case "content-performance": {

@@ -11,7 +11,7 @@ import { getStorageHealthSummary } from "./_data/storage-health";
 export default async function DashboardHome() {
   const [overview, analytics, platformHealthRaw] = await Promise.all([
     getDashboardOverview(),
-    getAnalyticsDashboardData({ preset: "30d", days: "30" }),
+    getAnalyticsDashboardData({ preset: "30d", days: "30", siteId: "site-3" }),
     getPlatformHealthSummary(),
   ]);
   const storageHealth = await getStorageHealthSummary();

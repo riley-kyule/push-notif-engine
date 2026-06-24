@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getAnalyticsDashboardData } from "../app/_data/analytics";
+import { formatTimeBucketLabel, getAnalyticsDashboardData } from "../app/_data/analytics";
+
+test("formatTimeBucketLabel matches the selected range's granularity", () => {
+  assert.equal(formatTimeBucketLabel("2026-06-24T14:00:00.000Z", 1), "14:00");
+  assert.equal(formatTimeBucketLabel("2026-06-24T00:00:00.000Z", 7), "Wed");
+  assert.equal(formatTimeBucketLabel("2026-06-24T00:00:00.000Z", 30), "Jun 24");
+});
 
 test("analytics dashboard data resolves a custom reporting range", async () => {
   const data = await getAnalyticsDashboardData({
@@ -87,6 +93,78 @@ test("analytics dashboard data falls back to all sites when no sites exist", asy
     assert.equal(data.selectedSite.id, "site-3");
     assert.equal(data.selectedSite.name, "All Sites");
     assert.ok(data.sitePerformance.length > 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("requesting siteId 'site-3' resolves to the All Sites aggregate even with real sites present, instead of silently defaulting to the newest one", async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      // A real backend would 404 this -- if the code ever calls
+      // getSiteById("site-3") instead of treating it as the sentinel, this
+      // wrong-but-200 response would get picked up as `selectedSite`,
+      // exposing the bug (defaulting to a single real site instead of the
+      // cross-site aggregate).
+      if (url.endsWith("/sites/site-3")) {
+        return new Response(
+          JSON.stringify({ success: true, data: { id: "site-3", name: "Newest Real Site", country: "GH" } }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+
+      if (url.endsWith("/sites")) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              items: [
+                { id: "site-newest", name: "Newest Real Site", country: "GH" },
+                { id: "site-oldest", name: "Oldest Real Site", country: "KE" },
+              ],
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+
+      if (url.includes("/analytics/sites-performance")) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            data: [
+              { siteId: "site-newest", siteName: "Newest Real Site", totalSubscribers: 10, totalDelivered: 0, totalSent: 0, totalFailed: 0, totalExpired: 0, totalClicked: 0, deliveryRate: 0, clickThroughRate: 0 },
+              { siteId: "site-oldest", siteName: "Oldest Real Site", totalSubscribers: 500, totalDelivered: 0, totalSent: 0, totalFailed: 0, totalExpired: 0, totalClicked: 0, deliveryRate: 0, clickThroughRate: 0 },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+
+      if (url.endsWith("/campaigns")) {
+        return new Response(JSON.stringify({ success: true, data: { items: [] } }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({ success: true, data: null }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as typeof fetch;
+
+    const data = await getAnalyticsDashboardData({ preset: "30d", days: "30", siteId: "site-3" });
+    assert.equal(data.selectedSite.id, "site-3");
+    assert.equal(data.selectedSite.name, "All Sites");
+    assert.equal(data.sitePerformance.length, 2);
+    assert.deepEqual(
+      data.sitePerformance.map((site) => site.siteId).sort(),
+      ["site-newest", "site-oldest"],
+    );
   } finally {
     globalThis.fetch = originalFetch;
   }

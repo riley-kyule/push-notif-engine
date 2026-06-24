@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { DashboardShell } from "../_components/dashboard-shell";
-import { getAnalyticsDashboardData } from "../_data/analytics";
+import { formatTimeBucketLabel, getAnalyticsDashboardData } from "../_data/analytics";
 import { AnalyticsRangePicker } from "./analytics-range-picker";
 import { AnalyticsPerformanceExplorer, type ExplorerSection, type ExportSectionOptions } from "./analytics-performance-explorer";
 
@@ -217,9 +217,9 @@ export default async function AnalyticsPage({
       key: "time",
       label: "Time",
       eyebrow: "Time performance",
-      title: "Delivery volume by hour",
+      title: dashboard.days <= 1 ? "Delivery volume by hour" : "Delivery volume over time",
       badge: "UTC",
-      metrics: buildSeries(dashboard.timePerformance, (item) => `${String(item.hour).padStart(2, "0")}:00`, [
+      metrics: buildSeries(dashboard.timePerformance, (item) => formatTimeBucketLabel(item.bucket, dashboard.days), [
         { key: "delivered", label: "Delivered", color: "#ea580c", getValue: (item) => item.totalDelivered, format: "number" },
         { key: "sent", label: "Sent", color: "#0ea5e9", getValue: (item) => item.totalSent, format: "number" },
         { key: "failed", label: "Failed", color: "#dc2626", getValue: (item) => item.totalFailed, format: "number" },
@@ -227,9 +227,9 @@ export default async function AnalyticsPage({
         { key: "delivery-rate", label: "Delivery rate", color: "#16a34a", getValue: (item) => item.deliveryRate, format: "percent" },
         { key: "ctr", label: "CTR", color: "#0ea5e9", getValue: (item) => item.clickThroughRate, format: "percent" },
       ]),
-      rowColumns: ["Hour", "Sent", "Delivered", "CTR"],
+      rowColumns: [dashboard.days <= 1 ? "Hour" : "Date", "Sent", "Delivered", "CTR"],
       rows: dashboard.timePerformance.map((item) => ({
-        primary: `${String(item.hour).padStart(2, "0")}:00`,
+        primary: formatTimeBucketLabel(item.bucket, dashboard.days),
         secondary: `${item.totalFailed} failed`,
         metrics: [
           { label: "Sent", value: formatNumber(item.totalSent) },

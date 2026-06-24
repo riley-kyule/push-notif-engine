@@ -41,13 +41,29 @@ export interface SitePerformanceSummary {
 }
 
 export interface TimePerformanceSummary {
-  hour: number;
+  // ISO timestamp marking the start of this bucket -- hourly when the
+  // selected range is a single day, daily otherwise.
+  bucket: string;
   totalDelivered: number;
   totalSent: number;
   totalFailed: number;
   totalClicked: number;
   deliveryRate: number;
   clickThroughRate: number;
+}
+
+// Hourly buckets (single-day range) -> "HH:00". Within a week -> weekday
+// name. Longer ranges -> day-of-month with month, matching how far apart
+// the buckets actually are.
+export function formatTimeBucketLabel(bucket: string, days: number): string {
+  const date = new Date(bucket);
+  if (days <= 1) {
+    return `${String(date.getUTCHours()).padStart(2, "0")}:00`;
+  }
+  if (days <= 7) {
+    return new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(date);
+  }
+  return new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", timeZone: "UTC" }).format(date);
 }
 
 export interface ContentPerformanceSummary {
@@ -221,16 +237,25 @@ function fallbackSitePerformance(site: SiteSummary[]): SitePerformanceSummary[] 
   }));
 }
 
-function fallbackTimePerformance(): TimePerformanceSummary[] {
-  return Array.from({ length: 24 }, (_, hour) => ({
-    hour,
-    totalDelivered: hour >= 8 && hour <= 20 ? 4000 + hour * 140 : 900 + hour * 45,
-    totalSent: hour >= 8 && hour <= 20 ? 4200 + hour * 150 : 1100 + hour * 50,
-    totalFailed: hour % 6 === 0 ? 80 : 35,
-    totalClicked: hour >= 9 && hour <= 21 ? 260 + hour * 12 : 60 + hour * 5,
-    deliveryRate: hour >= 8 && hour <= 20 ? 93 : 84,
-    clickThroughRate: hour >= 9 && hour <= 21 ? 6.2 : 2.8,
-  }));
+function fallbackTimePerformance(days: number): TimePerformanceSummary[] {
+  const hourly = days <= 1;
+  const points = hourly ? 24 : Math.min(days, 90);
+  const now = Date.now();
+  const stepMs = hourly ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+
+  return Array.from({ length: points }, (_, index) => {
+    const bucketDate = new Date(now - (points - 1 - index) * stepMs);
+    const cyclicalIndex = hourly ? bucketDate.getUTCHours() : index;
+    return {
+      bucket: bucketDate.toISOString(),
+      totalDelivered: cyclicalIndex % 4 === 0 ? 4000 + cyclicalIndex * 140 : 900 + cyclicalIndex * 45,
+      totalSent: cyclicalIndex % 4 === 0 ? 4200 + cyclicalIndex * 150 : 1100 + cyclicalIndex * 50,
+      totalFailed: cyclicalIndex % 6 === 0 ? 80 : 35,
+      totalClicked: cyclicalIndex % 3 === 0 ? 260 + cyclicalIndex * 12 : 60 + cyclicalIndex * 5,
+      deliveryRate: cyclicalIndex % 4 === 0 ? 93 : 84,
+      clickThroughRate: cyclicalIndex % 3 === 0 ? 6.2 : 2.8,
+    };
+  });
 }
 
 function fallbackContentPerformance(): ContentPerformanceSummary[] {
@@ -357,7 +382,14 @@ export async function getAnalyticsDashboardData(input: {
   const comparisonOverview = comparisonRange ? await getDashboardOverview(comparisonRange.days) : null;
 
   const sites = sitesPayload.items.length > 0 ? sitesPayload.items : [createAllSitesFallback()];
-  const selectedSite = (input.siteId ? await getSiteById(input.siteId) : null) ?? sites[0] ?? createAllSitesFallback();
+  // "site-3" is the All Sites sentinel -- it isn't a real site, so it must
+  // never be looked up via getSiteById (that would 404 and silently fall
+  // through to `sites[0]`, the most recently created site, defeating the
+  // whole point of requesting the cross-site aggregate).
+  const selectedSite =
+    input.siteId === "site-3"
+      ? createAllSitesFallback()
+      : (input.siteId ? await getSiteById(input.siteId) : null) ?? sites[0] ?? createAllSitesFallback();
   const siteScopeId = selectedSite.id === "site-3" ? undefined : selectedSite.id;
 
   const selectedCampaign =
@@ -376,7 +408,7 @@ export async function getAnalyticsDashboardData(input: {
     ),
     getAnalyticsApiList<TimePerformanceSummary>(
       `/analytics/time-performance?days=${days}${siteScopeId ? `&siteId=${encodeURIComponent(siteScopeId)}` : ""}`,
-      fallbackTimePerformance(),
+      fallbackTimePerformance(days),
     ),
   ]);
   const contentPerformance = await getAnalyticsApiList<ContentPerformanceSummary>(
