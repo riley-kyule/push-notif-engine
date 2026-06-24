@@ -51,7 +51,7 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
   const [iconUrl, setIconUrl] = useState("");
   const [status, setStatus] = useState<AutomationStatus>("active");
 
-  const [defaultsSiteId, setDefaultsSiteId] = useState(realSites[0]?.id ?? "");
+  const [defaultsSiteId, setDefaultsSiteId] = useState(ALL_SITES_VALUE);
   const [notice, setNotice] = useState<string | null>(null);
   const [busyAutomationId, setBusyAutomationId] = useState<string | null>(null);
   const [isCreating, startCreate] = useTransition();
@@ -101,20 +101,19 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
 
   function handleSeedDefaults(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!defaultsSiteId) {
-      setNotice("Choose a site first.");
-      return;
-    }
-
     setNotice(null);
     startSeed(() => {
-      void postJson<{ data: unknown[] }>("/api/dashboard/automations/seed-defaults", { siteId: defaultsSiteId })
+      void postJson<{ data: unknown[] }>("/api/dashboard/automations/seed-defaults", {
+        siteId: defaultsSiteId === ALL_SITES_VALUE ? null : defaultsSiteId,
+      })
         .then((result) => {
           const createdCount = Array.isArray(result?.data) ? result.data.length : 0;
           setNotice(
             createdCount > 0
               ? `Created ${createdCount} default automation${createdCount === 1 ? "" : "s"}.`
-              : "Defaults already exist for this site -- nothing to add.",
+              : defaultsSiteId === ALL_SITES_VALUE
+                ? "Defaults already exist for all sites -- nothing to add."
+                : "Defaults already exist for this site -- nothing to add.",
           );
           router.refresh();
         })
@@ -176,8 +175,9 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
           </div>
         </div>
         <p className="subtle">
-          Creates a welcome push (on subscribe) and an unsubscribe notice (on unsubscribe) for a site, if it doesn't
-          already have automations on those triggers. Safe to run more than once.
+          Creates a welcome push (on subscribe) and an unsubscribe notice (on unsubscribe) for a site, or for every
+          site when All Sites is selected, if they don't already have automations on those triggers. Safe to run more
+          than once.
         </p>
         <form onSubmit={handleSeedDefaults} className="grid cards-2" style={{ marginTop: 12, alignItems: "end" }}>
           <div className="field">
@@ -188,6 +188,7 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
               value={defaultsSiteId}
               onChange={(event) => setDefaultsSiteId(event.target.value)}
             >
+              <option value={ALL_SITES_VALUE}>All Sites (seed every site)</option>
               {realSites.map((site) => (
                 <option key={site.id} value={site.id}>
                   {site.name}

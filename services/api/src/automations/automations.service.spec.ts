@@ -10,6 +10,12 @@ function createService(overrides: { dispatchCalls?: unknown[] } = {}) {
     async getSite() {
       return { id: "site-1", appName: "Exotic Travel", url: "https://exotic-travel.example.com" };
     },
+    async listSites() {
+      return {
+        items: [{ id: "site-1" }, { id: "site-2" }] as Array<{ id: string }>,
+        total: 2,
+      };
+    },
   };
   const dispatchCalls = overrides.dispatchCalls ?? [];
   const repository = new InMemoryAutomationsRepository();
@@ -100,6 +106,17 @@ test("seedDefaultAutomations only fills in the missing trigger if one default al
   const created = await service.seedDefaultAutomations("site-1");
   assert.equal(created.length, 1);
   assert.equal(created[0]?.triggerEvent, "subscriber_unsubscribed");
+});
+
+test("seedDefaultAutomations with no siteId seeds every site once", async () => {
+  const { service } = createService();
+
+  const created = await service.seedDefaultAutomations(null);
+  assert.equal(created.length, 4);
+  assert.deepEqual(
+    created.map((automation) => automation.siteId).sort(),
+    ["site-1", "site-1", "site-2", "site-2"],
+  );
 });
 
 test("an All Sites automation (no siteId) is active for every site without duplicating it per site", async () => {
