@@ -34,6 +34,22 @@ function extractAtomLink(source: string): string | null {
   return match?.[1] ? decodeEntities(match[1]) : null;
 }
 
+// A global ("All Sites") automation has no single site to point at when it's
+// created, so its title/message/url can carry these tokens instead of a
+// literal value -- resolved against whichever real site the event actually
+// belongs to at send time, so one automation stays accurate for every site,
+// including ones created after the automation was.
+const SITE_NAME_TOKEN = "{{site_name}}";
+const SITE_URL_TOKEN = "{{site_url}}";
+
+function hasSiteToken(value: string): boolean {
+  return value.includes(SITE_NAME_TOKEN) || value.includes(SITE_URL_TOKEN);
+}
+
+function resolveSiteTokens(value: string, site: { name: string; url: string }): string {
+  return value.replaceAll(SITE_NAME_TOKEN, site.name).replaceAll(SITE_URL_TOKEN, site.url);
+}
+
 function parseFeedItems(xml: string): Array<{ guid: string; title: string; url: string; publishedAt: Date | null; description: string | null }> {
   const rssItems = [...xml.matchAll(/<item[\s\S]*?<\/item>/gi)].map((match) => match[0]);
   const atomEntries = rssItems.length > 0 ? [] : [...xml.matchAll(/<entry[\s\S]*?<\/entry>/gi)].map((match) => match[0]);
@@ -286,14 +302,17 @@ export class WorkflowService {
 
   private async executeAction(automation: AutomationRecord, action: AutomationAction, context: WorkflowActionContext): Promise<void> {
     if (action.type === "send_notification") {
+      const needsSiteTokens = hasSiteToken(action.title) || hasSiteToken(action.message) || hasSiteToken(action.url);
+      const site = needsSiteTokens ? await this.sitesService.getSiteAutomationDefaults(context.siteId) : null;
+
       await this.browserPushService.dispatch({
         // An "All Sites" automation has automation.siteId === null -- the
         // event itself always belongs to one real site, so dispatch there.
         siteId: context.siteId,
         subscriberId: context.subscriberId ?? null,
-        title: action.title,
-        body: action.message,
-        url: action.url,
+        title: site ? resolveSiteTokens(action.title, site) : action.title,
+        body: site ? resolveSiteTokens(action.message, site) : action.message,
+        url: site ? resolveSiteTokens(action.url, site) : action.url,
         icon: action.iconUrl,
         image: action.imageUrl,
         campaignId: context.campaignId ?? null,

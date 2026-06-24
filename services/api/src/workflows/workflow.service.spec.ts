@@ -12,6 +12,9 @@ function createService() {
     async getSite() {
       return { id: "site-1" };
     },
+    async getSiteAutomationDefaults() {
+      return { id: "site-1", name: "Exotic Travel", url: "https://exotic-travel.example.com" };
+    },
   };
 
   const repository = new InMemoryWorkflowRepository();
@@ -66,6 +69,38 @@ test("workflow service records events and executes notification and tag actions"
   assert.equal(event.status, "completed");
   assert.equal(repository.tags.length, 1);
   assert.equal(dispatchCalls.length, 1);
+});
+
+test("an All Sites automation's {{site_name}}/{{site_url}} tokens resolve to the real site a subscriber belongs to", async () => {
+  const { workflowService, automationsService, dispatchCalls } = createService();
+
+  await automationsService.createAutomation({
+    siteId: null,
+    name: "Welcome push",
+    triggerEvent: "subscriber_registered",
+    title: "Welcome to {{site_name}}!",
+    message: "Thanks for subscribing",
+    url: "{{site_url}}",
+  });
+
+  await workflowService.recordEvent({
+    siteId: "site-1",
+    subscriberId: "subscriber-1",
+    triggerEvent: "subscriber_registered",
+    payload: {},
+  });
+
+  assert.equal(dispatchCalls.length, 1);
+  assert.deepEqual(dispatchCalls[0], {
+    siteId: "site-1",
+    subscriberId: "subscriber-1",
+    title: "Welcome to Exotic Travel!",
+    body: "Thanks for subscribing",
+    url: "https://exotic-travel.example.com",
+    icon: null,
+    image: null,
+    campaignId: null,
+  });
 });
 
 test("workflow service polls RSS feeds and emits rss_item_published events", async () => {
