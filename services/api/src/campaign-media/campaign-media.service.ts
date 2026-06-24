@@ -115,11 +115,10 @@ export class CampaignMediaService {
   }
 
   async resolveCampaignMedia(
-    siteId: string,
     input: { imageAssetId?: string | null; iconAssetId?: string | null; imageUrl?: string | null; iconUrl?: string | null },
   ): Promise<{ imageUrl: string | null; iconUrl: string | null }> {
-    const imageUrl = await this.resolveAssetUrl(siteId, input.imageAssetId, "image", input.imageUrl);
-    const iconUrl = await this.resolveAssetUrl(siteId, input.iconAssetId, "icon", input.iconUrl);
+    const imageUrl = await this.resolveAssetUrl(input.imageAssetId, "image", input.imageUrl);
+    const iconUrl = await this.resolveAssetUrl(input.iconAssetId, "icon", input.iconUrl);
     return { imageUrl, iconUrl };
   }
 
@@ -200,7 +199,6 @@ export class CampaignMediaService {
   }
 
   private async resolveAssetUrl(
-    siteId: string,
     assetId: string | null | undefined,
     kind: CampaignMediaKind,
     fallbackUrl: string | null | undefined,
@@ -213,9 +211,9 @@ export class CampaignMediaService {
     if (!asset) {
       throw new NotFoundException("Campaign media not found");
     }
-    if (asset.siteId !== siteId) {
-      throw new BadRequestException("Campaign media belongs to a different site");
-    }
+    // Deliberately not restricted to the campaign's own site -- the media
+    // library is shared across every site, so reusing an asset originally
+    // uploaded under a different site is the whole point.
     if (asset.kind !== kind) {
       throw new BadRequestException(`Campaign media must be an ${kind}`);
     }

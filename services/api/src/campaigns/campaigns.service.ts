@@ -63,7 +63,7 @@ export class CampaignsService {
       await this.assertSegmentBelongsToSite(dto.segmentId, dto.siteId);
     }
     await this.campaignTaxonomiesService.ensureActive(dto.contentType ?? "announcement");
-    const media = await this.campaignMediaService.resolveCampaignMedia(dto.siteId, {
+    const media = await this.campaignMediaService.resolveCampaignMedia({
       ...(dto.imageAssetId !== undefined ? { imageAssetId: dto.imageAssetId } : {}),
       ...(dto.iconAssetId !== undefined ? { iconAssetId: dto.iconAssetId } : {}),
       ...(dto.imageUrl !== undefined ? { imageUrl: dto.imageUrl } : {}),
@@ -90,7 +90,7 @@ export class CampaignsService {
     if (dto.contentType) {
       await this.campaignTaxonomiesService.ensureActive(dto.contentType);
     }
-    const media = await this.campaignMediaService.resolveCampaignMedia(existing.siteId, {
+    const media = await this.campaignMediaService.resolveCampaignMedia({
       ...(dto.imageAssetId !== undefined ? { imageAssetId: dto.imageAssetId } : {}),
       ...(dto.iconAssetId !== undefined ? { iconAssetId: dto.iconAssetId } : {}),
       ...(dto.imageUrl !== undefined ? { imageUrl: dto.imageUrl } : {}),

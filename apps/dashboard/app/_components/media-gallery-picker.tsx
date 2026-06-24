@@ -29,7 +29,11 @@ export function MediaGalleryPicker({ siteId, kind, onSelect }: MediaGalleryPicke
 
     setIsLoading(true);
     setError(null);
-    const search = new URLSearchParams({ siteId, kind });
+    // Deliberately not scoped to siteId -- this is a shared library across
+    // every site, not a per-site one. The picker used to only show the
+    // currently selected site's own uploads, so reusing an image meant
+    // re-uploading it on every other site.
+    const search = new URLSearchParams({ kind });
     void fetch(`/api/dashboard/campaign-media?${search.toString()}`)
       .then(async (response) => {
         const payload = (await response.json().catch(() => null)) as
@@ -48,7 +52,7 @@ export function MediaGalleryPicker({ siteId, kind, onSelect }: MediaGalleryPicke
       .finally(() => {
         setIsLoading(false);
       });
-  }, [isOpen, siteId, kind]);
+  }, [isOpen, kind]);
 
   if (!isOpen) {
     return (
@@ -81,7 +85,7 @@ export function MediaGalleryPicker({ siteId, kind, onSelect }: MediaGalleryPicke
             {isLoading ? <p className="subtle">Loading...</p> : null}
             {error ? <p className="badge failed">{error}</p> : null}
             {!isLoading && !error && assets.length === 0 ? (
-              <p className="subtle">No previously uploaded {kind === "image" ? "images" : "icons"} for this site yet.</p>
+              <p className="subtle">No previously uploaded {kind === "image" ? "images" : "icons"} yet.</p>
             ) : null}
 
             <div className="media-gallery-grid">
