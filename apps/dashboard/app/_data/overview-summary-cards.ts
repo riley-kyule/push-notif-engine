@@ -73,7 +73,9 @@ export function buildOverviewCards(overview: DashboardOverview): OverviewCard[] 
     {
       label: "Failed deliveries",
       value: String(overview.totalFailed),
-      detail: "Needs review in delivery reporting",
+      detail: overview.failedDeliveryReason
+        ? `Most common cause: ${overview.failedDeliveryReason} (${overview.failedDeliveryReasonCount.toLocaleString()} events)`
+        : "No failed deliveries yet",
       href: buildAnalyticsHref({ section: "time", siteId: "site-3" }),
     },
   ];

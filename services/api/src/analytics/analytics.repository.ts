@@ -23,6 +23,11 @@ interface CampaignCountRow {
   total_campaigns: string;
 }
 
+interface FailedDeliveryReasonRow {
+  failure_reason: string;
+  failure_count: string;
+}
+
 interface SiteCountRow {
   total_sites: string;
 }
@@ -224,8 +229,10 @@ export class AnalyticsRepository {
     totalClicked: number;
     deliveryRate: number;
     clickThroughRate: number;
+    failedDeliveryReason: string | null;
+    failedDeliveryReasonCount: number;
   }> {
-    const [sitesResult, subscribersResult, campaignsResult, deliveryResult] = await Promise.all([
+    const [sitesResult, subscribersResult, campaignsResult, deliveryResult, failureReasonResult] = await Promise.all([
       this.pool.query<SiteCountRow>(`SELECT COUNT(*)::text AS total_sites FROM sites`),
       this.pool.query<SiteOverviewRow>(
         `
@@ -258,12 +265,35 @@ export class AnalyticsRepository {
         `,
         [days],
       ),
+      this.pool.query<FailedDeliveryReasonRow>(
+        `
+        WITH failure_reasons AS (
+          SELECT
+            CASE
+              WHEN error_code IS NOT NULL AND error_message IS NOT NULL THEN error_code || ' ' || error_message
+              WHEN error_code IS NOT NULL THEN error_code
+              WHEN error_message IS NOT NULL THEN error_message
+              ELSE 'Unknown failure'
+            END AS failure_reason
+          FROM push_delivery_events
+          WHERE status = 'failed'
+            AND created_at >= NOW() - ($1 || ' days')::interval
+        )
+        SELECT failure_reason, COUNT(*)::text AS failure_count
+        FROM failure_reasons
+        GROUP BY failure_reason
+        ORDER BY COUNT(*) DESC, failure_reason ASC
+        LIMIT 1
+        `,
+        [days],
+      ),
     ]);
 
     const siteRow = sitesResult.rows[0];
     const subscriberRow = subscribersResult.rows[0];
     const campaignRow = campaignsResult.rows[0];
     const deliveryRow = deliveryResult.rows[0];
+    const failureReasonRow = failureReasonResult.rows[0];
 
     const totalSent = parseInt(deliveryRow?.sent ?? "0", 10);
     const totalDelivered = parseInt(deliveryRow?.delivered ?? "0", 10);
@@ -285,6 +315,8 @@ export class AnalyticsRepository {
       totalClicked,
       deliveryRate: total > 0 ? Math.round((totalDelivered / total) * 10000) / 100 : 0,
       clickThroughRate: successfullyHandedOff > 0 ? Math.round((totalClicked / successfullyHandedOff) * 10000) / 100 : 0,
+      failedDeliveryReason: failureReasonRow?.failure_reason ?? null,
+      failedDeliveryReasonCount: parseInt(failureReasonRow?.failure_count ?? "0", 10),
     };
   }
 
