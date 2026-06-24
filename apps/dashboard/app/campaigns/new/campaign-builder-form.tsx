@@ -5,12 +5,21 @@ import { useMemo, useState } from "react";
 
 import { buildUrl, localTimeInZoneToUtcIso } from "./campaign-builder.utils";
 import { uploadMedia } from "../../../lib/upload-media";
+import { MediaGalleryPicker } from "../../_components/media-gallery-picker";
 import type { CampaignTaxonomyChoice } from "../../_data/campaign-taxonomies";
 import type { SegmentChoice } from "../../_data/segments";
 import type { SiteChoice } from "../../_data/sites";
 
 type CampaignType = "instant" | "scheduled" | "recurring";
 type CampaignChannel = "web" | "mobile" | "all";
+type BuilderStep = "content" | "audience" | "schedule" | "review";
+
+const BUILDER_STEPS: { key: BuilderStep; label: string }[] = [
+  { key: "content", label: "Content" },
+  { key: "audience", label: "Audience" },
+  { key: "schedule", label: "Schedule" },
+  { key: "review", label: "Review" },
+];
 
 interface CampaignBuilderFormProps {
   sites: SiteChoice[];
@@ -38,15 +47,19 @@ function extractErrorMessage(payload: unknown, fallback: string): string {
   return fallback;
 }
 
-async function postJson<T>(url: string, body: unknown): Promise<T> {
-  const response = await fetch(url, {
+async function postJson<T>(url: string, body?: unknown): Promise<T> {
+  const init: RequestInit = {
     method: "POST",
     headers: {
       "content-type": "application/json",
       accept: "application/json",
     },
-    body: JSON.stringify(body),
-  });
+  };
+  if (body !== undefined) {
+    init.body = JSON.stringify(body);
+  }
+
+  const response = await fetch(url, init);
 
   const payload = await response.json().catch(() => null);
 
@@ -58,6 +71,7 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 }
 
 export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBuilderFormProps) {
+  const [step, setStep] = useState<BuilderStep>("content");
   const [siteId, setSiteId] = useState(sites[0]?.id ?? "site-1");
   const [segmentId, setSegmentId] = useState<string>("");
   const [name, setName] = useState("");
@@ -83,7 +97,9 @@ export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBui
   const [secondaryButtonUrl, setSecondaryButtonUrl] = useState(destination);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
-  const [isScheduling, setIsScheduling] = useState(false);
+  const [isSubmittingPrimary, setIsSubmittingPrimary] = useState(false);
+
+  const isInstant = type === "instant";
 
   const previewButtons = useMemo(
     () =>
@@ -173,7 +189,7 @@ export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBui
     buttons: showButtons ? previewButtons : [],
     expirationAt: null,
     status: "draft" as const,
-    scheduledAt: type === "instant" ? null : localTimeInZoneToUtcIso(schedule, siteTimezone),
+    scheduledAt: isInstant ? null : localTimeInZoneToUtcIso(schedule, siteTimezone),
     timezone: siteTimezone,
     recurrenceType: type === "recurring" ? "weekly" : null,
     recurrenceInterval: type === "recurring" ? 1 : null,
@@ -195,6 +211,9 @@ export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBui
     }
     if (showButtons && (!primaryButtonUrl.trim() || !secondaryButtonUrl.trim())) {
       return "Both action button URLs are required when action buttons are enabled.";
+    }
+    if (!isInstant && !schedule.trim()) {
+      return "Send time is required for scheduled and recurring campaigns.";
     }
 
     return null;
@@ -230,214 +249,335 @@ export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBui
     }
   }
 
+  async function sendInstantCampaign() {
+    const created = await postJson<{ success: true; data: { id: string } }>(buildUrl("/api/dashboard", "/campaigns"), {
+      ...campaignPayload,
+      status: "draft",
+      scheduledAt: null,
+      recurrenceType: null,
+      recurrenceInterval: null,
+      recurrenceUntilAt: null,
+    });
+
+    await postJson(buildUrl("/api/dashboard", `/campaigns/${created.data.id}/send`));
+    setStatusMessage(`Campaign sent (${created.data.id})`);
+  }
+
   async function scheduleCampaign() {
+    const created = await postJson<{ success: true; data: { id: string } }>(buildUrl("/api/dashboard", "/campaigns"), {
+      ...campaignPayload,
+      status: "scheduled",
+    });
+
+    const scheduledAt = localTimeInZoneToUtcIso(schedule, siteTimezone);
+    if (scheduledAt) {
+      await postJson(buildUrl("/api/dashboard", `/campaigns/${created.data.id}/schedule`), {
+        scheduledAt,
+        timezone: siteTimezone,
+        recurrenceType: type === "recurring" ? "weekly" : null,
+        recurrenceInterval: type === "recurring" ? 1 : null,
+        recurrenceUntilAt: type === "recurring" ? scheduledAt : null,
+      });
+    }
+
+    setStatusMessage(`Campaign scheduled (${created.data.id})`);
+  }
+
+  async function submitPrimaryAction() {
     const validationError = validateCampaignForm();
     if (validationError) {
       setStatusMessage(validationError);
       return;
     }
 
-    setIsScheduling(true);
+    setIsSubmittingPrimary(true);
     setStatusMessage(null);
 
     try {
-      const created = await postJson<{ success: true; data: { id: string } }>(buildUrl("/api/dashboard", "/campaigns"), {
-        ...campaignPayload,
-        status: "scheduled",
-      });
-
-      const scheduledAt = localTimeInZoneToUtcIso(schedule, siteTimezone);
-      if (scheduledAt) {
-        await postJson(buildUrl("/api/dashboard", `/campaigns/${created.data.id}/schedule`), {
-          scheduledAt,
-          timezone: siteTimezone,
-          recurrenceType: type === "recurring" ? "weekly" : null,
-          recurrenceInterval: type === "recurring" ? 1 : null,
-          recurrenceUntilAt: type === "recurring" ? scheduledAt : null,
-        });
+      if (isInstant) {
+        await sendInstantCampaign();
+      } else {
+        await scheduleCampaign();
       }
-
-      setStatusMessage(`Campaign scheduled (${created.data.id})`);
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Unable to schedule campaign");
+      setStatusMessage(error instanceof Error ? error.message : "Unable to submit campaign");
     } finally {
-      setIsScheduling(false);
+      setIsSubmittingPrimary(false);
     }
   }
+
+  const primaryActionLabel = isInstant ? "Send Now" : "Schedule Campaign";
+  const primaryActionBusyLabel = isInstant ? "Sending..." : "Scheduling...";
 
   return (
     <div className="builder">
       <section className="card">
-        <div className="tabs" aria-label="Builder steps">
-          {["Content", "Audience", "Schedule", "Review"].map((step, index) => (
-            <span key={step} className={`tab ${index === 0 ? "active" : ""}`}>
-              {index + 1}. {step}
-            </span>
+        <div className="tabs" aria-label="Builder steps" role="tablist">
+          {BUILDER_STEPS.map((entry, index) => (
+            <button
+              key={entry.key}
+              type="button"
+              role="tab"
+              aria-selected={step === entry.key}
+              className={`tab ${step === entry.key ? "active" : ""}`}
+              onClick={() => setStep(entry.key)}
+            >
+              {index + 1}. {entry.label}
+            </button>
           ))}
         </div>
 
-        <div className="field">
-          <label htmlFor="siteId">Site</label>
-          <select className="select" id="siteId" value={siteId} onChange={(event) => handleSiteChange(event.target.value)}>
-            {sites.map((site) => (
-              <option key={site.id} value={site.id}>
-                {site.name} - {site.country}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="field">
-          <label htmlFor="segmentId">Audience</label>
-          <select className="select" id="segmentId" value={segmentId} onChange={(event) => setSegmentId(event.target.value)}>
-            <option value="">All active subscribers</option>
-            {segmentsForSite.map((segment) => (
-              <option key={segment.id} value={segment.id}>
-                {segment.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="field">
-          <label htmlFor="name">Campaign name</label>
-          <input className="input" id="name" placeholder="e.g. Launch Week" value={name} onChange={(event) => setName(event.target.value)} />
-        </div>
-
-        <div className="field">
-          <label htmlFor="channel">Channel</label>
-          <select className="select" id="channel" value={channel} onChange={(event) => setChannel(event.target.value as CampaignChannel)}>
-            <option value="web">Web Push</option>
-            <option value="mobile">Mobile Push</option>
-            <option value="all">All Channels</option>
-          </select>
-        </div>
-
-        <div className="field">
-          <label htmlFor="type">Campaign type</label>
-          <select className="select" id="type" value={type} onChange={(event) => setType(event.target.value as CampaignType)}>
-            <option value="instant">Instant</option>
-            <option value="scheduled">Scheduled</option>
-            <option value="recurring">Recurring</option>
-          </select>
-        </div>
-
-        <div className="field">
-          <label htmlFor="contentType">Content taxonomy</label>
-          <select className="select" id="contentType" value={contentType} onChange={(event) => setContentType(event.target.value)}>
-            {taxonomies.map((taxonomy) => (
-              <option key={taxonomy.id} value={taxonomy.slug}>
-                {taxonomy.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="field">
-          <label htmlFor="title">Title</label>
-          <input className="input" id="title" placeholder="e.g. Weekend Sale" value={title} onChange={(event) => setTitle(event.target.value)} />
-        </div>
-
-        <div className="field">
-          <label htmlFor="message">Message</label>
-          <textarea className="textarea" id="message" placeholder="Save 30% on last-minute wilderness stays." value={message} onChange={(event) => setMessage(event.target.value)} />
-        </div>
-
-        <div className="field">
-          <label htmlFor="destination">Destination URL</label>
-          <input className="input" id="destination" placeholder="https://yoursite.com/landing-page" value={destination} onChange={(event) => setDestination(event.target.value)} />
-        </div>
-
-        <div className="grid cards-3">
-          <div className="field">
-            <label htmlFor="image">Image</label>
-            <input className="input" id="image" placeholder="https://yoursite.com/hero.png" value={imageUrl} onChange={(event) => {
-              setImageUrl(event.target.value);
-              setImageAssetId(null);
-            }} />
-            <label className="upload-field">
-              <span className="upload-field-button">{isUploadingImage ? "Uploading..." : "Upload image"}</span>
-              <input type="file" accept="image/*" onChange={(event) => void handleImageUpload(event.target.files?.[0] ?? null)} />
-            </label>
-            <p className="subtle">{imageFileName ?? "Use a hosted URL or upload a file."}</p>
-          </div>
-          <div className="field">
-            <label htmlFor="icon">Icon</label>
-            <input className="input" id="icon" placeholder="https://yoursite.com/icon.png" value={iconUrl} onChange={(event) => {
-              setIconUrl(event.target.value);
-              setIconAssetId(null);
-            }} />
-            <label className="upload-field">
-              <span className="upload-field-button">{isUploadingIcon ? "Uploading..." : "Upload icon"}</span>
-              <input type="file" accept="image/*" onChange={(event) => void handleIconUpload(event.target.files?.[0] ?? null)} />
-            </label>
-            <p className="subtle">{iconFileName ?? "Optional. Upload a brand icon or keep a URL."}</p>
-          </div>
-          <div className="field">
-            <label htmlFor="schedule">Send time</label>
-            <input className="input" id="schedule" type="datetime-local" value={schedule} onChange={(event) => setSchedule(event.target.value)} />
-          </div>
-        </div>
-
-        <div className="field">
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-            <label htmlFor="showButtons">Action buttons</label>
-            <label htmlFor="showButtons" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-              <input id="showButtons" type="checkbox" checked={showButtons} onChange={(event) => setShowButtons(event.target.checked)} />
-              <span>Show buttons</span>
-            </label>
-          </div>
-        </div>
-
-        {showButtons ? (
-          <div className="grid cards-2">
+        {step === "content" ? (
+          <div className="grid" style={{ gap: 0 }}>
             <div className="field">
-              <label htmlFor="primaryButtonLabel">Primary button label</label>
-              <input
-                className="input"
-                id="primaryButtonLabel"
-                value={primaryButtonLabel}
-                onChange={(event) => setPrimaryButtonLabel(event.target.value)}
-              />
+              <label htmlFor="name">Campaign name</label>
+              <input className="input" id="name" placeholder="e.g. Launch Week" value={name} onChange={(event) => setName(event.target.value)} />
             </div>
-            <div className="field">
-              <label htmlFor="primaryButtonUrl">Primary button URL</label>
-              <input className="input" id="primaryButtonUrl" value={primaryButtonUrl} onChange={(event) => setPrimaryButtonUrl(event.target.value)} />
+
+            <div className="grid cards-2">
+              <div className="field">
+                <label htmlFor="channel">Channel</label>
+                <select className="select" id="channel" value={channel} onChange={(event) => setChannel(event.target.value as CampaignChannel)}>
+                  <option value="web">Web Push</option>
+                  <option value="mobile">Mobile Push</option>
+                  <option value="all">All Channels</option>
+                </select>
+              </div>
+              <div className="field">
+                <label htmlFor="contentType">Content taxonomy</label>
+                <select className="select" id="contentType" value={contentType} onChange={(event) => setContentType(event.target.value)}>
+                  {taxonomies.map((taxonomy) => (
+                    <option key={taxonomy.id} value={taxonomy.slug}>
+                      {taxonomy.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
+
             <div className="field">
-              <label htmlFor="secondaryButtonLabel">Secondary button label</label>
-              <input
-                className="input"
-                id="secondaryButtonLabel"
-                value={secondaryButtonLabel}
-                onChange={(event) => setSecondaryButtonLabel(event.target.value)}
-              />
+              <label htmlFor="title">Title</label>
+              <input className="input" id="title" placeholder="e.g. Weekend Sale" value={title} onChange={(event) => setTitle(event.target.value)} />
             </div>
+
             <div className="field">
-              <label htmlFor="secondaryButtonUrl">Secondary button URL</label>
-              <input className="input" id="secondaryButtonUrl" value={secondaryButtonUrl} onChange={(event) => setSecondaryButtonUrl(event.target.value)} />
+              <label htmlFor="message">Message</label>
+              <textarea className="textarea" id="message" placeholder="Save 30% on last-minute wilderness stays." value={message} onChange={(event) => setMessage(event.target.value)} />
+            </div>
+
+            <div className="field">
+              <label htmlFor="destination">Destination URL</label>
+              <input className="input" id="destination" placeholder="https://yoursite.com/landing-page" value={destination} onChange={(event) => setDestination(event.target.value)} />
+            </div>
+
+            <div className="grid cards-2">
+              <div className="field">
+                <label htmlFor="image">Image</label>
+                <input className="input" id="image" placeholder="https://yoursite.com/hero.png" value={imageUrl} onChange={(event) => {
+                  setImageUrl(event.target.value);
+                  setImageAssetId(null);
+                }} />
+                <label className="upload-field">
+                  <span className="upload-field-button">{isUploadingImage ? "Uploading..." : "Upload image"}</span>
+                  <input type="file" accept="image/*" onChange={(event) => void handleImageUpload(event.target.files?.[0] ?? null)} />
+                </label>
+                <MediaGalleryPicker
+                  siteId={siteId}
+                  kind="image"
+                  onSelect={(asset) => {
+                    setImageAssetId(asset.id);
+                    setImageUrl(asset.publicUrl);
+                    setImageFileName(null);
+                  }}
+                />
+                <p className="subtle">{imageFileName ?? "Use a hosted URL, upload a file, or pick from the library."}</p>
+              </div>
+              <div className="field">
+                <label htmlFor="icon">Icon</label>
+                <input className="input" id="icon" placeholder="https://yoursite.com/icon.png" value={iconUrl} onChange={(event) => {
+                  setIconUrl(event.target.value);
+                  setIconAssetId(null);
+                }} />
+                <label className="upload-field">
+                  <span className="upload-field-button">{isUploadingIcon ? "Uploading..." : "Upload icon"}</span>
+                  <input type="file" accept="image/*" onChange={(event) => void handleIconUpload(event.target.files?.[0] ?? null)} />
+                </label>
+                <MediaGalleryPicker
+                  siteId={siteId}
+                  kind="icon"
+                  onSelect={(asset) => {
+                    setIconAssetId(asset.id);
+                    setIconUrl(asset.publicUrl);
+                    setIconFileName(null);
+                  }}
+                />
+                <p className="subtle">{iconFileName ?? "Optional. Upload a brand icon, keep a URL, or pick from the library."}</p>
+              </div>
+            </div>
+
+            <div className="field">
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                <label htmlFor="showButtons">Action buttons</label>
+                <label htmlFor="showButtons" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                  <input id="showButtons" type="checkbox" checked={showButtons} onChange={(event) => setShowButtons(event.target.checked)} />
+                  <span>Show buttons</span>
+                </label>
+              </div>
+            </div>
+
+            {showButtons ? (
+              <div className="grid cards-2">
+                <div className="field">
+                  <label htmlFor="primaryButtonLabel">Primary button label</label>
+                  <input
+                    className="input"
+                    id="primaryButtonLabel"
+                    value={primaryButtonLabel}
+                    onChange={(event) => setPrimaryButtonLabel(event.target.value)}
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="primaryButtonUrl">Primary button URL</label>
+                  <input className="input" id="primaryButtonUrl" value={primaryButtonUrl} onChange={(event) => setPrimaryButtonUrl(event.target.value)} />
+                </div>
+                <div className="field">
+                  <label htmlFor="secondaryButtonLabel">Secondary button label</label>
+                  <input
+                    className="input"
+                    id="secondaryButtonLabel"
+                    value={secondaryButtonLabel}
+                    onChange={(event) => setSecondaryButtonLabel(event.target.value)}
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="secondaryButtonUrl">Secondary button URL</label>
+                  <input className="input" id="secondaryButtonUrl" value={secondaryButtonUrl} onChange={(event) => setSecondaryButtonUrl(event.target.value)} />
+                </div>
+              </div>
+            ) : (
+              <div className="card" style={{ boxShadow: "none", background: "var(--surface-raised)" }}>
+                <p className="subtle">Action buttons are hidden for this campaign.</p>
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        {step === "audience" ? (
+          <div className="grid" style={{ gap: 0 }}>
+            <div className="field">
+              <label htmlFor="siteId">Site</label>
+              <select className="select" id="siteId" value={siteId} onChange={(event) => handleSiteChange(event.target.value)}>
+                {sites.map((site) => (
+                  <option key={site.id} value={site.id}>
+                    {site.name} - {site.country}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="field">
+              <label htmlFor="segmentId">Audience</label>
+              <select className="select" id="segmentId" value={segmentId} onChange={(event) => setSegmentId(event.target.value)}>
+                <option value="">All active subscribers</option>
+                {segmentsForSite.map((segment) => (
+                  <option key={segment.id} value={segment.id}>
+                    {segment.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        ) : null}
+
+        {step === "schedule" ? (
+          <div className="grid" style={{ gap: 0 }}>
+            <div className="field">
+              <label htmlFor="type">Campaign type</label>
+              <select className="select" id="type" value={type} onChange={(event) => setType(event.target.value as CampaignType)}>
+                <option value="instant">Instant</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="recurring">Recurring</option>
+              </select>
+            </div>
+
+            {isInstant ? (
+              <div className="card" style={{ boxShadow: "none", background: "var(--surface-raised)" }}>
+                <p className="subtle">Instant campaigns send immediately when you click Send Now -- no schedule time needed.</p>
+              </div>
+            ) : (
+              <div className="field">
+                <label htmlFor="schedule">Send time</label>
+                <input className="input" id="schedule" type="datetime-local" value={schedule} onChange={(event) => setSchedule(event.target.value)} />
+                <p className="subtle">
+                  Local time at the selected site ({siteTimezone}).
+                  {type === "recurring" ? " Recurs weekly from this time." : ""}
+                </p>
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        {step === "review" ? (
+          <div className="grid" style={{ gap: 0 }}>
+            <div className="grid cards-2">
+              <div className="field">
+                <span className="subtle">Site</span>
+                <strong>{selectedSite?.name ?? siteId}</strong>
+              </div>
+              <div className="field">
+                <span className="subtle">Audience</span>
+                <strong>{segmentsForSite.find((segment) => segment.id === segmentId)?.name ?? "All active subscribers"}</strong>
+              </div>
+              <div className="field">
+                <span className="subtle">Campaign type</span>
+                <strong>{type}</strong>
+              </div>
+              <div className="field">
+                <span className="subtle">Send time</span>
+                <strong>{isInstant ? "Immediately" : schedule || "Not set"}</strong>
+              </div>
+              <div className="field">
+                <span className="subtle">Title</span>
+                <strong>{title || "Not set"}</strong>
+              </div>
+              <div className="field">
+                <span className="subtle">Destination</span>
+                <strong>{destination || "Not set"}</strong>
+              </div>
+            </div>
+
+            <div className="actions" style={{ justifyContent: "space-between", marginTop: 24 }}>
+              <span className="subtle">{statusMessage ?? "Save as draft, or submit when ready."}</span>
+              <div className="actions">
+                <Link href="/campaigns" className="button secondary">
+                  Back to campaigns
+                </Link>
+                <button className="button secondary" type="button" onClick={saveDraft} disabled={isSavingDraft || isSubmittingPrimary}>
+                  {isSavingDraft ? "Saving..." : "Save Draft"}
+                </button>
+                <button className="button primary" type="button" onClick={submitPrimaryAction} disabled={isSavingDraft || isSubmittingPrimary}>
+                  {isSubmittingPrimary ? primaryActionBusyLabel : primaryActionLabel}
+                </button>
+              </div>
             </div>
           </div>
         ) : (
-          <div className="card" style={{ boxShadow: "none", background: "var(--surface-raised)" }}>
-            <p className="subtle">Action buttons are hidden for this campaign.</p>
+          <div className="actions" style={{ justifyContent: "space-between", marginTop: 24 }}>
+            <span className="subtle">{statusMessage ?? "Fill in each section, then review and submit."}</span>
+            <div className="actions">
+              <button className="button secondary" type="button" onClick={saveDraft} disabled={isSavingDraft || isSubmittingPrimary}>
+                {isSavingDraft ? "Saving..." : "Save Draft"}
+              </button>
+              <button
+                className="button primary"
+                type="button"
+                onClick={() => setStep(BUILDER_STEPS[BUILDER_STEPS.findIndex((entry) => entry.key === step) + 1]?.key ?? "review")}
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
-
-        <div className="actions" style={{ justifyContent: "space-between", marginTop: 24 }}>
-          <span className="subtle">{statusMessage ?? "Save as draft or schedule when ready."}</span>
-          <div className="actions">
-            <Link href="/campaigns" className="button secondary">
-              Back to campaigns
-            </Link>
-            <button className="button secondary" type="button" onClick={saveDraft} disabled={isSavingDraft || isScheduling}>
-              {isSavingDraft ? "Saving..." : "Save Draft"}
-            </button>
-            <button className="button primary" type="button" onClick={scheduleCampaign} disabled={isSavingDraft || isScheduling}>
-              {isScheduling ? "Scheduling..." : "Schedule Campaign"}
-            </button>
-          </div>
-        </div>
       </section>
 
       <aside className="preview">
@@ -467,7 +607,7 @@ export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBui
           <h3>Scheduling summary</h3>
           <p className="subtle">Type: {type}</p>
           <p className="subtle">
-            Send time: {schedule || "—"} ({siteTimezone})
+            Send time: {isInstant ? "Immediately" : schedule || "—"} ({siteTimezone})
           </p>
           <p className="subtle">Destination: {destination}</p>
           <p className="subtle">
