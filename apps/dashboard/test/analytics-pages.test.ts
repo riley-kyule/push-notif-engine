@@ -30,3 +30,30 @@ test("analytics overview failures card surfaces the most common failure reason",
   assert.ok(failuresCard);
   assert.equal(failuresCard?.detail, "Most common cause: 410 Gone Subscription no longer valid (19 events)");
 });
+
+test("analytics overview failures card can deep-link to the failed time series", () => {
+  const cards = buildAnalyticsOverviewCards(
+    {
+      totalSites: 8,
+      totalSubscribers: 32100,
+      activeSubscribers: 29800,
+      activeCampaigns: 4,
+      totalCampaigns: 19,
+      totalPending: 14,
+      totalSent: 900,
+      totalDelivered: 880,
+      totalFailed: 26,
+      totalClicked: 74,
+      deliveryRate: 97.73,
+      clickThroughRate: 8.22,
+      failedDeliveryReason: "410 Gone Subscription no longer valid",
+      failedDeliveryReasonCount: 19,
+    },
+    { failureHref: "/analytics?section=time&metric=failed#analytics-performance-explorer" },
+  );
+
+  const failuresCard = cards.find((card) => card.label === "Failures");
+
+  assert.ok(failuresCard);
+  assert.equal(failuresCard?.href, "/analytics?section=time&metric=failed#analytics-performance-explorer");
+});

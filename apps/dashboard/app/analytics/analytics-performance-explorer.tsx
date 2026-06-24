@@ -151,15 +151,19 @@ export function AnalyticsPerformanceExplorer({
   sections,
   controls,
   initialSectionKey,
+  initialMetricKey,
   exportOptions,
 }: {
   sections: ExplorerSection[];
   controls?: ReactNode;
   initialSectionKey?: string;
+  initialMetricKey?: string | undefined;
   exportOptions?: Record<string, ExportSectionOptions>;
 }) {
   const [activeSectionKey, setActiveSectionKey] = useState(initialSectionKey && sections.some((section) => section.key === initialSectionKey) ? initialSectionKey : sections[0]?.key ?? "");
-  const [activeMetricKeys, setActiveMetricKeys] = useState<Record<string, string>>({});
+  const [activeMetricKeys, setActiveMetricKeys] = useState<Record<string, string>>(
+    initialSectionKey && initialMetricKey ? { [initialSectionKey]: initialMetricKey } : {},
+  );
 
   useEffect(() => {
     if (!initialSectionKey) {
@@ -167,8 +171,11 @@ export function AnalyticsPerformanceExplorer({
     }
     if (sections.some((section) => section.key === initialSectionKey)) {
       setActiveSectionKey(initialSectionKey);
+      if (initialMetricKey) {
+        setActiveMetricKeys((current) => ({ ...current, [initialSectionKey]: initialMetricKey }));
+      }
     }
-  }, [initialSectionKey, sections]);
+  }, [initialSectionKey, initialMetricKey, sections]);
 
   const activeSection = useMemo(() => sections.find((section) => section.key === activeSectionKey) ?? sections[0], [activeSectionKey, sections]);
   const activeMetricKey = activeMetricKeys[activeSection?.key ?? ""] ?? activeSection?.metrics[0]?.key ?? "";
@@ -181,7 +188,7 @@ export function AnalyticsPerformanceExplorer({
   const activeExportOptions = exportOptions?.[activeSection.key];
 
   return (
-    <section className="card analytics-panel analytics-performance-explorer">
+    <section id="analytics-performance-explorer" className="card analytics-panel analytics-performance-explorer">
       <div className="analytics-performance-toolbar">
         <div className="panel-heading analytics-performance-heading">
           <div>
