@@ -134,17 +134,51 @@ function toApiSummary(record: ApiSubscriberRecord): SubscriberSummary {
   };
 }
 
-export async function getSubscriberList(): Promise<SubscriberListPayload> {
-  const response = await apiJson<SubscriberApiResponse<{ items: ApiSubscriberRecord[] }>>("/subscribers");
+export interface SubscriberListFilters {
+  status?: SubscriberSummary["status"] | undefined;
+  siteId?: string | undefined;
+  limit?: number | undefined;
+  offset?: number | undefined;
+}
+
+function buildSubscribersQuery(filters: SubscriberListFilters = {}): string {
+  const search = new URLSearchParams();
+  if (filters.status) search.set("status", filters.status);
+  if (filters.siteId) search.set("siteId", filters.siteId);
+  search.set("limit", String(filters.limit ?? 50));
+  search.set("offset", String(filters.offset ?? 0));
+  return search.toString();
+}
+
+export async function getSubscriberList(filters: SubscriberListFilters = {}): Promise<SubscriberListPayload> {
+  const response = await apiJson<SubscriberApiResponse<{ items: ApiSubscriberRecord[]; total: number }>>(
+    `/subscribers?${buildSubscribersQuery(filters)}`,
+  );
   if (!response?.data.items) {
-    return {
-      items: fallbackSubscribers.map((subscriber) => toSummary(subscriber)),
-      total: fallbackSubscribers.length,
-    };
+    const fallbackItems = fallbackSubscribers
+      .map((subscriber) => toSummary(subscriber))
+      .filter((subscriber) => !filters.status || subscriber.status === filters.status);
+    return { items: fallbackItems, total: fallbackItems.length };
   }
 
   const items = response.data.items.map((record) => toApiSummary(record));
-  return { items, total: items.length };
+  return { items, total: response.data.total };
+}
+
+export type SubscriberStatusCounts = Record<SubscriberSummary["status"] | "total", number>;
+
+export async function getSubscriberStatusCounts(siteId?: string): Promise<SubscriberStatusCounts> {
+  const statuses: SubscriberSummary["status"][] = ["active", "inactive", "unsubscribed", "expired"];
+  const [total, ...counts] = await Promise.all([
+    getSubscriberList({ siteId, limit: 1 }),
+    ...statuses.map((status) => getSubscriberList({ siteId, status, limit: 1 })),
+  ]);
+
+  const result: SubscriberStatusCounts = { total: total.total, active: 0, inactive: 0, unsubscribed: 0, expired: 0 };
+  statuses.forEach((status, index) => {
+    result[status] = counts[index]?.total ?? 0;
+  });
+  return result;
 }
 
 export async function getSubscriber(id: string): Promise<SubscriberDetail | null> {

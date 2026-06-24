@@ -754,6 +754,11 @@ a.nav-item[aria-current="page"] {
   color: var(--text-muted);
 }
 
+.badge.unsubscribed {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
 .mono {
   font-family: "SFMono-Regular", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   word-break: break-all;
