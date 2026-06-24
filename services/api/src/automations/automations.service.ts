@@ -149,6 +149,51 @@ export class AutomationsService {
     return this.automationsRepository.listActiveByTrigger(siteId, triggerEvent);
   }
 
+  // Idempotent: skips a default if the site already has any automation on
+  // that trigger (default or custom), so re-running this never duplicates.
+  async seedDefaultAutomations(siteId: string, actorUserId?: string): Promise<AutomationRecord[]> {
+    const site = await this.sitesService.getSite(siteId);
+    const existing = await this.automationsRepository.list({ siteId, limit: 100, offset: 0 });
+    const existingTriggers = new Set(existing.items.map((automation) => automation.triggerEvent));
+    const created: AutomationRecord[] = [];
+
+    if (!existingTriggers.has("subscriber_registered")) {
+      created.push(
+        await this.createAutomation(
+          {
+            siteId,
+            name: "Welcome push",
+            triggerEvent: "subscriber_registered",
+            title: `Welcome to ${site.appName}!`,
+            message: "Thanks for subscribing - we'll keep you posted with updates you won't want to miss.",
+            url: site.url,
+            status: "active",
+          } as CreateAutomationDto,
+          actorUserId,
+        ),
+      );
+    }
+
+    if (!existingTriggers.has("subscriber_unsubscribed")) {
+      created.push(
+        await this.createAutomation(
+          {
+            siteId,
+            name: "Unsubscribe notice",
+            triggerEvent: "subscriber_unsubscribed",
+            title: "Sorry to see you go",
+            message: "You've been unsubscribed from notifications. You can re-enable them anytime.",
+            url: site.url,
+            status: "active",
+          } as CreateAutomationDto,
+          actorUserId,
+        ),
+      );
+    }
+
+    return created;
+  }
+
   async deleteAutomation(id: string, actorUserId?: string): Promise<void> {
     const existing = await this.getAutomation(id);
     const deleted = await this.automationsRepository.delete(id);

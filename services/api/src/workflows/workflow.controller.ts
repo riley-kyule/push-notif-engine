@@ -11,8 +11,8 @@ class RecordWorkflowEventDto {
   @MinLength(1)
   siteId!: string;
 
-  @IsIn(["subscriber_registered", "page_visit", "click", "api_event", "rss_item_published"])
-  triggerEvent!: "subscriber_registered" | "page_visit" | "click" | "api_event" | "rss_item_published";
+  @IsIn(["subscriber_registered", "subscriber_unsubscribed", "page_visit", "click", "api_event", "rss_item_published"])
+  triggerEvent!: "subscriber_registered" | "subscriber_unsubscribed" | "page_visit" | "click" | "api_event" | "rss_item_published";
 
   @IsOptional()
   @IsString()

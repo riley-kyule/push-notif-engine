@@ -1,6 +1,12 @@
 import { apiJson } from "../../lib/server-api";
 
-export type AutomationTriggerEvent = "subscriber_registered" | "page_visit" | "click" | "api_event" | "rss_item_published";
+export type AutomationTriggerEvent =
+  | "subscriber_registered"
+  | "subscriber_unsubscribed"
+  | "page_visit"
+  | "click"
+  | "api_event"
+  | "rss_item_published";
 export type AutomationStatus = "active" | "paused";
 export type AutomationActionType = "send_notification" | "add_tag" | "remove_tag" | "webhook";
 

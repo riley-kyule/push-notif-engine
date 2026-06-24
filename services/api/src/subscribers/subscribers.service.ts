@@ -89,9 +89,21 @@ export class SubscribersService {
       return null;
     }
 
-    return this.subscribersRepository.updateStatus(subscriber.id, {
+    const updated = await this.subscribersRepository.updateStatus(subscriber.id, {
       status: "unsubscribed",
       lastSeenAt: new Date(),
     });
+
+    if (updated && subscriber.status !== "unsubscribed") {
+      // Best-effort, same as registration: a failed automation must never
+      // fail the unsubscribe request itself.
+      try {
+        await this.workflowService.handleSubscriberUnsubscribed(updated);
+      } catch (error) {
+        this.logger.error(`Failed to run subscriber_unsubscribed automations for ${updated.id}`, error as Error);
+      }
+    }
+
+    return updated;
   }
 }

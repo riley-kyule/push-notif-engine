@@ -3,7 +3,7 @@ import { Type } from "class-transformer";
 
 import { AutomationActionDto } from "./automation-action.dto";
 
-const AUTOMATION_TRIGGER_EVENTS = ["subscriber_registered", "page_visit", "click", "api_event", "rss_item_published"] as const;
+const AUTOMATION_TRIGGER_EVENTS = ["subscriber_registered", "subscriber_unsubscribed", "page_visit", "click", "api_event", "rss_item_published"] as const;
 const AUTOMATION_STATUSES = ["active", "paused"] as const;
 
 class AutomationButtonDto {

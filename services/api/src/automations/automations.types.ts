@@ -1,4 +1,10 @@
-export type AutomationTriggerEvent = "subscriber_registered" | "page_visit" | "click" | "api_event" | "rss_item_published";
+export type AutomationTriggerEvent =
+  | "subscriber_registered"
+  | "subscriber_unsubscribed"
+  | "page_visit"
+  | "click"
+  | "api_event"
+  | "rss_item_published";
 
 export type AutomationStatus = "active" | "paused";
 

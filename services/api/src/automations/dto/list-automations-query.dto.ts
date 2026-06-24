@@ -1,7 +1,7 @@
 import { IsIn, IsInt, IsOptional, IsString, Max, Min } from "class-validator";
 import type { AutomationStatus, AutomationTriggerEvent } from "../automations.types";
 
-const AUTOMATION_TRIGGER_EVENTS = ["subscriber_registered", "page_visit", "click", "api_event", "rss_item_published"] as const;
+const AUTOMATION_TRIGGER_EVENTS = ["subscriber_registered", "subscriber_unsubscribed", "page_visit", "click", "api_event", "rss_item_published"] as const;
 const AUTOMATION_STATUSES = ["active", "paused"] as const;
 
 export class ListAutomationsQueryDto {

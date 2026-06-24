@@ -91,9 +91,15 @@ test("subscribers service falls back to the detected country, then Unknown", asy
   assert.equal(withExplicit.country, "ZA");
 });
 
-test("subscribers service marks subscriptions as unsubscribed", async () => {
+test("subscribers service marks subscriptions as unsubscribed and fires the unsubscribe automation once", async () => {
   const repository = new InMemorySubscribersRepository();
-  const workflowService = { async handleSubscriberRegistered() {} };
+  const unsubscribedIds: string[] = [];
+  const workflowService = {
+    async handleSubscriberRegistered() {},
+    async handleSubscriberUnsubscribed(subscriber: { id: string }) {
+      unsubscribedIds.push(subscriber.id);
+    },
+  };
   const service = new SubscribersService(repository, workflowService as never);
 
   await service.registerSubscriber({
@@ -112,4 +118,12 @@ test("subscribers service marks subscriptions as unsubscribed", async () => {
   });
 
   assert.equal(unsubscribed?.status, "unsubscribed");
+  assert.deepEqual(unsubscribedIds, [unsubscribed?.id]);
+
+  // Unsubscribing an already-unsubscribed subscriber must not re-fire it.
+  await service.unsubscribeSubscriber({
+    siteId: "site-1",
+    subscriptionEndpoint: "https://push.example.com/endpoint-unsubscribe",
+  });
+  assert.deepEqual(unsubscribedIds, [unsubscribed?.id]);
 });

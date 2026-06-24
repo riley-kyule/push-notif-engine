@@ -122,6 +122,28 @@ export class WorkflowService {
     });
   }
 
+  async handleSubscriberUnsubscribed(subscriber: {
+    id: string;
+    siteId: string;
+    browser: string;
+    deviceType: string;
+    country: string;
+    language: string;
+  }): Promise<void> {
+    await this.recordEvent({
+      siteId: subscriber.siteId,
+      subscriberId: subscriber.id,
+      triggerEvent: "subscriber_unsubscribed",
+      payload: {
+        subscriberId: subscriber.id,
+        browser: subscriber.browser,
+        deviceType: subscriber.deviceType,
+        country: subscriber.country,
+        language: subscriber.language,
+      },
+    });
+  }
+
   async createRssFeed(input: CreateRssFeedInput): Promise<RssFeedRecord> {
     await this.sitesService.getSite(input.siteId);
     return this.repository.createRssFeed(input);

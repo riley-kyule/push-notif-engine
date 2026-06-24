@@ -22,6 +22,15 @@ export class AutomationsController {
     return { success: true, data: automation };
   }
 
+  @Post("seed-defaults")
+  async seedDefaultAutomations(
+    @Body() body: { siteId: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ success: true; data: unknown }> {
+    const created = await this.automationsService.seedDefaultAutomations(body.siteId, user.id);
+    return { success: true, data: created };
+  }
+
   @Get()
   async listAutomations(@Query() query: ListAutomationsQueryDto): Promise<{ success: true; data: unknown }> {
     const automations = await this.automationsService.listAutomations(query);
