@@ -4,9 +4,13 @@ import type { FormEvent } from "react";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
+import { extractApiErrorMessage, postJson } from "../../lib/api-client";
 import { uploadMedia } from "../../lib/upload-media";
 import { MediaGalleryPicker } from "../_components/media-gallery-picker";
 import { COUNTRIES, countryCodeToFlagEmoji } from "../_data/countries";
+import { useToast } from "../_components/toast";
+
+export { extractApiErrorMessage };
 
 type SiteEditorMode = "create" | "edit";
 
@@ -58,31 +62,6 @@ export function normalizeSiteUrl(value: string): string {
   }
 
   return `https://${trimmed}`;
-}
-
-export function extractApiErrorMessage(payload: unknown, fallback: string): string {
-  if (!payload || typeof payload !== "object") {
-    return fallback;
-  }
-
-  const error = (payload as { error?: { message?: unknown } }).error;
-  if (error && typeof error.message === "string" && error.message.trim().length > 0) {
-    return error.message;
-  }
-
-  // NestJS's default exception shape for thrown HttpExceptions (e.g.
-  // ConflictException on a duplicate site) is a top-level `message`, not
-  // nested under `error` -- without this, those messages silently fell
-  // back to the generic "Unable to save site".
-  const topLevelMessage = (payload as { message?: unknown }).message;
-  if (Array.isArray(topLevelMessage) && topLevelMessage.length > 0) {
-    return topLevelMessage.join(", ");
-  }
-  if (typeof topLevelMessage === "string" && topLevelMessage.trim().length > 0) {
-    return topLevelMessage;
-  }
-
-  return fallback;
 }
 
 export function buildSiteRequestBody(values: SiteFormValues): Record<string, unknown> {
@@ -223,19 +202,11 @@ function PromptPreview({ values }: { values: SiteFormValues }) {
 }
 
 async function submitSite(mode: SiteEditorMode, id: string | null, values: SiteFormValues): Promise<void> {
-  const response = await fetch(mode === "create" ? "/api/dashboard/sites" : `/api/dashboard/sites/${id ?? ""}`, {
-    method: mode === "create" ? "POST" : "PATCH",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(buildSiteRequestBody(values)),
-  });
-
-  const payload = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
-
-  if (!response.ok) {
-    throw new Error(extractApiErrorMessage(payload, "Unable to save site"));
-  }
+  await postJson(
+    mode === "create" ? "/api/dashboard/sites" : `/api/dashboard/sites/${id ?? ""}`,
+    buildSiteRequestBody(values),
+    mode === "create" ? "POST" : "PATCH",
+  );
 }
 
 export function SiteEditor({
@@ -248,8 +219,8 @@ export function SiteEditor({
   initialValues: SiteFormValues;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [values, setValues] = useState<SiteFormValues>(initialValues);
-  const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isUploadingIcon, setIsUploadingIcon] = useState(false);
   const [isUploadingPromptIcon, setIsUploadingPromptIcon] = useState(false);
@@ -266,12 +237,12 @@ export function SiteEditor({
     }
 
     setIsUploadingIcon(true);
-    setError(null);
     try {
       const asset = await uploadMedia(siteId, "icon", file);
       updateField("iconUrl", asset.publicUrl);
+      toast.showSuccess("Icon uploaded.");
     } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : "Unable to upload icon");
+      toast.showError(uploadError instanceof Error ? uploadError.message : "Unable to upload icon.");
     } finally {
       setIsUploadingIcon(false);
     }
@@ -283,12 +254,12 @@ export function SiteEditor({
     }
 
     setIsUploadingPromptIcon(true);
-    setError(null);
     try {
       const asset = await uploadMedia(siteId, "icon", file);
       updateField("optInPromptIconUrl", asset.publicUrl);
+      toast.showSuccess("Icon uploaded.");
     } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : "Unable to upload icon");
+      toast.showError(uploadError instanceof Error ? uploadError.message : "Unable to upload icon.");
     } finally {
       setIsUploadingPromptIcon(false);
     }
@@ -296,22 +267,22 @@ export function SiteEditor({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
 
     const validationError = validateSiteForm(values);
     if (validationError) {
-      setError(validationError);
+      toast.showError(validationError);
       return;
     }
 
     startTransition(() => {
       void submitSite(mode, siteId ?? null, values)
         .then(() => {
+          toast.showSuccess(mode === "create" ? `Site "${values.name}" added.` : `Site "${values.name}" updated.`);
           router.push("/sites");
           router.refresh();
         })
         .catch((submitError) => {
-          setError(submitError instanceof Error ? submitError.message : "Unable to save site");
+          toast.showError(submitError instanceof Error ? submitError.message : "Unable to save site.");
         });
     });
   }
@@ -666,7 +637,6 @@ export function SiteEditor({
           </div>
         </div>
       </div>
-      {error ? <p className="badge failed" style={{ justifyContent: "flex-start" }}>{error}</p> : null}
       <div className="actions">
         <button className="button primary" type="submit" disabled={isPending}>
           {isPending ? "Saving..." : mode === "create" ? "Create site" : "Update site"}

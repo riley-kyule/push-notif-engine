@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useTransition } from "react";
 
+import { useToast } from "../../_components/toast";
+
 type BackupProvider = "dropbox" | "google_drive";
 
 interface ProviderStatus {
@@ -54,17 +56,21 @@ export function BackupConfigPanel({
   connectedNotice?: string | undefined;
   errorNotice?: string | undefined;
 }) {
+  const toast = useToast();
   const [providers, setProviders] = useState<ProviderStatus[] | null>(null);
   const [runs, setRuns] = useState<BackupRun[]>([]);
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(
-    connectedNotice
-      ? `${PROVIDER_LABELS[connectedNotice as BackupProvider] ?? connectedNotice} connected.`
-      : errorNotice
-        ? `Connection failed (${errorNotice}). Please try again.`
-        : null,
-  );
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (connectedNotice) {
+      toast.showSuccess(`${PROVIDER_LABELS[connectedNotice as BackupProvider] ?? connectedNotice} connected.`);
+    } else if (errorNotice) {
+      toast.showError(`Connection failed (${errorNotice}). Please try again.`);
+    }
+    // Only fire once for the redirect-driven notice this component mounted with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function refresh() {
     void fetch("/api/dashboard/backup")
@@ -85,7 +91,6 @@ export function BackupConfigPanel({
   }, []);
 
   function handleConnect(provider: BackupProvider) {
-    setMessage(null);
     void fetch(`/api/dashboard/backup/${provider}/authorize`)
       .then(async (response) => {
         const payload = (await response.json().catch(() => null)) as { success?: boolean; data?: { authorizeUrl?: string } } | null;
@@ -95,7 +100,7 @@ export function BackupConfigPanel({
 
         window.location.href = payload.data.authorizeUrl;
       })
-      .catch((error) => setMessage(error instanceof Error ? error.message : "Unable to start the connection"));
+      .catch((error) => toast.showError(error instanceof Error ? error.message : "Unable to start the connection."));
   }
 
   function handleDisconnect(provider: BackupProvider) {
@@ -105,10 +110,10 @@ export function BackupConfigPanel({
           if (!response.ok) {
             throw new Error("Unable to disconnect");
           }
-          setMessage(`${PROVIDER_LABELS[provider]} disconnected.`);
+          toast.showSuccess(`${PROVIDER_LABELS[provider]} disconnected.`);
           refresh();
         })
-        .catch((error) => setMessage(error instanceof Error ? error.message : "Unable to disconnect"));
+        .catch((error) => toast.showError(error instanceof Error ? error.message : "Unable to disconnect."));
     });
   }
 
@@ -123,14 +128,14 @@ export function BackupConfigPanel({
           if (!response.ok) {
             throw new Error("Unable to update the backup schedule");
           }
+          toast.showSuccess(`${PROVIDER_LABELS[provider]} backup schedule updated.`);
           refresh();
         })
-        .catch((error) => setMessage(error instanceof Error ? error.message : "Unable to update the backup schedule"));
+        .catch((error) => toast.showError(error instanceof Error ? error.message : "Unable to update the backup schedule."));
     });
   }
 
   function handleRunNow(provider: BackupProvider) {
-    setMessage(null);
     startTransition(() => {
       void fetch(`/api/dashboard/backup/${provider}/run`, { method: "POST" })
         .then(async (response) => {
@@ -139,10 +144,10 @@ export function BackupConfigPanel({
             throw new Error(payload?.error?.message ?? "Unable to start the backup");
           }
 
-          setMessage(`${PROVIDER_LABELS[provider]} backup started — check the history below for progress.`);
+          toast.showSuccess(`${PROVIDER_LABELS[provider]} backup started — check the history below for progress.`);
           refresh();
         })
-      .catch((error) => setMessage(error instanceof Error ? error.message : "Unable to start the backup"));
+      .catch((error) => toast.showError(error instanceof Error ? error.message : "Unable to start the backup."));
     });
   }
 
@@ -172,12 +177,6 @@ export function BackupConfigPanel({
 
   return (
     <>
-      {message ? (
-        <section className="card" style={{ marginTop: 18 }}>
-          <p>{message}</p>
-        </section>
-      ) : null}
-
       <section className="grid cards-3" style={{ marginTop: 18 }}>
         <article className="card backup-summary-card">
           <p className="subtle">Connected providers</p>

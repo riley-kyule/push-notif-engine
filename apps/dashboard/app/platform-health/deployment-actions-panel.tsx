@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useTransition } from "react";
 
+import { useToast } from "../_components/toast";
+
 type DeploymentAction = "minor-update" | "core-update";
 
 type DeploymentResult = {
@@ -51,9 +53,9 @@ function formatComparison(value: DeploymentVersion["comparison"]): string {
 }
 
 export function DeploymentActionsPanel() {
+  const toast = useToast();
   const [isPending, startTransition] = useTransition();
   const [loadingVersion, setLoadingVersion] = useState(true);
-  const [message, setMessage] = useState<string | null>(null);
   const [result, setResult] = useState<DeploymentResult | null>(null);
   const [version, setVersion] = useState<DeploymentVersion | null>(null);
 
@@ -89,7 +91,6 @@ export function DeploymentActionsPanel() {
       return;
     }
 
-    setMessage(null);
     setResult(null);
     startTransition(() => {
       void fetch("/api/dashboard/health/deployment", {
@@ -108,10 +109,10 @@ export function DeploymentActionsPanel() {
           }
 
           setResult(payload.data);
-          setMessage(`${actionLabel(action)} completed.`);
+          toast.showSuccess(`${actionLabel(action)} completed.`);
         })
         .catch((error) => {
-          setMessage(error instanceof Error ? error.message : `Unable to run ${actionLabel(action).toLowerCase()}`);
+          toast.showError(error instanceof Error ? error.message : `Unable to run ${actionLabel(action).toLowerCase()}.`);
         });
     });
   }
@@ -184,12 +185,6 @@ export function DeploymentActionsPanel() {
           </article>
         ))}
       </div>
-
-      {message ? (
-        <p className="badge neutral" style={{ marginTop: 14, justifyContent: "flex-start" }}>
-          {message}
-        </p>
-      ) : null}
 
       {result ? (
         <pre

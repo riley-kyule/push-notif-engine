@@ -5,6 +5,7 @@ import { NestFactory } from "@nestjs/core";
 import { Pool } from "pg";
 
 import { AppModule } from "./app.module";
+import { HttpExceptionFilter } from "./common/http-exception.filter";
 import { createOriginAllowlistChecker } from "./cors-origin.util";
 import { DATABASE_POOL } from "./database/database.constants";
 
@@ -48,6 +49,7 @@ export async function createApiApp() {
       forbidNonWhitelisted: true,
     }),
   );
+  app.useGlobalFilters(new HttpExceptionFilter());
 
   return app;
 }

@@ -3,6 +3,7 @@ import { Montserrat } from "next/font/google";
 
 import "./globals.css";
 import { PageTransition } from "./_components/page-transition";
+import { ToastProvider } from "./_components/toast";
 
 const montserrat = Montserrat({
   subsets: ["latin"],
@@ -14,7 +15,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={montserrat.variable}>
       <body>
-        <PageTransition>{children}</PageTransition>
+        <ToastProvider>
+          <PageTransition>{children}</PageTransition>
+        </ToastProvider>
       </body>
     </html>
   );

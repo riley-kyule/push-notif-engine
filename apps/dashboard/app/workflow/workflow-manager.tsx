@@ -5,6 +5,8 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { postJson } from "../../lib/api-client";
+import { useToast } from "../_components/toast";
 import type { SiteChoice } from "../_data/sites";
 import type {
   WorkflowActionType,
@@ -36,33 +38,6 @@ const actionLabels: Record<WorkflowActionType, string> = {
   webhook: "Webhook",
 };
 
-async function postJson<T>(url: string, body: unknown, method = "POST"): Promise<T> {
-  const init: RequestInit = {
-    method,
-    headers: {
-      accept: "application/json",
-      "content-type": "application/json",
-    },
-  };
-
-  if (method !== "DELETE") {
-    init.body = JSON.stringify(body);
-  }
-
-  const response = await fetch(url, init);
-
-  const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
-  if (!response.ok) {
-    throw new Error(
-      payload && typeof payload === "object" && "error" in payload && payload.error
-        ? payload.error
-        : `Request failed with status ${response.status}`,
-    );
-  }
-
-  return payload as T;
-}
-
 function tryParseJson(value: string): Record<string, unknown> {
   if (!value.trim()) {
     return {};
@@ -92,8 +67,7 @@ export function WorkflowManager({ sites: allSites, feeds, events }: WorkflowMana
   // Sites" (site-3) isn't a real site, so picking it here would 404.
   const sites = useMemo(() => allSites.filter((site) => site.id !== "site-3"), [allSites]);
   const router = useRouter();
-  const [feedNotice, setFeedNotice] = useState<string | null>(null);
-  const [eventNotice, setEventNotice] = useState<string | null>(null);
+  const toast = useToast();
   const [busyFeedId, setBusyFeedId] = useState<string | null>(null);
   const [isFeedSubmitting, startFeedTransition] = useTransition();
   const [isEventSubmitting, startEventTransition] = useTransition();
@@ -121,11 +95,10 @@ export function WorkflowManager({ sites: allSites, feeds, events }: WorkflowMana
     const status = String(form.get("status") ?? "active") as FeedStatus;
 
     if (!siteId || !name || !feedUrl) {
-      setFeedNotice("Site, name, and feed URL are required.");
+      toast.showError("Site, name, and feed URL are required.");
       return;
     }
 
-    setFeedNotice(null);
     startFeedTransition(() => {
       void postJson<{ success: true; data: unknown }>("/api/dashboard/workflow/rss-feeds", {
         siteId,
@@ -134,12 +107,12 @@ export function WorkflowManager({ sites: allSites, feeds, events }: WorkflowMana
         status,
       })
         .then(() => {
-          setFeedNotice("RSS feed created.");
+          toast.showSuccess(`RSS feed "${name}" created.`);
           router.refresh();
           event.currentTarget.reset();
         })
         .catch((error) => {
-          setFeedNotice(error instanceof Error ? error.message : "Unable to create RSS feed.");
+          toast.showError(error instanceof Error ? error.message : "Unable to create RSS feed.");
         });
     });
   }
@@ -153,7 +126,7 @@ export function WorkflowManager({ sites: allSites, feeds, events }: WorkflowMana
     const campaignIdRaw = String(form.get("campaignId") ?? "").trim();
 
     if (!siteId || !triggerEvent) {
-      setEventNotice("Site and trigger are required.");
+      toast.showError("Site and trigger are required.");
       return;
     }
 
@@ -161,11 +134,10 @@ export function WorkflowManager({ sites: allSites, feeds, events }: WorkflowMana
     try {
       payload = tryParseJson(String(form.get("payload") ?? ""));
     } catch (error) {
-      setEventNotice(error instanceof Error ? error.message : "Payload must be valid JSON.");
+      toast.showError(error instanceof Error ? error.message : "Payload must be valid JSON.");
       return;
     }
 
-    setEventNotice(null);
     startEventTransition(() => {
       void postJson<{ success: true; data: unknown }>("/api/dashboard/workflow/events", {
         siteId,
@@ -175,20 +147,19 @@ export function WorkflowManager({ sites: allSites, feeds, events }: WorkflowMana
         payload,
       })
         .then(() => {
-          setEventNotice("Workflow event recorded.");
+          toast.showSuccess("Workflow event recorded.");
           router.refresh();
           event.currentTarget.reset();
           setPayloadDraft("{}");
         })
         .catch((error) => {
-          setEventNotice(error instanceof Error ? error.message : "Unable to record workflow event.");
+          toast.showError(error instanceof Error ? error.message : "Unable to record workflow event.");
         });
     });
   }
 
   async function handleFeedAction(feedId: string, nextStatus?: FeedStatus) {
     setBusyFeedId(feedId);
-    setFeedNotice(null);
 
     try {
       if (nextStatus) {
@@ -197,9 +168,9 @@ export function WorkflowManager({ sites: allSites, feeds, events }: WorkflowMana
         await postJson(`/api/dashboard/workflow/rss-feeds/${feedId}/poll`, {}, "POST");
       }
       router.refresh();
-      setFeedNotice(nextStatus ? `Feed ${nextStatus}.` : "Feed polled.");
+      toast.showSuccess(nextStatus ? `Feed ${nextStatus}.` : "Feed polled.");
     } catch (error) {
-      setFeedNotice(error instanceof Error ? error.message : "Unable to update RSS feed.");
+      toast.showError(error instanceof Error ? error.message : "Unable to update RSS feed.");
     } finally {
       setBusyFeedId(null);
     }
@@ -207,13 +178,12 @@ export function WorkflowManager({ sites: allSites, feeds, events }: WorkflowMana
 
   async function handleDeleteFeed(feedId: string) {
     setBusyFeedId(feedId);
-    setFeedNotice(null);
     try {
       await postJson(`/api/dashboard/workflow/rss-feeds/${feedId}`, {}, "DELETE");
       router.refresh();
-      setFeedNotice("Feed removed.");
+      toast.showSuccess("Feed removed.");
     } catch (error) {
-      setFeedNotice(error instanceof Error ? error.message : "Unable to delete RSS feed.");
+      toast.showError(error instanceof Error ? error.message : "Unable to delete RSS feed.");
     } finally {
       setBusyFeedId(null);
     }
@@ -296,12 +266,6 @@ export function WorkflowManager({ sites: allSites, feeds, events }: WorkflowMana
               <span className="subtle">Feeds poll automatically every 15 minutes.</span>
             </div>
           </form>
-
-          {feedNotice ? (
-            <div className="workflow-feedback" role="status">
-              {feedNotice}
-            </div>
-          ) : null}
 
           <div className="workflow-list-heading">
             <h4>Your feeds</h4>
@@ -412,12 +376,6 @@ export function WorkflowManager({ sites: allSites, feeds, events }: WorkflowMana
               <span className="subtle">Valid JSON objects are forwarded directly to the workflow engine.</span>
             </div>
           </form>
-
-          {eventNotice ? (
-            <div className="workflow-feedback" role="status">
-              {eventNotice}
-            </div>
-          ) : null}
 
           <div className="workflow-reference">
             <h4>What an automation can do with this trigger</h4>

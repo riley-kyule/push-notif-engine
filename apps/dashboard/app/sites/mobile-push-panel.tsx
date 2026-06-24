@@ -1,5 +1,7 @@
 "use client";
 
+import { useToast } from "../_components/toast";
+
 import { useEffect, useState, useTransition } from "react";
 
 import type { SiteSummary } from "./sites.utils";
@@ -67,10 +69,8 @@ const emptyForm: CredentialsForm = {
 export function MobilePushPanel({ site }: { site: SiteSummary }) {
   const [credentials, setCredentials] = useState<MobileCredentialsSummary | null>(null);
   const [devices, setDevices] = useState<MobileDeviceCountSummary | null>(null);
+  const toast = useToast();
   const [form, setForm] = useState<CredentialsForm>(emptyForm);
-  const [error, setError] = useState<string | null>(null);
-  const [savedMessage, setSavedMessage] = useState<string | null>(null);
-  const [dispatchMessage, setDispatchMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const [deviceRows, setDeviceRows] = useState<MobileDeviceRow[]>([]);
@@ -80,11 +80,9 @@ export function MobilePushPanel({ site }: { site: SiteSummary }) {
   const [statusFilter, setStatusFilter] = useState<MobileDeviceStatus | "">("");
   const [devicesLoading, setDevicesLoading] = useState(false);
   const [revokingDeviceId, setRevokingDeviceId] = useState<string | null>(null);
-  const [deviceError, setDeviceError] = useState<string | null>(null);
 
   function loadDeviceList(page: number, platform: MobileDevicePlatform | "", status: MobileDeviceStatus | "") {
     setDevicesLoading(true);
-    setDeviceError(null);
     const query = new URLSearchParams({ page: String(page), limit: String(DEVICE_PAGE_SIZE) });
     if (platform) query.set("platform", platform);
     if (status) query.set("status", status);
@@ -98,7 +96,7 @@ export function MobilePushPanel({ site }: { site: SiteSummary }) {
         setDeviceRows(payload.data.items);
         setDeviceTotal(payload.data.total);
       })
-      .catch(() => setDeviceError("Unable to load devices"))
+      .catch(() => toast.showError("Unable to load devices."))
       .finally(() => setDevicesLoading(false));
   }
 
@@ -123,9 +121,10 @@ export function MobilePushPanel({ site }: { site: SiteSummary }) {
         if (!response.ok || !payload?.success) {
           throw new Error("Unable to revoke device");
         }
+        toast.showSuccess("Device revoked.");
         loadDeviceList(devicePage, platformFilter, statusFilter);
       })
-      .catch(() => setDeviceError("Unable to revoke device"))
+      .catch(() => toast.showError("Unable to revoke device."))
       .finally(() => setRevokingDeviceId(null));
   }
 
@@ -162,8 +161,6 @@ export function MobilePushPanel({ site }: { site: SiteSummary }) {
   }
 
   function handleSave() {
-    setError(null);
-    setSavedMessage(null);
     startTransition(() => {
       void fetch(`/api/dashboard/sites/${site.id}/mobile-credentials`, {
         method: "PUT",
@@ -186,16 +183,15 @@ export function MobilePushPanel({ site }: { site: SiteSummary }) {
 
           setCredentials(payload.data ?? null);
           setForm((current) => ({ ...current, apnsPrivateKey: "", fcmPrivateKey: "" }));
-          setSavedMessage("Mobile push credentials saved.");
+          toast.showSuccess("Mobile push credentials saved.");
         })
         .catch((saveError) => {
-          setError(saveError instanceof Error ? saveError.message : "Unable to save mobile push credentials");
+          toast.showError(saveError instanceof Error ? saveError.message : "Unable to save mobile push credentials.");
         });
     });
   }
 
   function handleSendTest() {
-    setDispatchMessage(null);
     startTransition(() => {
       void fetch("/api/dashboard/mobile-push/dispatch", {
         method: "POST",
@@ -214,10 +210,10 @@ export function MobilePushPanel({ site }: { site: SiteSummary }) {
             throw new Error("Unable to dispatch test mobile push");
           }
 
-          setDispatchMessage("Test notification queued for delivery.");
+          toast.showSuccess("Test notification queued for delivery.");
         })
         .catch((dispatchError) => {
-          setDispatchMessage(dispatchError instanceof Error ? dispatchError.message : "Unable to dispatch test mobile push");
+          toast.showError(dispatchError instanceof Error ? dispatchError.message : "Unable to dispatch test mobile push.");
         });
     });
   }
@@ -335,7 +331,6 @@ export function MobilePushPanel({ site }: { site: SiteSummary }) {
         </table>
       </div>
 
-      {deviceError ? <p className="badge failed" style={{ justifyContent: "flex-start", marginTop: 8 }}>{deviceError}</p> : null}
 
       {deviceTotalPages > 1 ? (
         <div className="actions" style={{ marginTop: 8 }}>
@@ -430,9 +425,6 @@ export function MobilePushPanel({ site }: { site: SiteSummary }) {
         </button>
       </div>
 
-      {savedMessage ? <p className="subtle" style={{ marginTop: 12 }}>{savedMessage}</p> : null}
-      {dispatchMessage ? <p className="subtle" style={{ marginTop: 12 }}>{dispatchMessage}</p> : null}
-      {error ? <p className="badge failed" style={{ justifyContent: "flex-start", marginTop: 12 }}>{error}</p> : null}
 
       <p className="subtle" style={{ marginTop: 12 }}>
         Private keys are write-only — they are never sent back to the dashboard after saving.
