@@ -155,7 +155,7 @@ export class PostgresAutomationsRepository implements AutomationsRepository {
 
     if (filters.siteId) {
       params.push(filters.siteId);
-      where.push(`site_id = $${params.length}`);
+      where.push(`(site_id = $${params.length} OR site_id IS NULL)`);
     }
     if (filters.triggerEvent) {
       params.push(filters.triggerEvent);

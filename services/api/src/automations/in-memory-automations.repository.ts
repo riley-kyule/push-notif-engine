@@ -75,7 +75,7 @@ export class InMemoryAutomationsRepository implements AutomationsRepository {
 
   async list(filters: AutomationListFilters): Promise<AutomationListResult> {
     const matches = this.automations
-      .filter((automation) => !filters.siteId || automation.siteId === filters.siteId)
+      .filter((automation) => !filters.siteId || automation.siteId === filters.siteId || automation.siteId === null)
       .filter((automation) => !filters.triggerEvent || automation.triggerEvent === filters.triggerEvent)
       .filter((automation) => !filters.status || automation.status === filters.status);
 
