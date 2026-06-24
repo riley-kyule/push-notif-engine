@@ -40,20 +40,15 @@ test("dashboard home summary cards link to report pages", () => {
 test("dashboard home ranking cards include highest and lowest performers", () => {
   const cards = buildPerformanceRankingCards({
     sites: [
-      { siteId: "site-1", siteName: "Exotic Africa", totalSubscribers: 2400, totalDelivered: 0, totalSent: 0, totalFailed: 0, totalExpired: 0, totalClicked: 0, deliveryRate: 0, clickThroughRate: 0 },
-      { siteId: "site-2", siteName: "Zebra Travel", totalSubscribers: 1200, totalDelivered: 0, totalSent: 0, totalFailed: 0, totalExpired: 0, totalClicked: 0, deliveryRate: 0, clickThroughRate: 0 },
+      { siteId: "site-1", siteName: "Exotic Africa", totalSubscribers: 2400, totalDelivered: 0, totalSent: 0, totalFailed: 0, totalExpired: 0, totalClicked: 0, deliveryRate: 0, clickThroughRate: 7.5 },
+      { siteId: "site-2", siteName: "Zebra Travel", totalSubscribers: 1200, totalDelivered: 0, totalSent: 0, totalFailed: 0, totalExpired: 0, totalClicked: 0, deliveryRate: 0, clickThroughRate: 1.2 },
       { siteId: "site-3", siteName: "All Sites", totalSubscribers: 4200, totalDelivered: 0, totalSent: 0, totalFailed: 0, totalExpired: 0, totalClicked: 0, deliveryRate: 0, clickThroughRate: 0 },
-    ],
-    campaigns: [
-      { id: "a", name: "Alpha", site: "exotic-africa.com", type: "instant", contentType: "announcement", status: "sent", sent: "0", ctr: "7.5%", scheduledAt: "Sent today" },
-      { id: "b", name: "Beta", site: "zebra-travel.co.za", type: "instant", contentType: "promotion", status: "sent", sent: "0", ctr: "1.2%", scheduledAt: "Sent today" },
-      { id: "c", name: "Gamma", site: "all sites", type: "recurring", contentType: "digest", status: "draft", sent: "0", ctr: "0%", scheduledAt: "Draft" },
     ],
   });
 
   assert.equal(cards.length, 2);
   assert.equal(cards[0]?.highestItems[0]?.label, "Exotic Africa");
   assert.equal(cards[0]?.lowestItems[0]?.label, "Zebra Travel");
-  assert.equal(cards[1]?.highestItems[0]?.label, "Alpha");
-  assert.equal(cards[1]?.lowestItems[0]?.label, "Gamma");
+  assert.equal(cards[1]?.highestItems[0]?.label, "Exotic Africa");
+  assert.equal(cards[1]?.lowestItems[0]?.label, "Zebra Travel");
 });

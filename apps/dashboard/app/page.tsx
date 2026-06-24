@@ -3,17 +3,15 @@ import Link from "next/link";
 
 import { DashboardShell } from "./_components/dashboard-shell";
 import { getAnalyticsDashboardData } from "./_data/analytics";
-import { getCampaignList } from "./_data/campaigns";
 import { getDashboardOverview } from "./_data/overview";
 import { buildOverviewCards, buildPerformanceRankingCards } from "./_data/overview-summary-cards";
 import { getPlatformHealthBadge, getPlatformHealthSummary, getPlatformHealthTone, summarizePlatformHealth } from "./_data/platform-health";
 import { getStorageHealthSummary } from "./_data/storage-health";
 
 export default async function DashboardHome() {
-  const [overview, analytics, campaigns, platformHealthRaw] = await Promise.all([
+  const [overview, analytics, platformHealthRaw] = await Promise.all([
     getDashboardOverview(),
     getAnalyticsDashboardData({ preset: "30d", days: "30" }),
-    getCampaignList(),
     getPlatformHealthSummary(),
   ]);
   const storageHealth = await getStorageHealthSummary();
@@ -26,10 +24,7 @@ export default async function DashboardHome() {
     ["--health-score" as const]: String(platformHealth.score),
   } as CSSProperties & { [key: `--${string}`]: string };
   const overviewCards = buildOverviewCards(overview);
-  const rankingCards = buildPerformanceRankingCards({
-    sites: analytics.sitePerformance,
-    campaigns: campaigns.items,
-  });
+  const rankingCards = buildPerformanceRankingCards({ sites: analytics.sitePerformance });
 
   return (
     <DashboardShell

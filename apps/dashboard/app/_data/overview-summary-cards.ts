@@ -1,5 +1,4 @@
 import type { DashboardOverview } from "./overview";
-import type { CampaignSummary } from "./campaigns";
 import type { SitePerformanceSummary } from "./analytics";
 
 export type OverviewCard = {
@@ -80,11 +79,6 @@ export function buildOverviewCards(overview: DashboardOverview): OverviewCard[] 
   ];
 }
 
-function parsePercent(value: string): number {
-  const parsed = Number.parseFloat(value.replace("%", ""));
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
 type RankedItem = RankingItem & { score: number };
 
 function sortTop(items: RankedItem[]) {
@@ -95,26 +89,23 @@ function sortBottom(items: RankedItem[]) {
   return [...items].sort((left, right) => left.score - right.score);
 }
 
-export function buildPerformanceRankingCards({
-  sites,
-  campaigns,
-}: {
-  sites: SitePerformanceSummary[];
-  campaigns: CampaignSummary[];
-}): RankingCard[] {
+const RANKING_SIZE = 5;
+
+export function buildPerformanceRankingCards({ sites }: { sites: SitePerformanceSummary[] }): RankingCard[] {
   const rankableSites = sites.filter((site) => site.siteName.toLowerCase() !== "all sites");
-  const siteScores: RankedItem[] = rankableSites.map((site) => ({
+
+  const subscriberScores: RankedItem[] = rankableSites.map((site) => ({
     score: site.totalSubscribers,
     label: site.siteName,
     detail: `${site.totalSubscribers.toLocaleString()} subscribers`,
     href: buildAnalyticsHref({ section: "site", siteId: site.siteId }),
   }));
 
-  const campaignScores: RankedItem[] = campaigns.map((campaign) => ({
-    score: parsePercent(campaign.ctr),
-    label: campaign.name,
-    detail: `${campaign.ctr} CTR · ${campaign.site}`,
-    href: buildAnalyticsHref({ section: "content", campaignId: campaign.id }),
+  const conversionScores: RankedItem[] = rankableSites.map((site) => ({
+    score: site.clickThroughRate,
+    label: site.siteName,
+    detail: `${site.clickThroughRate.toFixed(1)}% CTR`,
+    href: buildAnalyticsHref({ section: "site", siteId: site.siteId }),
   }));
 
   return [
@@ -123,16 +114,24 @@ export function buildPerformanceRankingCards({
       title: "Highest and lowest subscribed sites",
       highestLabel: "Highest subscribed",
       lowestLabel: "Lowest subscribed",
-      highestItems: sortTop(siteScores).slice(0, 3).map(({ label, detail, href }) => ({ label, detail, href })),
-      lowestItems: sortBottom(siteScores).slice(0, 3).map(({ label, detail, href }) => ({ label, detail, href })),
+      highestItems: sortTop(subscriberScores)
+        .slice(0, RANKING_SIZE)
+        .map(({ label, detail, href }) => ({ label, detail, href })),
+      lowestItems: sortBottom(subscriberScores)
+        .slice(0, RANKING_SIZE)
+        .map(({ label, detail, href }) => ({ label, detail, href })),
     },
     {
-      eyebrow: "Campaign rankings",
-      title: "Highest and lowest converting campaigns",
+      eyebrow: "Conversion rankings",
+      title: "Highest converting websites",
       highestLabel: "Highest converting",
       lowestLabel: "Lowest converting",
-      highestItems: sortTop(campaignScores).slice(0, 3).map(({ label, detail, href }) => ({ label, detail, href })),
-      lowestItems: sortBottom(campaignScores).slice(0, 3).map(({ label, detail, href }) => ({ label, detail, href })),
+      highestItems: sortTop(conversionScores)
+        .slice(0, RANKING_SIZE)
+        .map(({ label, detail, href }) => ({ label, detail, href })),
+      lowestItems: sortBottom(conversionScores)
+        .slice(0, RANKING_SIZE)
+        .map(({ label, detail, href }) => ({ label, detail, href })),
     },
   ];
 }
