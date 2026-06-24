@@ -90,8 +90,26 @@ export class InMemorySubscribersRepository implements SubscribersRepository {
       return true;
     });
 
+    const sortAccessors: Record<NonNullable<SubscriberListFilters["sortBy"]>, (subscriber: SubscriberRecord) => string | number> = {
+      createdAt: (subscriber) => subscriber.createdAt.getTime(),
+      lastSeenAt: (subscriber) => subscriber.lastSeenAt?.getTime() ?? -Infinity,
+      country: (subscriber) => subscriber.country,
+      browser: (subscriber) => subscriber.browser,
+      deviceType: (subscriber) => subscriber.deviceType,
+      status: (subscriber) => subscriber.status,
+    };
+    const sortAccessor = sortAccessors[filters.sortBy ?? "createdAt"];
+    const sortDir = filters.sortDir === "asc" ? 1 : -1;
+    const sorted = [...all].sort((left, right) => {
+      const leftValue = sortAccessor(left);
+      const rightValue = sortAccessor(right);
+      if (leftValue < rightValue) return -1 * sortDir;
+      if (leftValue > rightValue) return 1 * sortDir;
+      return 0;
+    });
+
     return {
-      items: all.slice(filters.offset, filters.offset + filters.limit),
+      items: sorted.slice(filters.offset, filters.offset + filters.limit),
       total: all.length,
     };
   }

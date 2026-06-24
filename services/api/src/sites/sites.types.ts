@@ -74,11 +74,16 @@ export interface SiteRestApiCredentialsRecord {
   restApiAuthTokenHash: string | null;
 }
 
+export type SiteSortField = "name" | "createdAt" | "subscriberCount" | "connection" | "country";
+export type SortDirection = "asc" | "desc";
+
 export interface SiteListFilters {
   search?: string;
   status?: SiteStatus;
   country?: string;
   language?: string;
+  sortBy?: SiteSortField;
+  sortDir?: SortDirection;
   limit: number;
   offset: number;
 }

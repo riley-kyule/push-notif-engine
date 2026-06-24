@@ -100,6 +100,48 @@ test("sites service rejects creating a site with a duplicate URL or name, case-i
   );
 });
 
+test("sites service sorts by name and by subscriber count", async () => {
+  const repository = new InMemorySitesRepository();
+  const service = new SitesService(repository, createFakeAuditService());
+
+  const basePayload = {
+    country: "US",
+    language: "en",
+    platform: "WordPress" as const,
+    logoUrl: null,
+    iconUrl: null,
+    themeColor: null,
+    optInPromptType: "lightbox-1" as const,
+    optInPromptAnimation: "slide-in" as const,
+    optInPromptBackgroundColor: null,
+    optInPromptHeadline: null,
+    optInPromptHeadlineTextColor: null,
+    optInPromptText: null,
+    optInPromptTextColor: null,
+    optInPromptIconUrl: null,
+    optInPromptCancelButtonLabel: null,
+    optInPromptCancelButtonTextColor: null,
+    optInPromptCancelButtonBackgroundColor: null,
+    optInPromptApproveButtonLabel: null,
+    optInPromptApproveButtonTextColor: null,
+    optInPromptApproveButtonBackgroundColor: null,
+    optInPromptRepromptDelayDays: null,
+    vapidSubject: null,
+    vapidPublicKey: null,
+    vapidPrivateKey: null,
+    status: "active" as const,
+  };
+
+  await service.createSite({ ...basePayload, name: "Zebra Travel", url: "https://zebra.example.com", appName: "Zebra" });
+  await service.createSite({ ...basePayload, name: "Amber Tours", url: "https://amber.example.com", appName: "Amber" });
+
+  const byNameAsc = await service.listSites({ limit: 10, offset: 0, sortBy: "name", sortDir: "asc" });
+  assert.deepEqual(byNameAsc.items.map((site) => site.name), ["Amber Tours", "Zebra Travel"]);
+
+  const byNameDesc = await service.listSites({ limit: 10, offset: 0, sortBy: "name", sortDir: "desc" });
+  assert.deepEqual(byNameDesc.items.map((site) => site.name), ["Zebra Travel", "Amber Tours"]);
+});
+
 test("sites service rejects deleting an active site", async () => {
   const repository = new InMemorySitesRepository();
   const service = new SitesService(repository, createFakeAuditService());

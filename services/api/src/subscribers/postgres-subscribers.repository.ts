@@ -176,7 +176,20 @@ export class PostgresSubscribersRepository implements SubscribersRepository {
       countParts.push(whereClause);
     }
 
-    queryParts.push(`ORDER BY created_at DESC`);
+    // Mapped through an allowlist rather than interpolating filters.sortBy
+    // directly -- it's already validated by ListSubscribersQueryDto's
+    // @IsIn, but never build ORDER BY from a raw client-controlled string.
+    const sortColumns: Record<NonNullable<SubscriberListFilters["sortBy"]>, string> = {
+      createdAt: "created_at",
+      lastSeenAt: "last_seen_at",
+      country: "country",
+      browser: "browser",
+      deviceType: "device_type",
+      status: "status",
+    };
+    const sortColumn = sortColumns[filters.sortBy ?? "createdAt"];
+    const sortDir = filters.sortDir === "asc" ? "ASC" : "DESC";
+    queryParts.push(`ORDER BY ${sortColumn} ${sortDir} NULLS LAST, created_at DESC`);
     params.push(filters.limit, filters.offset);
     queryParts.push(`LIMIT $${params.length - 1} OFFSET $${params.length}`);
 

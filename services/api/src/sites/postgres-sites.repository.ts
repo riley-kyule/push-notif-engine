@@ -292,7 +292,19 @@ export class PostgresSitesRepository implements SitesRepository {
       query.push(`WHERE ${where.join(" AND ")}`);
     }
 
-    query.push(`ORDER BY created_at DESC`);
+    // Mapped through an allowlist rather than interpolating filters.sortBy
+    // directly -- it's already validated by ListSitesQueryDto's @IsIn, but
+    // never build ORDER BY from a raw client-controlled string.
+    const sortColumns: Record<NonNullable<SiteListFilters["sortBy"]>, string> = {
+      name: "LOWER(name)",
+      createdAt: "created_at",
+      subscriberCount: "subscriber_count",
+      connection: "last_connected_at",
+      country: "country",
+    };
+    const sortColumn = sortColumns[filters.sortBy ?? "createdAt"];
+    const sortDir = filters.sortDir === "asc" ? "ASC" : "DESC";
+    query.push(`ORDER BY ${sortColumn} ${sortDir} NULLS LAST, created_at DESC`);
     params.push(filters.limit, filters.offset);
     query.push(`LIMIT $${params.length - 1} OFFSET $${params.length}`);
 

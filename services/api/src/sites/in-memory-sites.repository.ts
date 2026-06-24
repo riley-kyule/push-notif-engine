@@ -100,7 +100,24 @@ export class InMemorySitesRepository implements SitesRepository {
       return true;
     });
 
-    const items = all.slice(filters.offset, filters.offset + filters.limit);
+    const sortAccessors: Record<NonNullable<SiteListFilters["sortBy"]>, (site: SiteRecord) => string | number> = {
+      name: (site) => site.name.toLowerCase(),
+      createdAt: (site) => site.createdAt.getTime(),
+      subscriberCount: (site) => site.subscriberCount,
+      connection: (site) => site.lastConnectedAt?.getTime() ?? -Infinity,
+      country: (site) => site.country,
+    };
+    const sortAccessor = sortAccessors[filters.sortBy ?? "createdAt"];
+    const sortDir = filters.sortDir === "asc" ? 1 : -1;
+    const sorted = [...all].sort((left, right) => {
+      const leftValue = sortAccessor(left);
+      const rightValue = sortAccessor(right);
+      if (leftValue < rightValue) return -1 * sortDir;
+      if (leftValue > rightValue) return 1 * sortDir;
+      return 0;
+    });
+
+    const items = sorted.slice(filters.offset, filters.offset + filters.limit);
     return { items, total: all.length };
   }
 

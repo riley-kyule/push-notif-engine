@@ -2,6 +2,8 @@ import { Type } from "class-transformer";
 import { IsIn, IsInt, IsOptional, IsString, Max, Min } from "class-validator";
 
 const SUBSCRIBER_STATUSES = ["active", "inactive", "unsubscribed", "expired"] as const;
+const SUBSCRIBER_SORT_FIELDS = ["createdAt", "lastSeenAt", "country", "browser", "deviceType", "status"] as const;
+const SORT_DIRECTIONS = ["asc", "desc"] as const;
 
 export class ListSubscribersQueryDto {
   @IsOptional()
@@ -33,10 +35,18 @@ export class ListSubscribersQueryDto {
   language?: string;
 
   @IsOptional()
+  @IsIn(SUBSCRIBER_SORT_FIELDS)
+  sortBy?: (typeof SUBSCRIBER_SORT_FIELDS)[number];
+
+  @IsOptional()
+  @IsIn(SORT_DIRECTIONS)
+  sortDir?: (typeof SORT_DIRECTIONS)[number];
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(100)
+  @Max(500)
   limit = 20;
 
   @IsOptional()
