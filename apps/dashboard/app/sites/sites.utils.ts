@@ -1,5 +1,7 @@
 import { apiJson } from "../../lib/server-api";
 
+export const ALL_SITES_FETCH_LIMIT = 500;
+
 export interface SiteSummary {
   id: string;
   name: string;
