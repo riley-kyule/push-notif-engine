@@ -153,7 +153,20 @@ export class AutomationsService {
 
   // Idempotent: skips a default if the site already has any automation on
   // that trigger (default or custom), so re-running this never duplicates.
-  async seedDefaultAutomations(siteId: string, actorUserId?: string): Promise<AutomationRecord[]> {
+  async seedDefaultAutomations(siteId: string | null, actorUserId?: string): Promise<AutomationRecord[]> {
+    if (!siteId) {
+      const sites = await this.sitesService.listSites({ limit: 500, offset: 0 });
+      const created: AutomationRecord[] = [];
+      for (const site of sites.items) {
+        created.push(...(await this.seedDefaultAutomationsForSite(site.id, actorUserId)));
+      }
+      return created;
+    }
+
+    return this.seedDefaultAutomationsForSite(siteId, actorUserId);
+  }
+
+  private async seedDefaultAutomationsForSite(siteId: string, actorUserId?: string): Promise<AutomationRecord[]> {
     const site = await this.sitesService.getSite(siteId);
     const existing = await this.automationsRepository.list({ siteId, limit: 100, offset: 0 });
     const existingTriggers = new Set(existing.items.map((automation) => automation.triggerEvent));

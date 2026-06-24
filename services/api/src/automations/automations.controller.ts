@@ -24,10 +24,10 @@ export class AutomationsController {
 
   @Post("seed-defaults")
   async seedDefaultAutomations(
-    @Body() body: { siteId: string },
+    @Body() body: { siteId?: string | null },
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<{ success: true; data: unknown }> {
-    const created = await this.automationsService.seedDefaultAutomations(body.siteId, user.id);
+    const created = await this.automationsService.seedDefaultAutomations(body.siteId ?? null, user.id);
     return { success: true, data: created };
   }
 
