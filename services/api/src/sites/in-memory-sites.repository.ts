@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 
-import type { SitesRepository, CreateSiteInput, UpdateSiteInput } from "./sites.repository";
+import type { SitesRepository, CreateSiteInput, UpdateSiteInput, SiteAutomationDefaultsRecord } from "./sites.repository";
 import type { SiteListFilters, SiteListResult, SiteRecord, SiteRestApiCredentialsRecord } from "./sites.types";
 
 export class InMemorySitesRepository implements SitesRepository {
@@ -55,6 +55,19 @@ export class InMemorySitesRepository implements SitesRepository {
 
     const { restApiAuthTokenHash: _restApiAuthTokenHash, ...publicSite } = site;
     return publicSite;
+  }
+
+  async findAutomationDefaultsById(id: string): Promise<SiteAutomationDefaultsRecord | null> {
+    const site = this.sites.get(id);
+    if (!site) {
+      return null;
+    }
+
+    return {
+      id: site.id,
+      name: site.name,
+      url: site.url,
+    };
   }
 
   async findByIdWithRestApiCredentials(id: string): Promise<SiteRestApiCredentialsRecord | null> {

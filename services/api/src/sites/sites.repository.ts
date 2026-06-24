@@ -74,10 +74,17 @@ export interface UpdateSiteInput {
   status?: SiteStatus;
 }
 
+export interface SiteAutomationDefaultsRecord {
+  id: string;
+  name: string;
+  url: string;
+}
+
 export interface SitesRepository {
   create(input: CreateSiteInput): Promise<SiteRecord>;
   update(id: string, input: UpdateSiteInput): Promise<SiteRecord | null>;
   findById(id: string): Promise<SiteRecord | null>;
+  findAutomationDefaultsById(id: string): Promise<SiteAutomationDefaultsRecord | null>;
   findByIdWithRestApiCredentials(id: string): Promise<SiteRestApiCredentialsRecord | null>;
   // Case-insensitive exact match, for duplicate prevention on create/update.
   findByUrl(url: string): Promise<SiteRecord | null>;

@@ -6,6 +6,7 @@ import webpush from "web-push";
 import { AuditService } from "../audit/audit.service";
 import type { SiteListFilters, SiteListResult, SiteRecord } from "./sites.types";
 import type { CreateSiteInput, SitesRepository, UpdateSiteInput } from "./sites.repository";
+import type { SiteAutomationDefaultsRecord } from "./sites.repository";
 import { SITES_REPOSITORY } from "./sites.constants";
 import { CreateSiteDto } from "./dto/create-site.dto";
 import { UpdateSiteDto } from "./dto/update-site.dto";
@@ -127,6 +128,15 @@ export class SitesService {
 
   async getSite(id: string): Promise<SiteRecord> {
     const site = await this.sitesRepository.findById(id);
+    if (!site) {
+      throw new NotFoundException("Site not found");
+    }
+
+    return site;
+  }
+
+  async getSiteAutomationDefaults(id: string): Promise<SiteAutomationDefaultsRecord> {
+    const site = await this.sitesRepository.findAutomationDefaultsById(id);
     if (!site) {
       throw new NotFoundException("Site not found");
     }
