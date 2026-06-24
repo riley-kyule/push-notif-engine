@@ -87,7 +87,12 @@ export class InMemoryAutomationsRepository implements AutomationsRepository {
 
   async listActiveByTrigger(siteId: string, triggerEvent: AutomationTriggerEvent): Promise<AutomationRecord[]> {
     return this.automations
-      .filter((automation) => automation.siteId === siteId && automation.triggerEvent === triggerEvent && automation.status === "active")
+      .filter(
+        (automation) =>
+          (automation.siteId === siteId || automation.siteId === null) &&
+          automation.triggerEvent === triggerEvent &&
+          automation.status === "active",
+      )
       .map(cloneAutomation);
   }
 

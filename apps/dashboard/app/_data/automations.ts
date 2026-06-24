@@ -12,7 +12,7 @@ export type AutomationActionType = "send_notification" | "add_tag" | "remove_tag
 
 export interface AutomationSummary {
   id: string;
-  siteId: string;
+  siteId: string | null;
   name: string;
   triggerEvent: AutomationTriggerEvent;
   status: AutomationStatus;

@@ -35,6 +35,8 @@ async function postJson<T>(url: string, body: unknown, method = "POST"): Promise
   return payload as T;
 }
 
+const ALL_SITES_VALUE = "__all_sites__";
+
 export function AutomationManager({ sites, automations }: { sites: SiteChoice[]; automations: AutomationSummary[] }) {
   const router = useRouter();
   const realSites = sites.filter((site) => site.id !== "site-3");
@@ -76,7 +78,7 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
     setNotice(null);
     startCreate(() => {
       void postJson("/api/dashboard/automations", {
-        siteId,
+        siteId: siteId === ALL_SITES_VALUE ? null : siteId,
         name: name.trim(),
         triggerEvent,
         title: title.trim(),
@@ -211,6 +213,7 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
             <div className="field">
               <label htmlFor="automation-site">Site</label>
               <select id="automation-site" className="select" value={siteId} onChange={(event) => setSiteId(event.target.value)}>
+                <option value={ALL_SITES_VALUE}>All Sites (every site, including new ones)</option>
                 {realSites.map((site) => (
                   <option key={site.id} value={site.id}>
                     {site.name}
@@ -320,7 +323,11 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
                 <div className="workflow-feed-meta">
                   <div>
                     <span className="subtle">Scope</span>
-                    <strong>{sites.find((site) => site.id === automation.siteId)?.name ?? automation.siteId}</strong>
+                    <strong>
+                      {automation.siteId === null
+                        ? "All Sites"
+                        : sites.find((site) => site.id === automation.siteId)?.name ?? automation.siteId}
+                    </strong>
                   </div>
                   <div>
                     <span className="subtle">Trigger</span>

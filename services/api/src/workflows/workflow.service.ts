@@ -287,7 +287,9 @@ export class WorkflowService {
   private async executeAction(automation: AutomationRecord, action: AutomationAction, context: WorkflowActionContext): Promise<void> {
     if (action.type === "send_notification") {
       await this.browserPushService.dispatch({
-        siteId: automation.siteId,
+        // An "All Sites" automation has automation.siteId === null -- the
+        // event itself always belongs to one real site, so dispatch there.
+        siteId: context.siteId,
         subscriberId: context.subscriberId ?? null,
         title: action.title,
         body: action.message,

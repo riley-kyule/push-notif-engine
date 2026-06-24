@@ -101,3 +101,47 @@ test("seedDefaultAutomations only fills in the missing trigger if one default al
   assert.equal(created.length, 1);
   assert.equal(created[0]?.triggerEvent, "subscriber_unsubscribed");
 });
+
+test("an All Sites automation (no siteId) is active for every site without duplicating it per site", async () => {
+  const { service } = createService();
+
+  const created = await service.createAutomation({
+    siteId: null,
+    name: "Global welcome",
+    triggerEvent: "subscriber_registered",
+    title: "Welcome!",
+    message: "Thanks for subscribing",
+    url: "https://example.com/welcome",
+  });
+
+  assert.equal(created.siteId, null);
+
+  const forSiteOne = await service.listActiveByTrigger("site-1", "subscriber_registered");
+  const forSiteTwo = await service.listActiveByTrigger("site-2", "subscriber_registered");
+  assert.equal(forSiteOne.length, 1);
+  assert.equal(forSiteTwo.length, 1);
+  assert.equal(forSiteOne[0]?.id, created.id);
+  assert.equal(forSiteTwo[0]?.id, created.id);
+
+});
+
+test("creating an All Sites automation never looks up a site", async () => {
+  const sitesService = {
+    async getSite() {
+      throw new Error("must not validate a site for a global automation");
+    },
+  };
+  const repository = new InMemoryAutomationsRepository();
+  const service = new AutomationsService(sitesService as never, createFakeAuditService(), repository as never);
+
+  const created = await service.createAutomation({
+    siteId: null,
+    name: "Global welcome",
+    triggerEvent: "subscriber_registered",
+    title: "Welcome!",
+    message: "Thanks for subscribing",
+    url: "https://example.com/welcome",
+  });
+
+  assert.equal(created.siteId, null);
+});

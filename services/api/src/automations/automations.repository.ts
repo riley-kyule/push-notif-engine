@@ -10,7 +10,7 @@ import type {
 } from "./automations.types";
 
 export interface CreateAutomationInput {
-  siteId: string;
+  siteId: string | null;
   name: string;
   triggerEvent: AutomationTriggerEvent;
   actions: AutomationAction[];
@@ -42,6 +42,8 @@ export interface AutomationsRepository {
   findById(id: string): Promise<AutomationRecord | null>;
   delete(id: string): Promise<boolean>;
   list(filters: AutomationListFilters): Promise<AutomationListResult>;
+  // Returns automations scoped to this site plus any "All Sites" (siteId
+  // null) automations -- both are active for every site.
   listActiveByTrigger(siteId: string, triggerEvent: AutomationTriggerEvent): Promise<AutomationRecord[]>;
   recordEvent(input: {
     siteId: string;

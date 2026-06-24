@@ -15,7 +15,7 @@ import type { AutomationsRepository, CreateAutomationInput, UpdateAutomationInpu
 
 interface DbAutomationRow {
   id: string;
-  site_id: string;
+  site_id: string | null;
   name: string;
   trigger_event: string;
   actions: unknown;
@@ -79,7 +79,7 @@ export class PostgresAutomationsRepository implements AutomationsRepository {
       RETURNING *
       `,
       [
-        input.siteId,
+        input.siteId ?? null,
         input.name,
         input.triggerEvent,
         encodeActions(input.actions),
@@ -187,7 +187,7 @@ export class PostgresAutomationsRepository implements AutomationsRepository {
     const { rows } = await this.pool.query<DbAutomationRow>(
       `
       SELECT * FROM automations
-      WHERE site_id = $1
+      WHERE (site_id = $1 OR site_id IS NULL)
         AND trigger_event = $2
         AND status = 'active'
       ORDER BY created_at ASC

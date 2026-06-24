@@ -64,10 +64,12 @@ export class AutomationsService {
   ) {}
 
   async createAutomation(dto: CreateAutomationDto, actorUserId?: string): Promise<AutomationRecord> {
-    await this.sitesService.getSite(dto.siteId);
+    if (dto.siteId) {
+      await this.sitesService.getSite(dto.siteId);
+    }
 
     const input: CreateAutomationInput = {
-      siteId: dto.siteId,
+      siteId: dto.siteId ?? null,
       name: dto.name,
       triggerEvent: dto.triggerEvent,
       actions: normalizeActions(dto.actions),

@@ -16,9 +16,12 @@ class AutomationButtonDto {
 }
 
 export class CreateAutomationDto {
+  // Omit or pass null for an "All Sites" automation that applies to every
+  // site, including ones created later.
+  @IsOptional()
   @IsString()
   @MinLength(1)
-  siteId!: string;
+  siteId?: string | null;
 
   @IsString()
   @MinLength(1)

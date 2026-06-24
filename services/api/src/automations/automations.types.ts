@@ -50,7 +50,8 @@ export interface AutomationButton {
 
 export interface AutomationRecord {
   id: string;
-  siteId: string;
+  // null = applies to every site ("All Sites"), including ones created later.
+  siteId: string | null;
   name: string;
   triggerEvent: AutomationTriggerEvent;
   actions: AutomationAction[];
