@@ -123,13 +123,17 @@ test("campaign media service lists gallery assets for a site, newest first, opti
     publicUrl: "https://api.example.com/api/campaign-media/other-site/file",
   });
 
-  const all = await service.listMediaForSite("site-1");
-  assert.equal(all.length, 2);
-  assert.equal(all[0]?.originalName, "newer-icon.png");
+  const all = await service.listGallery({ siteId: "site-1" });
+  assert.equal(all.items.length, 2);
+  assert.equal(all.items[0]?.originalName, "newer-icon.png");
 
-  const onlyImages = await service.listMediaForSite("site-1", "image");
-  assert.equal(onlyImages.length, 1);
-  assert.equal(onlyImages[0]?.originalName, "older.png");
+  const onlyImages = await service.listGallery({ siteId: "site-1", kind: "image" });
+  assert.equal(onlyImages.items.length, 1);
+  assert.equal(onlyImages.items[0]?.originalName, "older.png");
+
+  const everySite = await service.listGallery({});
+  assert.equal(everySite.items.length, 3);
+  assert.equal(everySite.total, 3);
 });
 
 test("campaign media service cleans up delivered campaign assets after retention", async () => {

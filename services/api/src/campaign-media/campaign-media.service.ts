@@ -68,9 +68,27 @@ export class CampaignMediaService {
     return { id: asset.id, publicUrl: asset.publicUrl, kind: asset.kind };
   }
 
-  async listMediaForSite(siteId: string, kind?: CampaignMediaKind): Promise<CampaignMediaRecord[]> {
-    await this.sitesService.getSite(siteId);
-    return this.campaignMediaRepository.listBySiteId(siteId, kind);
+  // siteId omitted = every site (the centralized Media Library page); the
+  // per-form gallery picker always passes one.
+  async listGallery(filters: {
+    siteId?: string | undefined;
+    kind?: CampaignMediaKind | undefined;
+    limit?: number | undefined;
+    offset?: number | undefined;
+  }): Promise<{
+    items: CampaignMediaRecord[];
+    total: number;
+  }> {
+    if (filters.siteId) {
+      await this.sitesService.getSite(filters.siteId);
+    }
+
+    return this.campaignMediaRepository.listGallery({
+      siteId: filters.siteId,
+      kind: filters.kind,
+      limit: filters.limit ?? 60,
+      offset: filters.offset ?? 0,
+    });
   }
 
   async getMediaFile(id: string): Promise<CampaignMediaRecord> {

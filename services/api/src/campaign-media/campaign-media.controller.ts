@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Get, Param, Post, Query, Res, UploadedFile, UseGuards, UseInterceptors, Body } from "@nestjs/common";
+import { Controller, Get, Param, Post, Query, Res, UploadedFile, UseGuards, UseInterceptors, Body } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import type { ServerResponse } from "node:http";
 
@@ -20,13 +20,16 @@ export class CampaignMediaController {
   async listMedia(
     @Query("siteId") siteId: string | undefined,
     @Query("kind") kind?: CampaignMediaKind,
+    @Query("limit") limit?: string,
+    @Query("offset") offset?: string,
   ): Promise<{ success: true; data: unknown }> {
-    if (!siteId) {
-      throw new BadRequestException("siteId is required");
-    }
-
-    const assets = await this.campaignMediaService.listMediaForSite(siteId, kind);
-    return { success: true, data: { items: assets } };
+    const result = await this.campaignMediaService.listGallery({
+      siteId,
+      kind,
+      limit: limit ? Number.parseInt(limit, 10) : undefined,
+      offset: offset ? Number.parseInt(offset, 10) : undefined,
+    });
+    return { success: true, data: result };
   }
 
   @Post()
