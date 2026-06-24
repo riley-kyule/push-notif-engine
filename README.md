@@ -374,6 +374,7 @@ All three of the above were actually run end-to-end locally (PM2 managing all th
 When starting the stack manually, do not reuse a shell where `services/api/.env` was sourced. `PORT=3001` from the API will leak into the dashboard unless you start each process in an isolated env. The repo-level PM2 ecosystem file avoids that class of bug and is the preferred startup path. The helper scripts in `scripts/` wrap that flow:
 
 - `scripts/pm2-bootstrap.sh` starts a clean PM2 stack from `ecosystem.config.js`
+- `scripts/pm2-enable-autostart.sh` installs the PM2 systemd startup hook once per VM and saves the current process list
 - `scripts/pm2-restart.sh` reloads the ecosystem file with updated env values
 - `scripts/minor-update.sh` runs `git pull` followed by the PM2 restart flow
 - `scripts/deploy-update.sh` runs the core update flow: install, build, migrate, then PM2 restart
