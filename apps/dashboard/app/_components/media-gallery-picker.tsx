@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 export interface GalleryAsset {
   id: string;
@@ -62,39 +63,47 @@ export function MediaGalleryPicker({ siteId, kind, onSelect }: MediaGalleryPicke
       <button type="button" className="button secondary gallery-trigger" onClick={() => setIsOpen(true)}>
         Choose from library
       </button>
-      <div className="modal-backdrop" onClick={() => setIsOpen(false)}>
-        <div className="modal-panel" onClick={(event) => event.stopPropagation()}>
-          <div className="modal-panel-header">
-            <h3>Media library</h3>
-            <button type="button" className="button secondary" onClick={() => setIsOpen(false)}>
-              Close
-            </button>
-          </div>
-
-          {isLoading ? <p className="subtle">Loading...</p> : null}
-          {error ? <p className="badge failed">{error}</p> : null}
-          {!isLoading && !error && assets.length === 0 ? (
-            <p className="subtle">No previously uploaded {kind === "image" ? "images" : "icons"} for this site yet.</p>
-          ) : null}
-
-          <div className="media-gallery-grid">
-            {assets.map((asset) => (
-              <button
-                key={asset.id}
-                type="button"
-                className="media-gallery-item"
-                title={asset.originalName}
-                onClick={() => {
-                  onSelect({ id: asset.id, publicUrl: asset.publicUrl });
-                  setIsOpen(false);
-                }}
-              >
-                <img src={asset.publicUrl} alt={asset.originalName} />
+      {createPortal(
+        // Rendered at document.body, not in place -- .card (the form
+        // wrapper this button sits inside) uses backdrop-filter, which
+        // creates a new containing block for position:fixed descendants.
+        // Left in place, this modal would center itself relative to that
+        // tall scrollable card instead of the viewport, landing off-screen.
+        <div className="modal-backdrop" onClick={() => setIsOpen(false)}>
+          <div className="modal-panel" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-panel-header">
+              <h3>Media library</h3>
+              <button type="button" className="button secondary" onClick={() => setIsOpen(false)}>
+                Close
               </button>
-            ))}
+            </div>
+
+            {isLoading ? <p className="subtle">Loading...</p> : null}
+            {error ? <p className="badge failed">{error}</p> : null}
+            {!isLoading && !error && assets.length === 0 ? (
+              <p className="subtle">No previously uploaded {kind === "image" ? "images" : "icons"} for this site yet.</p>
+            ) : null}
+
+            <div className="media-gallery-grid">
+              {assets.map((asset) => (
+                <button
+                  key={asset.id}
+                  type="button"
+                  className="media-gallery-item"
+                  title={asset.originalName}
+                  onClick={() => {
+                    onSelect({ id: asset.id, publicUrl: asset.publicUrl });
+                    setIsOpen(false);
+                  }}
+                >
+                  <img src={asset.publicUrl} alt={asset.originalName} />
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      </div>
+        </div>,
+        document.body,
+      )}
     </>
   );
 }
