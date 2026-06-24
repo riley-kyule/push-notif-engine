@@ -70,6 +70,18 @@ export function extractApiErrorMessage(payload: unknown, fallback: string): stri
     return error.message;
   }
 
+  // NestJS's default exception shape for thrown HttpExceptions (e.g.
+  // ConflictException on a duplicate site) is a top-level `message`, not
+  // nested under `error` -- without this, those messages silently fell
+  // back to the generic "Unable to save site".
+  const topLevelMessage = (payload as { message?: unknown }).message;
+  if (Array.isArray(topLevelMessage) && topLevelMessage.length > 0) {
+    return topLevelMessage.join(", ");
+  }
+  if (typeof topLevelMessage === "string" && topLevelMessage.trim().length > 0) {
+    return topLevelMessage;
+  }
+
   return fallback;
 }
 

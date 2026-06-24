@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import argon2 from "argon2";
 import crypto from "node:crypto";
 import webpush from "web-push";
@@ -19,6 +19,7 @@ export class SitesService {
   ) {}
 
   async createSite(dto: CreateSiteDto, actorUserId?: string): Promise<SiteRecord> {
+    await this.assertNoDuplicate(dto.url, dto.name);
     const site = await this.sitesRepository.create(this.normalizeCreateInput(dto));
     await this.auditService.log({
       actorUserId: actorUserId ?? null,
@@ -34,6 +35,10 @@ export class SitesService {
     const existing = await this.sitesRepository.findById(id);
     if (!existing) {
       throw new NotFoundException("Site not found");
+    }
+
+    if (dto.url || dto.name) {
+      await this.assertNoDuplicate(dto.url ?? existing.url, dto.name ?? existing.name, id);
     }
 
     const updated = await this.sitesRepository.update(id, {
@@ -238,6 +243,24 @@ export class SitesService {
       targetId: id,
       metadata: { name: existing.name, url: existing.url },
     });
+  }
+
+  // Case-insensitive: catches "https://Example.com" vs "https://example.com"
+  // and "Exotic Travel" vs "exotic travel" as the same site, not just exact
+  // string matches. excludeId lets updateSite check without tripping on the
+  // site's own current name/url.
+  private async assertNoDuplicate(url: string, name: string, excludeId?: string): Promise<void> {
+    const [byUrl, byName] = await Promise.all([
+      this.sitesRepository.findByUrl(url),
+      this.sitesRepository.findByName(name),
+    ]);
+
+    if (byUrl && byUrl.id !== excludeId) {
+      throw new ConflictException(`A site with the URL "${byUrl.url}" already exists.`);
+    }
+    if (byName && byName.id !== excludeId) {
+      throw new ConflictException(`A site named "${byName.name}" already exists.`);
+    }
   }
 
   private normalizeCreateInput(dto: CreateSiteDto): CreateSiteInput {

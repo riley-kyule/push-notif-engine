@@ -79,6 +79,9 @@ export interface SitesRepository {
   update(id: string, input: UpdateSiteInput): Promise<SiteRecord | null>;
   findById(id: string): Promise<SiteRecord | null>;
   findByIdWithRestApiCredentials(id: string): Promise<SiteRestApiCredentialsRecord | null>;
+  // Case-insensitive exact match, for duplicate prevention on create/update.
+  findByUrl(url: string): Promise<SiteRecord | null>;
+  findByName(name: string): Promise<SiteRecord | null>;
   list(filters: SiteListFilters): Promise<SiteListResult>;
   delete(id: string): Promise<boolean>;
   recordConnection(id: string): Promise<void>;

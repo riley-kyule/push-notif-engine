@@ -204,6 +204,36 @@ export class PostgresSitesRepository implements SitesRepository {
     return row ? this.mapRow(row) : null;
   }
 
+  async findByUrl(url: string): Promise<SiteRecord | null> {
+    const { rows } = await this.pool.query<DbSiteRow>(
+      `
+      SELECT id, name, url, country, language, platform, logo_url, app_name, icon_url, theme_color, opt_in_prompt_type, opt_in_prompt_animation, opt_in_prompt_background_color, opt_in_prompt_headline, opt_in_prompt_headline_text_color, opt_in_prompt_text, opt_in_prompt_text_color, opt_in_prompt_icon_url, opt_in_prompt_cancel_button_label, opt_in_prompt_cancel_button_text_color, opt_in_prompt_cancel_button_background_color, opt_in_prompt_approve_button_label, opt_in_prompt_approve_button_text_color, opt_in_prompt_approve_button_background_color, opt_in_prompt_reprompt_delay_days, opt_in_prompt_recent_notifications_limit, rest_api_key_id, rest_api_auth_token_hash, rest_api_auth_token_last4, rest_api_credentials_generated_at, vapid_subject, vapid_public_key, vapid_private_key, status, timezone, last_connected_at, (SELECT COUNT(*)::int FROM subscribers sub WHERE sub.site_id = sites.id) AS subscriber_count, created_at, updated_at
+      FROM sites
+      WHERE LOWER(url) = LOWER($1)
+      LIMIT 1
+      `,
+      [url],
+    );
+
+    const row = rows[0];
+    return row ? this.mapRow(row) : null;
+  }
+
+  async findByName(name: string): Promise<SiteRecord | null> {
+    const { rows } = await this.pool.query<DbSiteRow>(
+      `
+      SELECT id, name, url, country, language, platform, logo_url, app_name, icon_url, theme_color, opt_in_prompt_type, opt_in_prompt_animation, opt_in_prompt_background_color, opt_in_prompt_headline, opt_in_prompt_headline_text_color, opt_in_prompt_text, opt_in_prompt_text_color, opt_in_prompt_icon_url, opt_in_prompt_cancel_button_label, opt_in_prompt_cancel_button_text_color, opt_in_prompt_cancel_button_background_color, opt_in_prompt_approve_button_label, opt_in_prompt_approve_button_text_color, opt_in_prompt_approve_button_background_color, opt_in_prompt_reprompt_delay_days, opt_in_prompt_recent_notifications_limit, rest_api_key_id, rest_api_auth_token_hash, rest_api_auth_token_last4, rest_api_credentials_generated_at, vapid_subject, vapid_public_key, vapid_private_key, status, timezone, last_connected_at, (SELECT COUNT(*)::int FROM subscribers sub WHERE sub.site_id = sites.id) AS subscriber_count, created_at, updated_at
+      FROM sites
+      WHERE LOWER(name) = LOWER($1)
+      LIMIT 1
+      `,
+      [name],
+    );
+
+    const row = rows[0];
+    return row ? this.mapRow(row) : null;
+  }
+
   async findByIdWithRestApiCredentials(id: string): Promise<SiteRestApiCredentialsRecord | null> {
     const { rows } = await this.pool.query<Pick<DbSiteRow, "id" | "rest_api_key_id" | "rest_api_auth_token_hash">>(
       `

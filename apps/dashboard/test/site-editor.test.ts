@@ -50,3 +50,17 @@ test("extractApiErrorMessage returns the API error message", () => {
   );
   assert.equal(extractApiErrorMessage(null, "Unable to save site"), "Unable to save site");
 });
+
+test("extractApiErrorMessage also handles NestJS's default top-level message shape", () => {
+  assert.equal(
+    extractApiErrorMessage(
+      { statusCode: 409, message: 'A site with the URL "https://example.com" already exists.', error: "Conflict" },
+      "Unable to save site",
+    ),
+    'A site with the URL "https://example.com" already exists.',
+  );
+  assert.equal(
+    extractApiErrorMessage({ statusCode: 400, message: ["name must be longer than 2 characters"] }, "Unable to save site"),
+    "name must be longer than 2 characters",
+  );
+});

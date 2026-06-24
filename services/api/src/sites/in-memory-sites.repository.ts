@@ -74,6 +74,20 @@ export class InMemorySitesRepository implements SitesRepository {
     return this.sites.delete(id);
   }
 
+  async findByUrl(url: string): Promise<SiteRecord | null> {
+    const match = Array.from(this.sites.values()).find((site) => site.url.toLowerCase() === url.toLowerCase());
+    if (!match) return null;
+    const { restApiAuthTokenHash: _restApiAuthTokenHash, ...publicSite } = match;
+    return publicSite;
+  }
+
+  async findByName(name: string): Promise<SiteRecord | null> {
+    const match = Array.from(this.sites.values()).find((site) => site.name.toLowerCase() === name.toLowerCase());
+    if (!match) return null;
+    const { restApiAuthTokenHash: _restApiAuthTokenHash, ...publicSite } = match;
+    return publicSite;
+  }
+
   async list(filters: SiteListFilters): Promise<SiteListResult> {
     const all = Array.from(this.sites.values()).filter((site) => {
       if (filters.status && site.status !== filters.status) return false;

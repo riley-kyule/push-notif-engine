@@ -52,6 +52,54 @@ test("sites service creates and lists sites", async () => {
   assert.equal(result.items[0]?.id, site.id);
 });
 
+test("sites service rejects creating a site with a duplicate URL or name, case-insensitively", async () => {
+  const repository = new InMemorySitesRepository();
+  const service = new SitesService(repository, createFakeAuditService());
+
+  const basePayload = {
+    name: "Exotic News",
+    url: "https://news.example.com",
+    country: "US",
+    language: "en",
+    platform: "WordPress" as const,
+    logoUrl: null,
+    appName: "Exotic News",
+    iconUrl: null,
+    themeColor: null,
+    optInPromptType: "lightbox-1" as const,
+    optInPromptAnimation: "slide-in" as const,
+    optInPromptBackgroundColor: null,
+    optInPromptHeadline: null,
+    optInPromptHeadlineTextColor: null,
+    optInPromptText: null,
+    optInPromptTextColor: null,
+    optInPromptIconUrl: null,
+    optInPromptCancelButtonLabel: null,
+    optInPromptCancelButtonTextColor: null,
+    optInPromptCancelButtonBackgroundColor: null,
+    optInPromptApproveButtonLabel: null,
+    optInPromptApproveButtonTextColor: null,
+    optInPromptApproveButtonBackgroundColor: null,
+    optInPromptRepromptDelayDays: null,
+    vapidSubject: null,
+    vapidPublicKey: null,
+    vapidPrivateKey: null,
+    status: "active" as const,
+  };
+
+  await service.createSite(basePayload);
+
+  await assert.rejects(
+    () => service.createSite({ ...basePayload, url: "https://NEWS.example.com", name: "Different Name" }),
+    /already exists/,
+  );
+
+  await assert.rejects(
+    () => service.createSite({ ...basePayload, url: "https://different.example.com", name: "exotic news" }),
+    /already exists/,
+  );
+});
+
 test("sites service rejects deleting an active site", async () => {
   const repository = new InMemorySitesRepository();
   const service = new SitesService(repository, createFakeAuditService());
