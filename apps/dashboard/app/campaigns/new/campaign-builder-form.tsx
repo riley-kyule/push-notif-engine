@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
-import { buildUrl, parseDateTime } from "./campaign-builder.utils";
+import { buildUrl, localTimeInZoneToUtcIso } from "./campaign-builder.utils";
 import { uploadMedia } from "../../../lib/upload-media";
 import type { CampaignTaxonomyChoice } from "../../_data/campaign-taxonomies";
 import type { SegmentChoice } from "../../_data/segments";
@@ -97,6 +97,8 @@ export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBui
   );
 
   const segmentsForSite = useMemo(() => segments.filter((segment) => segment.siteId === siteId), [segments, siteId]);
+  const selectedSite = useMemo(() => sites.find((site) => site.id === siteId), [sites, siteId]);
+  const siteTimezone = selectedSite?.timezone ?? "UTC";
 
   function handleSiteChange(nextSiteId: string) {
     setSiteId(nextSiteId);
@@ -171,11 +173,11 @@ export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBui
     buttons: showButtons ? previewButtons : [],
     expirationAt: null,
     status: "draft" as const,
-    scheduledAt: type === "instant" ? null : parseDateTime(schedule),
-    timezone: "Africa/Nairobi",
+    scheduledAt: type === "instant" ? null : localTimeInZoneToUtcIso(schedule, siteTimezone),
+    timezone: siteTimezone,
     recurrenceType: type === "recurring" ? "weekly" : null,
     recurrenceInterval: type === "recurring" ? 1 : null,
-    recurrenceUntilAt: type === "recurring" ? parseDateTime(schedule) : null,
+    recurrenceUntilAt: type === "recurring" ? localTimeInZoneToUtcIso(schedule, siteTimezone) : null,
   };
 
   function validateCampaignForm(): string | null {
@@ -244,11 +246,11 @@ export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBui
         status: "scheduled",
       });
 
-      const scheduledAt = parseDateTime(schedule);
+      const scheduledAt = localTimeInZoneToUtcIso(schedule, siteTimezone);
       if (scheduledAt) {
         await postJson(buildUrl("/api/dashboard", `/campaigns/${created.data.id}/schedule`), {
           scheduledAt,
-          timezone: "Africa/Nairobi",
+          timezone: siteTimezone,
           recurrenceType: type === "recurring" ? "weekly" : null,
           recurrenceInterval: type === "recurring" ? 1 : null,
           recurrenceUntilAt: type === "recurring" ? scheduledAt : null,
@@ -464,7 +466,9 @@ export function CampaignBuilderForm({ sites, segments, taxonomies }: CampaignBui
         <div className="card" style={{ marginTop: 18 }}>
           <h3>Scheduling summary</h3>
           <p className="subtle">Type: {type}</p>
-          <p className="subtle">Send time: {schedule}</p>
+          <p className="subtle">
+            Send time: {schedule || "—"} ({siteTimezone})
+          </p>
           <p className="subtle">Destination: {destination}</p>
           <p className="subtle">
             Audience: {segmentsForSite.find((segment) => segment.id === segmentId)?.name ?? "All active subscribers"}

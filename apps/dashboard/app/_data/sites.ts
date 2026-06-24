@@ -5,6 +5,7 @@ export interface SiteChoice {
   name: string;
   url: string;
   country: string;
+  timezone: string | null;
   language: string;
   status: "active" | "inactive";
   appName: string;
@@ -40,6 +41,7 @@ export const fallbackSiteChoices: SiteChoice[] = [
     name: "Site A",
     url: "https://example.com",
     country: "Unknown",
+    timezone: "UTC",
     language: "en",
     status: "active",
     appName: "Site A",
@@ -70,6 +72,7 @@ export const fallbackSiteChoices: SiteChoice[] = [
     name: "Site B",
     url: "https://example.org",
     country: "Unknown",
+    timezone: "UTC",
     language: "en",
     status: "active",
     appName: "Site B",
@@ -100,6 +103,7 @@ export const fallbackSiteChoices: SiteChoice[] = [
     name: "All Sites",
     url: "",
     country: "Global",
+    timezone: "UTC",
     language: "en",
     status: "active",
     appName: "Exotic Push Engine",

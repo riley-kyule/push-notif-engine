@@ -2,6 +2,8 @@ import { IsIn, IsOptional, IsString, IsUrl, MinLength } from "class-validator";
 import { Type } from "class-transformer";
 import { IsInt, Max, Min } from "class-validator";
 
+import { COUNTRY_CODES } from "../country-timezone.data";
+
 const SITE_STATUSES = ["active", "inactive"] as const;
 const SITE_PLATFORMS = ["WordPress", "Magento", "Node.js", "Laravel", "Other"] as const;
 const OPT_IN_PROMPT_TYPES = ["lightbox-1", "lightbox-2", "bell-icon"] as const;
@@ -15,8 +17,7 @@ export class CreateSiteDto {
   @IsUrl({ require_tld: false })
   url!: string;
 
-  @IsString()
-  @MinLength(2)
+  @IsIn(COUNTRY_CODES)
   country!: string;
 
   @IsString()

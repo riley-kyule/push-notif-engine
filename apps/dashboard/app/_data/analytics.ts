@@ -278,6 +278,7 @@ function createAllSitesFallback(): SiteSummary {
     name: "All Sites",
     url: "",
     country: "Global",
+    timezone: "UTC",
     language: "en",
     platform: "Other",
     status: "active",

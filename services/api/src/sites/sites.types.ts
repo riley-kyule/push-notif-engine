@@ -7,6 +7,7 @@ export interface SiteRecord {
   name: string;
   url: string;
   country: string;
+  timezone: string | null;
   language: string;
   platform: string;
   logoUrl: string | null;

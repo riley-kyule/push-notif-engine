@@ -9,6 +9,7 @@ import type { CreateSiteInput, SitesRepository, UpdateSiteInput } from "./sites.
 import { SITES_REPOSITORY } from "./sites.constants";
 import { CreateSiteDto } from "./dto/create-site.dto";
 import { UpdateSiteDto } from "./dto/update-site.dto";
+import { getTimezoneForCountry } from "./country-timezone.data";
 
 @Injectable()
 export class SitesService {
@@ -39,6 +40,7 @@ export class SitesService {
       name: dto.name ?? existing.name,
       url: dto.url ?? existing.url,
       country: dto.country ?? existing.country,
+      timezone: dto.country ? getTimezoneForCountry(dto.country) : null,
       language: dto.language ?? existing.language,
       platform: dto.platform ?? existing.platform,
       logoUrl: dto.logoUrl === undefined ? existing.logoUrl : dto.logoUrl,
@@ -243,6 +245,7 @@ export class SitesService {
       name: dto.name,
       url: dto.url,
       country: dto.country,
+      timezone: getTimezoneForCountry(dto.country),
       language: dto.language,
       platform: dto.platform,
       logoUrl: dto.logoUrl ?? null,

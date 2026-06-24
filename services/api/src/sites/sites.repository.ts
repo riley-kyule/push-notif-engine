@@ -4,6 +4,7 @@ export interface CreateSiteInput {
   name: string;
   url: string;
   country: string;
+  timezone: string;
   language: string;
   platform: string;
   logoUrl: string | null;
@@ -40,6 +41,7 @@ export interface UpdateSiteInput {
   name?: string;
   url?: string;
   country?: string;
+  timezone?: string | null;
   language?: string;
   platform?: string;
   logoUrl?: string | null;

@@ -5,6 +5,7 @@ export interface SiteSummary {
   name: string;
   url: string;
   country: string;
+  timezone: string | null;
   language: string;
   platform: "WordPress" | "Magento" | "Node.js" | "Laravel" | "Other";
   status: "active" | "inactive";
@@ -50,6 +51,7 @@ interface ApiSiteRecord {
   name: string;
   url: string;
   country: string;
+  timezone?: string | null;
   language: string;
   platform: SiteSummary["platform"];
   status: "active" | "inactive";
@@ -89,6 +91,7 @@ const fallbackSites: SiteSummary[] = [
     name: "Site A",
     url: "https://example.com",
     country: "Unknown",
+    timezone: "UTC",
     language: "en",
     platform: "WordPress",
     status: "active",
@@ -123,6 +126,7 @@ const fallbackSites: SiteSummary[] = [
     name: "Site B",
     url: "https://example.org",
     country: "Unknown",
+    timezone: "UTC",
     language: "en",
     platform: "Laravel",
     status: "active",
@@ -157,6 +161,7 @@ const fallbackSites: SiteSummary[] = [
     name: "All Sites",
     url: "",
     country: "Global",
+    timezone: "UTC",
     language: "en",
     platform: "Other",
     status: "active",
@@ -194,6 +199,7 @@ function toSiteSummary(record: ApiSiteRecord, subscribers?: number): SiteSummary
     name: record.name,
     url: record.url,
     country: record.country,
+    timezone: record.timezone ?? null,
     language: record.language,
     platform: record.platform,
     status: record.status,

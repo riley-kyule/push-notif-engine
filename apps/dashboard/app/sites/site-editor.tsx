@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { uploadMedia } from "../../lib/upload-media";
+import { COUNTRIES, countryCodeToFlagEmoji } from "../_data/countries";
 
 type SiteEditorMode = "create" | "edit";
 
@@ -88,8 +89,8 @@ export function validateSiteForm(values: SiteFormValues): string | null {
     return "Site URL is required.";
   }
 
-  if (values.country.trim().length < 2) {
-    return "Country is required.";
+  if (!COUNTRIES.some((country) => country.code === values.country)) {
+    return "Select a country.";
   }
 
   if (values.language.trim().length < 2) {
@@ -318,7 +319,17 @@ export function SiteEditor({
       <div className="grid cards-3">
         <div className="field">
           <label htmlFor="country">Country</label>
-          <input id="country" className="input" value={values.country} onChange={(e) => updateField("country", e.target.value)} />
+          <select id="country" className="select" value={values.country} onChange={(e) => updateField("country", e.target.value)}>
+            <option value="">Select a country</option>
+            {COUNTRIES.map((country) => (
+              <option key={country.code} value={country.code}>
+                {countryCodeToFlagEmoji(country.code)} {country.name}
+              </option>
+            ))}
+          </select>
+          <p className="subtle" style={{ marginTop: 8 }}>
+            Used to schedule campaigns in this site&apos;s local time automatically.
+          </p>
         </div>
         <div className="field">
           <label htmlFor="language">Language</label>

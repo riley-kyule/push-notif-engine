@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { DashboardShell } from "../_components/dashboard-shell";
+import { countryCodeToFlagEmoji, getCountryName } from "../_data/countries";
 import { getConnectionStatus, getSiteList } from "./sites.utils";
 
 export default async function SitesPage() {
@@ -46,7 +47,9 @@ export default async function SitesPage() {
                     <td className="subtle" style={{ maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {site.url}
                     </td>
-                    <td>{site.country}</td>
+                    <td title={getCountryName(site.country)} style={{ fontSize: 20 }}>
+                      {countryCodeToFlagEmoji(site.country) || site.country}
+                    </td>
                     <td>{site.language}</td>
                     <td>{site.platform}</td>
                     <td>

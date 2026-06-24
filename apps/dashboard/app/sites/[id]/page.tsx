@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { DashboardShell } from "../../_components/dashboard-shell";
+import { countryCodeToFlagEmoji, getCountryName } from "../../_data/countries";
 import { BrowserPushPanel } from "../browser-push-panel";
 import { BrowserPushDispatchPanel } from "../browser-push-dispatch-panel";
 import { MobilePushPanel } from "../mobile-push-panel";
@@ -32,7 +33,9 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
       <section className="grid cards-4">
         <article className="card">
           <h3>Location</h3>
-          <p className="stat">{site.country}</p>
+          <p className="stat">
+            {countryCodeToFlagEmoji(site.country)} {getCountryName(site.country)}
+          </p>
           <p className="subtle">{site.language.toUpperCase()} locale</p>
         </article>
         <article className="card">
