@@ -16,7 +16,16 @@ export class AuditController {
   @Get()
   @RateLimit({ limit: 60, ttl: 60_000 })
   async list(@Query() query: ListAuditLogsDto) {
-    const page = await this.auditService.list({ limit: query.limit, offset: query.offset });
+    const page = await this.auditService.list({
+      category: query.category,
+      actorRole: query.actorRole,
+      actorUserId: query.actorUserId,
+      createdAfter: query.createdAfter,
+      createdBefore: query.createdBefore,
+      sortDir: query.sortDir,
+      limit: query.limit,
+      offset: query.offset,
+    });
     return { success: true, data: page };
   }
 }
