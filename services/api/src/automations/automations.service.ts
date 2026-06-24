@@ -221,16 +221,14 @@ export class AutomationsService {
       throw new NotFoundException("Automation not found");
     }
 
-    try {
-      await this.auditService.log({
-        actorUserId: actorUserId ?? null,
-        action: "automation.deleted",
-        targetType: "automation",
-        targetId: id,
-        metadata: { siteId: existing.siteId, name: existing.name },
-      });
-    } catch (error) {
+    void this.auditService.log({
+      actorUserId: actorUserId ?? null,
+      action: "automation.deleted",
+      targetType: "automation",
+      targetId: id,
+      metadata: { siteId: existing.siteId, name: existing.name },
+    }).catch((error) => {
       this.logger.error(`Failed to audit deletion for automation ${id}`, error as Error);
-    }
+    });
   }
 }
