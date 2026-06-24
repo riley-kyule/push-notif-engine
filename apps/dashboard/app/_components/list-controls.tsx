@@ -42,6 +42,45 @@ export function PageSizeSelect({
   );
 }
 
+// A real <select> instead of a row of filter buttons -- buttons just wrap
+// onto more and more lines as the option count grows (sites, roles,
+// categories...), with no way to scroll, and no obvious "default" option.
+// A native select is compact, always keyboard/scroll accessible, and the
+// "All ..." option is just the first entry instead of a button buried in
+// a wrapped row.
+export function FilterSelect({
+  basePath,
+  currentParams,
+  paramKey,
+  allLabel,
+  options,
+}: {
+  basePath: string;
+  currentParams: Record<string, string | undefined>;
+  paramKey: string;
+  allLabel: string;
+  options: { value: string; label: string }[];
+}) {
+  const router = useRouter();
+
+  return (
+    <select
+      className="select"
+      value={currentParams[paramKey] ?? ""}
+      onChange={(event) => {
+        router.push(buildHref(basePath, { ...currentParams, [paramKey]: event.target.value || undefined, page: "1" }));
+      }}
+    >
+      <option value="">{allLabel}</option>
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 export function SearchBox({
   basePath,
   currentParams,

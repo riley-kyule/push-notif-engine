@@ -1,8 +1,5 @@
-import Link from "next/link";
-
 import { DashboardShell } from "../_components/dashboard-shell";
-import { buildHref } from "../_components/list-controls.utils";
-import { PageSizeSelect, Pagination } from "../_components/list-controls";
+import { FilterSelect, PageSizeSelect, Pagination } from "../_components/list-controls";
 import { getMediaLibrary } from "../_data/media-library";
 import { fallbackSiteChoices, getSiteChoices } from "../_data/sites";
 
@@ -34,50 +31,31 @@ export default async function MediaLibraryPage({
       description="Every image and icon uploaded across all sites, in one place -- reused from the gallery picker in site and campaign forms."
     >
       <section className="card">
-        <div className="grid cards-2" style={{ marginBottom: 14 }}>
+        <div className="grid cards-3" style={{ marginBottom: 14 }}>
           <div className="field" style={{ marginBottom: 0 }}>
-            <span className="subtle">Site</span>
-            <div className="actions" style={{ marginTop: 6, flexWrap: "wrap" }}>
-              <Link
-                href={buildHref("/media-library", { ...currentParams, siteId: undefined, page: "1" })}
-                className={`button secondary ${!query.siteId ? "is-disabled" : ""}`}
-              >
-                All sites
-              </Link>
-              {realSites.map((site) => (
-                <Link
-                  key={site.id}
-                  href={buildHref("/media-library", { ...currentParams, siteId: site.id, page: "1" })}
-                  className={`button secondary ${query.siteId === site.id ? "is-disabled" : ""}`}
-                >
-                  {site.name}
-                </Link>
-              ))}
-            </div>
+            <label htmlFor="site-filter" className="subtle">
+              Site
+            </label>
+            <FilterSelect
+              basePath="/media-library"
+              currentParams={currentParams}
+              paramKey="siteId"
+              allLabel="All sites"
+              options={realSites.map((site) => ({ value: site.id, label: site.name }))}
+            />
           </div>
           <div className="field" style={{ marginBottom: 0 }}>
-            <span className="subtle">Type</span>
-            <div className="actions" style={{ marginTop: 6, flexWrap: "wrap" }}>
-              <Link
-                href={buildHref("/media-library", { ...currentParams, kind: undefined, page: "1" })}
-                className={`button secondary ${!query.kind ? "is-disabled" : ""}`}
-              >
-                All types
-              </Link>
-              {KINDS.map((value) => (
-                <Link
-                  key={value}
-                  href={buildHref("/media-library", { ...currentParams, kind: value, page: "1" })}
-                  className={`button secondary ${query.kind === value ? "is-disabled" : ""}`}
-                >
-                  {value === "image" ? "Images" : "Icons"}
-                </Link>
-              ))}
-            </div>
+            <label htmlFor="kind-filter" className="subtle">
+              Type
+            </label>
+            <FilterSelect
+              basePath="/media-library"
+              currentParams={currentParams}
+              paramKey="kind"
+              allLabel="All types"
+              options={KINDS.map((value) => ({ value, label: value === "image" ? "Images" : "Icons" }))}
+            />
           </div>
-        </div>
-
-        <div className="actions" style={{ justifyContent: "flex-end", marginBottom: 14 }}>
           <PageSizeSelect basePath="/media-library" currentParams={currentParams} pageSize={pageSize} />
         </div>
 

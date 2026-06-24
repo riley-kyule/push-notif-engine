@@ -107,6 +107,62 @@ export function getActionLabel(action: string): string {
   return phrase.charAt(0).toUpperCase() + phrase.slice(1);
 }
 
+function humanizeKey(key: string): string {
+  const spaced = key
+    .replaceAll("_", " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .toLowerCase();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+function humanizeValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") {
+    return "—";
+  }
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No";
+  }
+  if (Array.isArray(value)) {
+    return value.length === 0 ? "(none)" : value.map((entry) => humanizeValue(entry)).join(", ");
+  }
+  return String(value);
+}
+
+export interface MetadataRow {
+  label: string;
+  value: string;
+}
+
+// Works for any action's metadata shape without per-action mapping -- turns
+// { siteId: "...", optInPromptType: "lightbox-1" } into "Site id: ..." and
+// "Opt in prompt type: lightbox-1" instead of a raw JSON blob. Nested
+// objects (e.g. the generic "changes: {...}" updates log) are flattened
+// with an arrow showing the path, rather than rendered as nested braces.
+export function flattenMetadata(metadata: Record<string, unknown>, prefix = ""): MetadataRow[] {
+  const rows: MetadataRow[] = [];
+  for (const [key, value] of Object.entries(metadata)) {
+    const label = prefix ? `${prefix} → ${humanizeKey(key)}` : humanizeKey(key);
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const nested = flattenMetadata(value as Record<string, unknown>, label);
+      if (nested.length > 0) {
+        rows.push(...nested);
+      } else {
+        rows.push({ label, value: "(empty)" });
+      }
+    } else {
+      rows.push({ label, value: humanizeValue(value) });
+    }
+  }
+  return rows;
+}
+
+export function getTargetTypeLabel(targetType: string | null): string {
+  if (!targetType) {
+    return "—";
+  }
+  return getCategoryLabel(targetType);
+}
+
 function buildAuditQuery(filters: AuditLogFilters): string {
   const search = new URLSearchParams();
   if (filters.category) search.set("category", filters.category);

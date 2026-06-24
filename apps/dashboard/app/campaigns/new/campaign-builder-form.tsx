@@ -15,6 +15,8 @@ type CampaignChannel = "web" | "mobile" | "all";
 type CampaignRecurrenceType = "daily" | "weekly" | "monthly";
 type BuilderStep = "content" | "audience" | "schedule" | "review";
 
+const ALL_SITES_VALUE = "__all_sites__";
+
 const BUILDER_STEPS: { key: BuilderStep; label: string }[] = [
   { key: "content", label: "Content" },
   { key: "audience", label: "Audience" },
@@ -122,9 +124,14 @@ export function CampaignBuilderForm({ sites: allSites, segments, taxonomies }: C
     [primaryButtonLabel, primaryButtonUrl, secondaryButtonLabel, secondaryButtonUrl, showButtons],
   );
 
+  const isAllSites = siteId === ALL_SITES_VALUE;
   const segmentsForSite = useMemo(() => segments.filter((segment) => segment.siteId === siteId), [segments, siteId]);
   const selectedSite = useMemo(() => sites.find((site) => site.id === siteId), [sites, siteId]);
   const siteTimezone = selectedSite?.timezone ?? "UTC";
+  // Uploads need a real site to attach to even in All Sites mode -- the
+  // asset itself is shared across every site once uploaded, so which real
+  // site "owns" it doesn't affect who can use it.
+  const uploadSiteId = isAllSites ? sites[0]?.id ?? "" : siteId;
 
   function handleSiteChange(nextSiteId: string) {
     setSiteId(nextSiteId);
@@ -147,7 +154,7 @@ export function CampaignBuilderForm({ sites: allSites, segments, taxonomies }: C
     setIsUploadingImage(true);
     setStatusMessage(null);
     try {
-      const asset = await uploadMedia(siteId, "image", file);
+      const asset = await uploadMedia(uploadSiteId, "image", file);
       setImageAssetId(asset.id);
       setImageUrl(asset.publicUrl);
       setImageFileName(file.name);
@@ -167,7 +174,7 @@ export function CampaignBuilderForm({ sites: allSites, segments, taxonomies }: C
     setIsUploadingIcon(true);
     setStatusMessage(null);
     try {
-      const asset = await uploadMedia(siteId, "icon", file);
+      const asset = await uploadMedia(uploadSiteId, "icon", file);
       setIconAssetId(asset.id);
       setIconUrl(asset.publicUrl);
       setIconFileName(file.name);
@@ -179,32 +186,72 @@ export function CampaignBuilderForm({ sites: allSites, segments, taxonomies }: C
     }
   }
 
-  const campaignPayload = {
-    siteId,
-    segmentId: segmentId || null,
-    name,
-    channel,
-    type,
-    contentType,
-    title,
-    message,
-    url: destination,
-    // class-validator's @IsOptional() only skips empty/null/undefined values --
-    // an empty string still hits @IsUrl() and fails validation, so these must
-    // become null rather than "" when nothing was uploaded or pasted.
-    imageUrl: imageUrl.trim() ? imageUrl.trim() : null,
-    iconUrl: iconUrl.trim() ? iconUrl.trim() : null,
-    imageAssetId,
-    iconAssetId,
-    buttons: showButtons ? previewButtons : [],
-    expirationAt: null,
-    status: "draft" as const,
-    scheduledAt: isInstant ? null : localTimeInZoneToUtcIso(schedule, siteTimezone),
-    timezone: siteTimezone,
-    recurrenceType: type === "recurring" ? recurrenceType : null,
-    recurrenceInterval: type === "recurring" ? recurrenceInterval : null,
-    recurrenceUntilAt: type === "recurring" ? localTimeInZoneToUtcIso(schedule, siteTimezone) : null,
-  };
+  function buildPayload(targetSiteId: string, targetTimezone: string) {
+    return {
+      siteId: targetSiteId,
+      // A segment is scoped to one site's subscriber base -- doesn't carry
+      // across a broadcast, so All Sites always targets every active
+      // subscriber per site instead.
+      segmentId: isAllSites ? null : segmentId || null,
+      name,
+      channel,
+      type,
+      contentType,
+      title,
+      message,
+      url: destination,
+      // class-validator's @IsOptional() only skips empty/null/undefined values --
+      // an empty string still hits @IsUrl() and fails validation, so these must
+      // become null rather than "" when nothing was uploaded or pasted.
+      imageUrl: imageUrl.trim() ? imageUrl.trim() : null,
+      iconUrl: iconUrl.trim() ? iconUrl.trim() : null,
+      imageAssetId,
+      iconAssetId,
+      buttons: showButtons ? previewButtons : [],
+      expirationAt: null,
+      status: "draft" as const,
+      scheduledAt: isInstant ? null : localTimeInZoneToUtcIso(schedule, targetTimezone),
+      timezone: targetTimezone,
+      recurrenceType: type === "recurring" ? recurrenceType : null,
+      recurrenceInterval: type === "recurring" ? recurrenceInterval : null,
+      recurrenceUntilAt: type === "recurring" ? localTimeInZoneToUtcIso(schedule, targetTimezone) : null,
+    };
+  }
+
+  interface BroadcastTarget {
+    id: string;
+    timezone: string;
+    name: string;
+  }
+
+  function getTargetSites(): BroadcastTarget[] {
+    if (isAllSites) {
+      return sites.map((site) => ({ id: site.id, timezone: site.timezone ?? "UTC", name: site.name }));
+    }
+    return [{ id: siteId, timezone: siteTimezone, name: selectedSite?.name ?? siteId }];
+  }
+
+  async function runAcrossSites(
+    targets: BroadcastTarget[],
+    action: (target: BroadcastTarget) => Promise<string>,
+  ): Promise<{ successCount: number; failures: string[] }> {
+    let successCount = 0;
+    const failures: string[] = [];
+    for (const target of targets) {
+      try {
+        await action(target);
+        successCount += 1;
+      } catch (error) {
+        failures.push(`${target.name} (${error instanceof Error ? error.message : "failed"})`);
+      }
+    }
+    return { successCount, failures };
+  }
+
+  function summarizeBroadcast(verbPhrase: string, successCount: number, total: number, failures: string[]): string {
+    const base = `${verbPhrase} for ${successCount} of ${total} sites`;
+    return failures.length > 0 ? `${base}. Failed: ${failures.join("; ")}` : base;
+  }
 
   function validateCampaignForm(): string | null {
     if (name.trim().length < 1) {
@@ -229,6 +276,52 @@ export function CampaignBuilderForm({ sites: allSites, segments, taxonomies }: C
     return null;
   }
 
+  async function saveDraftFor(target: BroadcastTarget): Promise<string> {
+    const response = await postJson<{ success: true; data: { id: string } }>(buildUrl("/api/dashboard", "/campaigns"), {
+      ...buildPayload(target.id, target.timezone),
+      status: "draft",
+      scheduledAt: null,
+      recurrenceType: null,
+      recurrenceInterval: null,
+      recurrenceUntilAt: null,
+    });
+    return response.data.id;
+  }
+
+  async function sendInstantCampaignFor(target: BroadcastTarget): Promise<string> {
+    const created = await postJson<{ success: true; data: { id: string } }>(buildUrl("/api/dashboard", "/campaigns"), {
+      ...buildPayload(target.id, target.timezone),
+      status: "draft",
+      scheduledAt: null,
+      recurrenceType: null,
+      recurrenceInterval: null,
+      recurrenceUntilAt: null,
+    });
+
+    await postJson(buildUrl("/api/dashboard", `/campaigns/${created.data.id}/send`));
+    return created.data.id;
+  }
+
+  async function scheduleCampaignFor(target: BroadcastTarget): Promise<string> {
+    const created = await postJson<{ success: true; data: { id: string } }>(buildUrl("/api/dashboard", "/campaigns"), {
+      ...buildPayload(target.id, target.timezone),
+      status: "scheduled",
+    });
+
+    const scheduledAt = localTimeInZoneToUtcIso(schedule, target.timezone);
+    if (scheduledAt) {
+      await postJson(buildUrl("/api/dashboard", `/campaigns/${created.data.id}/schedule`), {
+        scheduledAt,
+        timezone: target.timezone,
+        recurrenceType: type === "recurring" ? recurrenceType : null,
+        recurrenceInterval: type === "recurring" ? recurrenceInterval : null,
+        recurrenceUntilAt: type === "recurring" ? scheduledAt : null,
+      });
+    }
+
+    return created.data.id;
+  }
+
   async function saveDraft() {
     const validationError = validateCampaignForm();
     if (validationError) {
@@ -240,57 +333,19 @@ export function CampaignBuilderForm({ sites: allSites, segments, taxonomies }: C
     setStatusMessage(null);
 
     try {
-      const response = await postJson<{ success: true; data: { id: string } }>(
-        buildUrl("/api/dashboard", "/campaigns"),
-        {
-          ...campaignPayload,
-          status: "draft",
-          scheduledAt: null,
-          recurrenceType: null,
-          recurrenceInterval: null,
-          recurrenceUntilAt: null,
-        },
-      );
-      setStatusMessage(`Draft saved (${response.data.id})`);
+      const targets = getTargetSites();
+      if (targets.length <= 1 && targets[0]) {
+        const id = await saveDraftFor(targets[0]);
+        setStatusMessage(`Draft saved (${id})`);
+      } else {
+        const { successCount, failures } = await runAcrossSites(targets, saveDraftFor);
+        setStatusMessage(summarizeBroadcast("Draft saved", successCount, targets.length, failures));
+      }
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "Unable to save draft");
     } finally {
       setIsSavingDraft(false);
     }
-  }
-
-  async function sendInstantCampaign() {
-    const created = await postJson<{ success: true; data: { id: string } }>(buildUrl("/api/dashboard", "/campaigns"), {
-      ...campaignPayload,
-      status: "draft",
-      scheduledAt: null,
-      recurrenceType: null,
-      recurrenceInterval: null,
-      recurrenceUntilAt: null,
-    });
-
-    await postJson(buildUrl("/api/dashboard", `/campaigns/${created.data.id}/send`));
-    setStatusMessage(`Campaign sent (${created.data.id})`);
-  }
-
-  async function scheduleCampaign() {
-    const created = await postJson<{ success: true; data: { id: string } }>(buildUrl("/api/dashboard", "/campaigns"), {
-      ...campaignPayload,
-      status: "scheduled",
-    });
-
-    const scheduledAt = localTimeInZoneToUtcIso(schedule, siteTimezone);
-    if (scheduledAt) {
-      await postJson(buildUrl("/api/dashboard", `/campaigns/${created.data.id}/schedule`), {
-        scheduledAt,
-        timezone: siteTimezone,
-        recurrenceType: type === "recurring" ? recurrenceType : null,
-        recurrenceInterval: type === "recurring" ? recurrenceInterval : null,
-        recurrenceUntilAt: type === "recurring" ? scheduledAt : null,
-      });
-    }
-
-    setStatusMessage(`Campaign scheduled (${created.data.id})`);
   }
 
   async function submitPrimaryAction() {
@@ -304,10 +359,14 @@ export function CampaignBuilderForm({ sites: allSites, segments, taxonomies }: C
     setStatusMessage(null);
 
     try {
-      if (isInstant) {
-        await sendInstantCampaign();
+      const targets = getTargetSites();
+      const action = isInstant ? sendInstantCampaignFor : scheduleCampaignFor;
+      if (targets.length <= 1 && targets[0]) {
+        const id = await action(targets[0]);
+        setStatusMessage(isInstant ? `Campaign sent (${id})` : `Campaign scheduled (${id})`);
       } else {
-        await scheduleCampaign();
+        const { successCount, failures } = await runAcrossSites(targets, action);
+        setStatusMessage(summarizeBroadcast(isInstant ? "Sent" : "Scheduled", successCount, targets.length, failures));
       }
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "Unable to submit campaign");
@@ -316,7 +375,7 @@ export function CampaignBuilderForm({ sites: allSites, segments, taxonomies }: C
     }
   }
 
-  const primaryActionLabel = isInstant ? "Send Now" : "Schedule Campaign";
+  const primaryActionLabel = `${isInstant ? "Send Now" : "Schedule Campaign"}${isAllSites ? ` (${sites.length} sites)` : ""}`;
   const primaryActionBusyLabel = isInstant ? "Sending..." : "Scheduling...";
 
   return (
@@ -392,7 +451,7 @@ export function CampaignBuilderForm({ sites: allSites, segments, taxonomies }: C
                   <input type="file" accept="image/*" onChange={(event) => void handleImageUpload(event.target.files?.[0] ?? null)} />
                 </label>
                 <MediaGalleryPicker
-                  siteId={siteId}
+                  siteId={uploadSiteId}
                   kind="image"
                   onSelect={(asset) => {
                     setImageAssetId(asset.id);
@@ -413,7 +472,7 @@ export function CampaignBuilderForm({ sites: allSites, segments, taxonomies }: C
                   <input type="file" accept="image/*" onChange={(event) => void handleIconUpload(event.target.files?.[0] ?? null)} />
                 </label>
                 <MediaGalleryPicker
-                  siteId={siteId}
+                  siteId={uploadSiteId}
                   kind="icon"
                   onSelect={(asset) => {
                     setIconAssetId(asset.id);
@@ -477,6 +536,7 @@ export function CampaignBuilderForm({ sites: allSites, segments, taxonomies }: C
             <div className="field">
               <label htmlFor="siteId">Site</label>
               <select className="select" id="siteId" value={siteId} onChange={(event) => handleSiteChange(event.target.value)}>
+                <option value={ALL_SITES_VALUE}>All Sites (one campaign per site, {sites.length} sites)</option>
                 {sites.map((site) => (
                   <option key={site.id} value={site.id}>
                     {site.name} - {site.country}
@@ -487,14 +547,23 @@ export function CampaignBuilderForm({ sites: allSites, segments, taxonomies }: C
 
             <div className="field">
               <label htmlFor="segmentId">Audience</label>
-              <select className="select" id="segmentId" value={segmentId} onChange={(event) => setSegmentId(event.target.value)}>
-                <option value="">All active subscribers</option>
-                {segmentsForSite.map((segment) => (
-                  <option key={segment.id} value={segment.id}>
-                    {segment.name}
-                  </option>
-                ))}
-              </select>
+              {isAllSites ? (
+                <>
+                  <select className="select" id="segmentId" value="" disabled>
+                    <option value="">All active subscribers (every site)</option>
+                  </select>
+                  <p className="subtle">Audience groups are specific to one site, so they're not available when sending to All Sites.</p>
+                </>
+              ) : (
+                <select className="select" id="segmentId" value={segmentId} onChange={(event) => setSegmentId(event.target.value)}>
+                  <option value="">All active subscribers</option>
+                  {segmentsForSite.map((segment) => (
+                    <option key={segment.id} value={segment.id}>
+                      {segment.name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
         ) : null}
@@ -559,7 +628,7 @@ export function CampaignBuilderForm({ sites: allSites, segments, taxonomies }: C
             <div className="grid cards-2">
               <div className="field">
                 <span className="subtle">Site</span>
-                <strong>{selectedSite?.name ?? siteId}</strong>
+                <strong>{isAllSites ? `All Sites (${sites.length})` : selectedSite?.name ?? siteId}</strong>
               </div>
               <div className="field">
                 <span className="subtle">Audience</span>

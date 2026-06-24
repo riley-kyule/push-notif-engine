@@ -175,10 +175,12 @@ export default async function AnalyticsPage({
             : []),
           { name: "campaignId", value: dashboard.selectedCampaign?.id ?? "" },
         ],
-        options: dashboard.sites.map((site) => ({
-          value: site.id,
-          label: `${site.name} - ${site.country}`,
-        })),
+        options: [
+          { value: "site-3", label: "All Sites" },
+          ...dashboard.sites
+            .filter((site) => site.id !== "site-3")
+            .map((site) => ({ value: site.id, label: `${site.name} - ${site.country}` })),
+        ],
       },
       rowColumns: ["Site", "Subscribers", "Delivery rate", "CTR"],
       rows: dashboard.sitePerformance.map((item) => ({
