@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { DashboardShell } from "../_components/dashboard-shell";
 import { formatTimeBucketLabel, getAnalyticsDashboardData } from "../_data/analytics";
+import type { DashboardOverview } from "../_data/overview";
 import { AnalyticsRangePicker } from "./analytics-range-picker";
 import { AnalyticsPerformanceExplorer, type ExplorerSection, type ExportSectionOptions } from "./analytics-performance-explorer";
 
@@ -70,6 +71,33 @@ function formatPercent(value: number): string {
   return `${value}%`;
 }
 
+export function buildAnalyticsOverviewCards(overview: DashboardOverview) {
+  return [
+    {
+      label: "Total subscribers",
+      value: formatNumber(overview.totalSubscribers),
+      detail: `Across ${overview.totalSites} sites`,
+    },
+    {
+      label: "Delivered",
+      value: formatNumber(overview.totalDelivered),
+      detail: "In the selected reporting window",
+    },
+    {
+      label: "Clicks",
+      value: formatNumber(overview.totalClicked),
+      detail: `CTR ${formatPercent(overview.clickThroughRate)}`,
+    },
+    {
+      label: "Failures",
+      value: formatNumber(overview.totalFailed),
+      detail: overview.failedDeliveryReason
+        ? `Most common cause: ${overview.failedDeliveryReason} (${formatNumber(overview.failedDeliveryReasonCount)} events)`
+        : "Queue and delivery exceptions",
+    },
+  ];
+}
+
 export default async function AnalyticsPage({
   searchParams,
 }: {
@@ -78,28 +106,7 @@ export default async function AnalyticsPage({
   const query = await searchParams;
   const dashboard = await getAnalyticsDashboardData(query);
   const activeSection = typeof query.section === "string" ? query.section : "site";
-  const overviewCards = [
-    {
-      label: "Total subscribers",
-      value: formatNumber(dashboard.overview.totalSubscribers),
-      detail: `Across ${dashboard.overview.totalSites} sites`,
-    },
-    {
-      label: "Delivered",
-      value: formatNumber(dashboard.overview.totalDelivered),
-      detail: "In the selected reporting window",
-    },
-    {
-      label: "Clicks",
-      value: formatNumber(dashboard.overview.totalClicked),
-      detail: `CTR ${formatPercent(dashboard.overview.clickThroughRate)}`,
-    },
-    {
-      label: "Failures",
-      value: formatNumber(dashboard.overview.totalFailed),
-      detail: "Queue and delivery exceptions",
-    },
-  ];
+  const overviewCards = buildAnalyticsOverviewCards(dashboard.overview);
   const currentFilters = {
     preset: dashboard.selectedPreset,
     days: dashboard.days,
