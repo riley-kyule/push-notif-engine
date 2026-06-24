@@ -1,10 +1,11 @@
-import { Controller, Get, Param, Post, Res, UploadedFile, UseGuards, UseInterceptors, Body } from "@nestjs/common";
+import { BadRequestException, Controller, Get, Param, Post, Query, Res, UploadedFile, UseGuards, UseInterceptors, Body } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import type { ServerResponse } from "node:http";
 
 import { Roles } from "../auth/decorators/roles.decorator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
+import type { CampaignMediaKind } from "./campaign-media.types";
 import type { CampaignMediaUploadFile } from "./campaign-media-file.type";
 import { UploadCampaignMediaDto } from "./dto/upload-campaign-media.dto";
 import { CampaignMediaService } from "./campaign-media.service";
@@ -12,6 +13,21 @@ import { CampaignMediaService } from "./campaign-media.service";
 @Controller("campaign-media")
 export class CampaignMediaController {
   constructor(private readonly campaignMediaService: CampaignMediaService) {}
+
+  @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("super-admin", "admin", "sub-admin")
+  async listMedia(
+    @Query("siteId") siteId: string | undefined,
+    @Query("kind") kind?: CampaignMediaKind,
+  ): Promise<{ success: true; data: unknown }> {
+    if (!siteId) {
+      throw new BadRequestException("siteId is required");
+    }
+
+    const assets = await this.campaignMediaService.listMediaForSite(siteId, kind);
+    return { success: true, data: { items: assets } };
+  }
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)

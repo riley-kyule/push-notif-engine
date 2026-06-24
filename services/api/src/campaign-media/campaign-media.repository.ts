@@ -16,6 +16,9 @@ export interface CampaignMediaRepository {
   create(input: CreateCampaignMediaInput): Promise<CampaignMediaRecord>;
   findById(id: string): Promise<CampaignMediaRecord | null>;
   listByCampaignId(campaignId: string): Promise<CampaignMediaRecord[]>;
+  // Gallery/library lookup -- every asset uploaded for this site, regardless
+  // of whether it's currently attached to a campaign.
+  listBySiteId(siteId: string, kind?: CampaignMediaKind): Promise<CampaignMediaRecord[]>;
   attachToCampaign(assetId: string, campaignId: string): Promise<CampaignMediaRecord | null>;
   deleteByIds(ids: string[]): Promise<number>;
   listCleanupCandidates(asOf: Date): Promise<CampaignMediaRecord[]>;

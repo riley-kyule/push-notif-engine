@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 
 import type { CampaignMediaRepository, CreateCampaignMediaInput } from "./campaign-media.repository";
-import type { CampaignMediaRecord } from "./campaign-media.types";
+import type { CampaignMediaKind, CampaignMediaRecord } from "./campaign-media.types";
+
+const MAX_GALLERY_RESULTS = 60;
 
 function clone(record: CampaignMediaRecord): CampaignMediaRecord {
   return { ...record };
@@ -36,6 +38,15 @@ export class InMemoryCampaignMediaRepository implements CampaignMediaRepository 
 
   async listByCampaignId(campaignId: string): Promise<CampaignMediaRecord[]> {
     return this.assets.filter((asset) => asset.campaignId === campaignId).map(clone);
+  }
+
+  async listBySiteId(siteId: string, kind?: CampaignMediaKind): Promise<CampaignMediaRecord[]> {
+    return this.assets
+      .filter((asset) => asset.siteId === siteId)
+      .filter((asset) => !kind || asset.kind === kind)
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+      .slice(0, MAX_GALLERY_RESULTS)
+      .map(clone);
   }
 
   async attachToCampaign(assetId: string, campaignId: string): Promise<CampaignMediaRecord | null> {

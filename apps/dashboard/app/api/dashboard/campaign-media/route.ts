@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 
-import { getApiBase, getAuthToken } from "../../../../lib/server-api";
+import { apiFetch, getApiBase, getAuthToken } from "../../../../lib/server-api";
+
+export async function GET(request: Request): Promise<Response> {
+  const { search } = new URL(request.url);
+  const res = await apiFetch(`/campaign-media${search}`);
+  const data = await res.json().catch(() => ({ success: false, error: { message: "Invalid API response" } }));
+  return NextResponse.json(data, { status: res.status });
+}
 
 export async function POST(request: Request): Promise<Response> {
   const formData = await request.formData();

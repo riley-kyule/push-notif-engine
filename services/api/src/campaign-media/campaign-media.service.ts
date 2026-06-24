@@ -68,6 +68,11 @@ export class CampaignMediaService {
     return { id: asset.id, publicUrl: asset.publicUrl, kind: asset.kind };
   }
 
+  async listMediaForSite(siteId: string, kind?: CampaignMediaKind): Promise<CampaignMediaRecord[]> {
+    await this.sitesService.getSite(siteId);
+    return this.campaignMediaRepository.listBySiteId(siteId, kind);
+  }
+
   async getMediaFile(id: string): Promise<CampaignMediaRecord> {
     const asset = await this.campaignMediaRepository.findById(id);
     if (!asset) {

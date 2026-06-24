@@ -3,7 +3,9 @@ import type { Pool } from "pg";
 
 import { DATABASE_POOL } from "../database/database.constants";
 import type { CampaignMediaRepository, CreateCampaignMediaInput } from "./campaign-media.repository";
-import type { CampaignMediaRecord } from "./campaign-media.types";
+import type { CampaignMediaKind, CampaignMediaRecord } from "./campaign-media.types";
+
+const MAX_GALLERY_RESULTS = 60;
 
 interface DbCampaignMediaRow {
   id: string;
@@ -76,6 +78,30 @@ export class PostgresCampaignMediaRepository implements CampaignMediaRepository 
       ORDER BY created_at ASC
       `,
       [campaignId],
+    );
+
+    return rows.map((row) => this.mapRow(row));
+  }
+
+  async listBySiteId(siteId: string, kind?: CampaignMediaKind): Promise<CampaignMediaRecord[]> {
+    const params: Array<string | number> = [siteId];
+    let kindClause = "";
+    if (kind) {
+      params.push(kind);
+      kindClause = `AND kind = $${params.length}`;
+    }
+    params.push(MAX_GALLERY_RESULTS);
+
+    const { rows } = await this.pool.query<DbCampaignMediaRow>(
+      `
+      SELECT *
+      FROM campaign_media_assets
+      WHERE site_id = $1
+      ${kindClause}
+      ORDER BY created_at DESC
+      LIMIT $${params.length}
+      `,
+      params,
     );
 
     return rows.map((row) => this.mapRow(row));

@@ -76,6 +76,62 @@ test("campaign media service uploads image assets to object storage", async () =
   assert.equal(storage.entries.get(asset.storagePath)?.toString("utf8"), "media-bytes");
 });
 
+test("campaign media service lists gallery assets for a site, newest first, optionally filtered by kind", async () => {
+  const repository = new InMemoryCampaignMediaRepository();
+  const storage = createStorage();
+  const service = new CampaignMediaService(
+    {
+      async getSite() {
+        return { id: "site-1" };
+      },
+    } as never,
+    repository as never,
+    storage,
+  );
+
+  const older = await repository.create({
+    siteId: "site-1",
+    campaignId: null,
+    kind: "image",
+    originalName: "older.png",
+    mimeType: "image/png",
+    sizeBytes: 11,
+    storagePath: "campaign-media/older.png",
+    publicUrl: "https://api.example.com/api/campaign-media/older/file",
+  });
+  repository.assets[0] = { ...older, createdAt: new Date("2026-01-01T00:00:00.000Z") };
+
+  await repository.create({
+    siteId: "site-1",
+    campaignId: null,
+    kind: "icon",
+    originalName: "newer-icon.png",
+    mimeType: "image/png",
+    sizeBytes: 11,
+    storagePath: "campaign-media/newer-icon.png",
+    publicUrl: "https://api.example.com/api/campaign-media/newer-icon/file",
+  });
+
+  await repository.create({
+    siteId: "site-2",
+    campaignId: null,
+    kind: "image",
+    originalName: "other-site.png",
+    mimeType: "image/png",
+    sizeBytes: 11,
+    storagePath: "campaign-media/other-site.png",
+    publicUrl: "https://api.example.com/api/campaign-media/other-site/file",
+  });
+
+  const all = await service.listMediaForSite("site-1");
+  assert.equal(all.length, 2);
+  assert.equal(all[0]?.originalName, "newer-icon.png");
+
+  const onlyImages = await service.listMediaForSite("site-1", "image");
+  assert.equal(onlyImages.length, 1);
+  assert.equal(onlyImages[0]?.originalName, "older.png");
+});
+
 test("campaign media service cleans up delivered campaign assets after retention", async () => {
   const repository = new InMemoryCampaignMediaRepository();
   const storage = createStorage();

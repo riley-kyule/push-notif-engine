@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { uploadMedia } from "../../lib/upload-media";
+import { MediaGalleryPicker } from "../_components/media-gallery-picker";
 import { COUNTRIES, countryCodeToFlagEmoji } from "../_data/countries";
 
 type SiteEditorMode = "create" | "edit";
@@ -321,11 +322,13 @@ export function SiteEditor({
           <label htmlFor="country">Country</label>
           <select id="country" className="select" value={values.country} onChange={(e) => updateField("country", e.target.value)}>
             <option value="">Select a country</option>
-            {COUNTRIES.map((country) => (
-              <option key={country.code} value={country.code}>
-                {countryCodeToFlagEmoji(country.code)} {country.name}
-              </option>
-            ))}
+            {[...COUNTRIES]
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((country) => (
+                <option key={country.code} value={country.code}>
+                  {countryCodeToFlagEmoji(country.code)} {country.name}
+                </option>
+              ))}
           </select>
           <p className="subtle" style={{ marginTop: 8 }}>
             Used to schedule campaigns in this site&apos;s local time automatically.
@@ -383,10 +386,13 @@ export function SiteEditor({
             placeholder="https://example.com/icon.png"
           />
           {siteId ? (
-            <label className="upload-field">
-              <span className="upload-field-button">{isUploadingIcon ? "Uploading..." : "Upload icon"}</span>
-              <input type="file" accept="image/*" onChange={(e) => void handleIconUpload(e.target.files?.[0] ?? null)} />
-            </label>
+            <>
+              <label className="upload-field">
+                <span className="upload-field-button">{isUploadingIcon ? "Uploading..." : "Upload icon"}</span>
+                <input type="file" accept="image/*" onChange={(e) => void handleIconUpload(e.target.files?.[0] ?? null)} />
+              </label>
+              <MediaGalleryPicker siteId={siteId} kind="icon" onSelect={(asset) => updateField("iconUrl", asset.publicUrl)} />
+            </>
           ) : (
             <p className="subtle" style={{ marginTop: 8 }}>
               Save the site first to upload an icon instead of pasting a URL.
@@ -498,10 +504,17 @@ export function SiteEditor({
                 placeholder="https://example.com/prompt-icon.png"
               />
               {siteId ? (
-                <label className="upload-field">
-                  <span className="upload-field-button">{isUploadingPromptIcon ? "Uploading..." : "Upload icon"}</span>
-                  <input type="file" accept="image/*" onChange={(e) => void handlePromptIconUpload(e.target.files?.[0] ?? null)} />
-                </label>
+                <>
+                  <label className="upload-field">
+                    <span className="upload-field-button">{isUploadingPromptIcon ? "Uploading..." : "Upload icon"}</span>
+                    <input type="file" accept="image/*" onChange={(e) => void handlePromptIconUpload(e.target.files?.[0] ?? null)} />
+                  </label>
+                  <MediaGalleryPicker
+                    siteId={siteId}
+                    kind="icon"
+                    onSelect={(asset) => updateField("optInPromptIconUrl", asset.publicUrl)}
+                  />
+                </>
               ) : (
                 <p className="subtle" style={{ marginTop: 8 }}>
                   Save the site first to upload an icon instead of pasting a URL.
