@@ -82,7 +82,9 @@ test("seedDefaultAutomations creates only the welcome default, and is idempotent
   const created = await service.seedDefaultAutomations("site-1");
   assert.equal(created.length, 1);
   assert.deepEqual(created.map((automation) => automation.triggerEvent), ["subscriber_registered"]);
-  assert.match(created.find((a) => a.triggerEvent === "subscriber_registered")?.title ?? "", /Exotic Travel/);
+  const welcomePush = created.find((a) => a.triggerEvent === "subscriber_registered");
+  assert.equal(welcomePush?.title, "Subscription Saved");
+  assert.match(welcomePush?.message ?? "", /Exotic Travel/);
 
   const ranAgain = await service.seedDefaultAutomations("site-1");
   assert.equal(ranAgain.length, 0);
