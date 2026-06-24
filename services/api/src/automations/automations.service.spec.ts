@@ -73,25 +73,22 @@ test("automations service lists active automations by trigger", async () => {
   assert.equal(active[0]?.name, "Welcome push");
 });
 
-test("seedDefaultAutomations creates a welcome and an unsubscribe default, and is idempotent", async () => {
+test("seedDefaultAutomations creates only the welcome default, and is idempotent", async () => {
   const { service } = createService();
 
   const created = await service.seedDefaultAutomations("site-1");
-  assert.equal(created.length, 2);
-  assert.deepEqual(
-    created.map((automation) => automation.triggerEvent).sort(),
-    ["subscriber_registered", "subscriber_unsubscribed"],
-  );
+  assert.equal(created.length, 1);
+  assert.deepEqual(created.map((automation) => automation.triggerEvent), ["subscriber_registered"]);
   assert.match(created.find((a) => a.triggerEvent === "subscriber_registered")?.title ?? "", /Exotic Travel/);
 
   const ranAgain = await service.seedDefaultAutomations("site-1");
   assert.equal(ranAgain.length, 0);
 
   const list = await service.listAutomations({ siteId: "site-1", limit: 20, offset: 0 });
-  assert.equal(list.total, 2);
+  assert.equal(list.total, 1);
 });
 
-test("seedDefaultAutomations only fills in the missing trigger if one default already exists", async () => {
+test("seedDefaultAutomations does not add an unsubscribe default if a welcome automation already exists", async () => {
   const { service } = createService();
 
   await service.createAutomation({
@@ -104,16 +101,15 @@ test("seedDefaultAutomations only fills in the missing trigger if one default al
   });
 
   const created = await service.seedDefaultAutomations("site-1");
-  assert.equal(created.length, 1);
-  assert.equal(created[0]?.triggerEvent, "subscriber_unsubscribed");
+  assert.equal(created.length, 0);
 });
 
 test("seedDefaultAutomations with no siteId creates global defaults", async () => {
   const { service } = createService();
 
   const created = await service.seedDefaultAutomations(null);
-  assert.equal(created.length, 2);
-  assert.deepEqual(created.map((automation) => automation.siteId), [null, null]);
+  assert.equal(created.length, 1);
+  assert.deepEqual(created.map((automation) => automation.siteId), [null]);
 });
 
 test("an All Sites automation (no siteId) is active for every site without duplicating it per site", async () => {
@@ -136,7 +132,6 @@ test("an All Sites automation (no siteId) is active for every site without dupli
   assert.equal(forSiteTwo.length, 1);
   assert.equal(forSiteOne[0]?.id, created.id);
   assert.equal(forSiteTwo[0]?.id, created.id);
-
 });
 
 test("creating an All Sites automation never looks up a site", async () => {
@@ -158,4 +153,32 @@ test("creating an All Sites automation never looks up a site", async () => {
   });
 
   assert.equal(created.siteId, null);
+});
+
+test("deleteAutomation succeeds even if audit logging fails", async () => {
+  const sitesService = {
+    async getSite() {
+      return { id: "site-1", appName: "Exotic Travel", url: "https://exotic-travel.example.com" };
+    },
+  };
+  const repository = new InMemoryAutomationsRepository();
+  const auditService = {
+    async log() {
+      throw new Error("audit store unavailable");
+    },
+  };
+  const service = new AutomationsService(sitesService as never, auditService as never, repository as never);
+
+  const created = await service.createAutomation({
+    siteId: "site-1",
+    name: "Welcome push",
+    triggerEvent: "subscriber_registered",
+    title: "Welcome!",
+    message: "Thanks for subscribing",
+    url: "https://example.com/welcome",
+  });
+
+  await assert.doesNotReject(() => service.deleteAutomation(created.id, "user-1"));
+  const stillExists = await service.getAutomation(created.id).then(() => true).catch(() => false);
+  assert.equal(stillExists, false);
 });

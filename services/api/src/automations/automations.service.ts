@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { AuditService } from "../audit/audit.service";
 import { SitesService } from "../sites/sites.service";
 import { AUTOMATIONS_REPOSITORY } from "./automations.constants";
@@ -57,6 +57,8 @@ function normalizeActions(actions: CreateAutomationDto["actions"] | UpdateAutoma
 
 @Injectable()
 export class AutomationsService {
+  private readonly logger = new Logger(AutomationsService.name);
+
   constructor(
     private readonly sitesService: SitesService,
     private readonly auditService: AuditService,
@@ -184,23 +186,6 @@ export class AutomationsService {
       );
     }
 
-    if (!existingTriggers.has("subscriber_unsubscribed")) {
-      created.push(
-        await this.createAutomation(
-          {
-            siteId,
-            name: "Unsubscribe notice",
-            triggerEvent: "subscriber_unsubscribed",
-            title: "Sorry to see you go",
-            message: "You've been unsubscribed from notifications. You can re-enable them anytime.",
-            url: site.url,
-            status: "active",
-          } as CreateAutomationDto,
-          actorUserId,
-        ),
-      );
-    }
-
     return created;
   }
 
@@ -226,23 +211,6 @@ export class AutomationsService {
       );
     }
 
-    if (!existingGlobalTriggers.has("subscriber_unsubscribed")) {
-      created.push(
-        await this.createAutomation(
-          {
-            siteId: null,
-            name: "Unsubscribe notice",
-            triggerEvent: "subscriber_unsubscribed",
-            title: "Sorry to see you go",
-            message: "You've been unsubscribed from notifications. You can re-enable them anytime.",
-            url: "https://example.com",
-            status: "active",
-          } as CreateAutomationDto,
-          actorUserId,
-        ),
-      );
-    }
-
     return created;
   }
 
@@ -253,12 +221,16 @@ export class AutomationsService {
       throw new NotFoundException("Automation not found");
     }
 
-    await this.auditService.log({
-      actorUserId: actorUserId ?? null,
-      action: "automation.deleted",
-      targetType: "automation",
-      targetId: id,
-      metadata: { siteId: existing.siteId, name: existing.name },
-    });
+    try {
+      await this.auditService.log({
+        actorUserId: actorUserId ?? null,
+        action: "automation.deleted",
+        targetType: "automation",
+        targetId: id,
+        metadata: { siteId: existing.siteId, name: existing.name },
+      });
+    } catch (error) {
+      this.logger.error(`Failed to audit deletion for automation ${id}`, error as Error);
+    }
   }
 }
