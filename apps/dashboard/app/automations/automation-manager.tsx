@@ -41,7 +41,8 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
   const router = useRouter();
   const realSites = sites.filter((site) => site.id !== "site-3");
 
-  const [siteId, setSiteId] = useState(realSites[0]?.id ?? "");
+  const defaultSiteId = realSites[0]?.id ?? "";
+  const [siteId, setSiteId] = useState(defaultSiteId);
   const [name, setName] = useState("");
   const [triggerEvent, setTriggerEvent] = useState<AutomationTriggerEvent>("subscriber_registered");
   const [title, setTitle] = useState("");
@@ -50,6 +51,7 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
   const [imageUrl, setImageUrl] = useState("");
   const [iconUrl, setIconUrl] = useState("");
   const [status, setStatus] = useState<AutomationStatus>("active");
+  const [editingAutomationId, setEditingAutomationId] = useState<string | null>(null);
 
   const [defaultsSiteId, setDefaultsSiteId] = useState(ALL_SITES_VALUE);
   const [notice, setNotice] = useState<string | null>(null);
@@ -58,7 +60,10 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
   const [isSeeding, startSeed] = useTransition();
 
   function resetForm() {
+    setEditingAutomationId(null);
+    setSiteId(defaultSiteId);
     setName("");
+    setTriggerEvent("subscriber_registered");
     setTitle("");
     setMessage("");
     setUrl("");
@@ -67,7 +72,26 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
     setStatus("active");
   }
 
-  function handleCreate(event: FormEvent<HTMLFormElement>) {
+  function beginEdit(automation: AutomationSummary) {
+    setNotice(null);
+    setEditingAutomationId(automation.id);
+    setSiteId(automation.siteId ?? ALL_SITES_VALUE);
+    setName(automation.name);
+    setTriggerEvent(automation.triggerEvent);
+    setTitle(automation.title);
+    setMessage(automation.message);
+    setUrl(automation.url);
+    setImageUrl("");
+    setIconUrl("");
+    setStatus(automation.status);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function cancelEdit() {
+    resetForm();
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!siteId || !name.trim() || !title.trim() || !message.trim() || !url.trim()) {
@@ -77,7 +101,7 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
 
     setNotice(null);
     startCreate(() => {
-      void postJson("/api/dashboard/automations", {
+      const payload = {
         siteId: siteId === ALL_SITES_VALUE ? null : siteId,
         name: name.trim(),
         triggerEvent,
@@ -87,14 +111,17 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
         imageUrl: imageUrl.trim() ? imageUrl.trim() : null,
         iconUrl: iconUrl.trim() ? iconUrl.trim() : null,
         status,
-      })
+      };
+      const isEditing = editingAutomationId !== null;
+      const endpoint = isEditing ? `/api/dashboard/automations/${editingAutomationId}` : "/api/dashboard/automations";
+      void postJson(endpoint, payload, isEditing ? "PATCH" : "POST")
         .then(() => {
-          setNotice("Automation created.");
+          setNotice(isEditing ? "Automation updated." : "Automation created.");
           resetForm();
           router.refresh();
         })
         .catch((error) => {
-          setNotice(error instanceof Error ? error.message : "Unable to create automation.");
+          setNotice(error instanceof Error ? error.message : isEditing ? "Unable to update automation." : "Unable to create automation.");
         });
     });
   }
@@ -204,11 +231,11 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
       <section className="card">
         <div className="panel-heading">
           <div>
-            <p className="eyebrow">New rule</p>
-            <h3>Create automation</h3>
+            <p className="eyebrow">{editingAutomationId ? "Edit rule" : "New rule"}</p>
+            <h3>{editingAutomationId ? "Edit automation" : "Create automation"}</h3>
           </div>
         </div>
-        <form onSubmit={handleCreate} className="grid" style={{ gap: 14, marginTop: 12 }}>
+        <form onSubmit={handleSubmit} className="grid" style={{ gap: 14, marginTop: 12 }}>
           <div className="grid cards-3">
             <div className="field">
               <label htmlFor="automation-site">Site</label>
@@ -286,8 +313,13 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
 
           <div className="actions" style={{ justifyContent: "flex-start" }}>
             <button className="button primary" type="submit" disabled={isCreating}>
-              {isCreating ? "Creating..." : "Create automation"}
+              {isCreating ? (editingAutomationId ? "Saving..." : "Creating...") : editingAutomationId ? "Save changes" : "Create automation"}
             </button>
+            {editingAutomationId ? (
+              <button className="button secondary" type="button" onClick={cancelEdit} disabled={isCreating}>
+                Cancel edit
+              </button>
+            ) : null}
           </div>
         </form>
       </section>
@@ -347,6 +379,9 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
                 <p className="subtle mono">{automation.url}</p>
 
                 <div className="actions" style={{ marginTop: 12 }}>
+                  <button className="button secondary" type="button" disabled={isBusy} onClick={() => beginEdit(automation)}>
+                    Edit
+                  </button>
                   <button className="button secondary" type="button" disabled={isBusy} onClick={() => toggleStatus(automation)}>
                     {automation.status === "active" ? "Pause" : "Resume"}
                   </button>
