@@ -145,8 +145,7 @@ export default async function AnalyticsPage({
           : {}),
         siteId: dashboard.selectedSite.id,
         ...(dashboard.selectedCampaign ? { campaignId: dashboard.selectedCampaign.id } : {}),
-        section: "time",
-        metric: "failed",
+        section: "failures",
       }) + "#analytics-performance-explorer",
   });
 
@@ -164,6 +163,36 @@ export default async function AnalyticsPage({
     }));
 
   const performanceSections: ExplorerSection[] = [
+    {
+      key: "failures",
+      label: "Failures",
+      eyebrow: "Failure report",
+      title: "Failed deliveries over time",
+      badge: "Reason + trend",
+      metrics: buildSeries(dashboard.timePerformance, (item) => formatTimeBucketLabel(item.bucket, dashboard.days), [
+        { key: "failed", label: "Failures", color: "#dc2626", getValue: (item) => item.totalFailed, format: "number" },
+      ]),
+      summary: [
+        { label: "Failed deliveries", value: formatNumber(dashboard.overview.totalFailed) },
+        {
+          label: "Top reason",
+          value: dashboard.overview.failedDeliveryReason ?? "No failure reason recorded",
+        },
+        {
+          label: "Reason events",
+          value:
+            dashboard.overview.failedDeliveryReasonCount > 0
+              ? `${formatNumber(dashboard.overview.failedDeliveryReasonCount)} events`
+              : "0 events",
+        },
+      ],
+      rowColumns: ["Date", "Failed"],
+      rows: dashboard.timePerformance.map((item) => ({
+        primary: formatTimeBucketLabel(item.bucket, dashboard.days),
+        secondary: "Failure trend",
+        metrics: [{ label: "Failed", value: formatNumber(item.totalFailed) }],
+      })),
+    },
     {
       key: "site",
       label: "Site",
@@ -299,6 +328,7 @@ export default async function AnalyticsPage({
   ];
 
   const sectionReportKeys: Record<string, "sites-performance" | "countries" | "time-performance" | "content-performance"> = {
+    failures: "time-performance",
     site: "sites-performance",
     country: "countries",
     time: "time-performance",
