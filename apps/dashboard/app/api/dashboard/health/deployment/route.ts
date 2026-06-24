@@ -11,10 +11,18 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  const res = await apiFetch("/health/deployment", {
-    method: "POST",
-    body: JSON.stringify({ action: body.action }),
-  });
+  // The API's own exec timeout for a core update is 20 minutes (npm install +
+  // two builds + migrate) -- the default BFF fetch timeout (5s) would abort
+  // long before that, so this call needs its own, longer ceiling.
+  const res = await apiFetch(
+    "/health/deployment",
+    {
+      method: "POST",
+      body: JSON.stringify({ action: body.action }),
+    },
+    fetch,
+    21 * 60 * 1000,
+  );
   const data = await res.json().catch(() => ({ success: false, error: { message: "Invalid API response" } }));
   return NextResponse.json(data, { status: res.status });
 }

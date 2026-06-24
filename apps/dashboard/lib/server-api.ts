@@ -18,7 +18,12 @@ export async function getAuthToken(): Promise<string | undefined> {
   }
 }
 
-export async function apiFetch(path: string, init: RequestInit = {}, fetchImpl: typeof fetch = fetch): Promise<Response> {
+export async function apiFetch(
+  path: string,
+  init: RequestInit = {},
+  fetchImpl: typeof fetch = fetch,
+  timeoutMsOverride?: number,
+): Promise<Response> {
   const token = await getAuthToken();
   const headers: Record<string, string> = {
     accept: "application/json",
@@ -30,7 +35,7 @@ export async function apiFetch(path: string, init: RequestInit = {}, fetchImpl: 
   }
 
   const controller = new AbortController();
-  const timeoutMs = getApiTimeoutMs();
+  const timeoutMs = timeoutMsOverride ?? getApiTimeoutMs();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   if (init.signal) {
@@ -61,9 +66,14 @@ export async function apiFetch(path: string, init: RequestInit = {}, fetchImpl: 
   }
 }
 
-export async function apiJson<T>(path: string, init?: RequestInit, fetchImpl: typeof fetch = fetch): Promise<T | null> {
+export async function apiJson<T>(
+  path: string,
+  init?: RequestInit,
+  fetchImpl: typeof fetch = fetch,
+  timeoutMsOverride?: number,
+): Promise<T | null> {
   try {
-    const res = await apiFetch(path, init, fetchImpl);
+    const res = await apiFetch(path, init, fetchImpl, timeoutMsOverride);
     if (!res.ok) {
       return null;
     }
