@@ -113,7 +113,7 @@ export default async function SubscribersPage({
               basePath="/subscribers"
               currentParams={currentParams}
               paramKey="siteId"
-              allLabel="All sites"
+              allLabel="All Sites"
               options={realSites.map((site) => ({ value: site.id, label: site.name }))}
             />
           </div>

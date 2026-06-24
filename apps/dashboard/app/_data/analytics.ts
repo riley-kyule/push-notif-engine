@@ -1,6 +1,6 @@
 import { getCampaignById, getCampaignList, type CampaignDetail, type CampaignSummary } from "./campaigns";
 import { getDashboardOverview, type DashboardOverview } from "./overview";
-import { getSiteById, getSiteList, type SiteSummary } from "../sites/sites.utils";
+import { ALL_SITES_FETCH_LIMIT, getSiteById, getSiteList, type SiteSummary } from "../sites/sites.utils";
 import { getSiteAnalytics, type SiteAnalyticsSummary } from "../../lib/site-analytics";
 import { apiJson } from "../../lib/server-api";
 
@@ -377,7 +377,7 @@ export async function getAnalyticsDashboardData(input: {
         : null;
   const [overview, sitesPayload, campaignsPayload] = await Promise.all([
     getDashboardOverview(range.days),
-    getSiteList(),
+    getSiteList({ limit: ALL_SITES_FETCH_LIMIT, offset: 0 }),
     getCampaignList(),
   ]);
   const comparisonOverview = comparisonRange ? await getDashboardOverview(comparisonRange.days) : null;

@@ -1,4 +1,5 @@
 import { apiJson } from "../../lib/server-api";
+import { ALL_SITES_FETCH_LIMIT } from "../sites/sites.utils";
 
 export interface SiteChoice {
   id: string;
@@ -137,7 +138,9 @@ interface SiteApiResponse<T> {
 }
 
 export async function getSiteChoices(): Promise<SiteChoice[]> {
-  const response = await apiJson<SiteApiResponse<{ items: SiteChoice[] }>>("/sites");
+  const response = await apiJson<SiteApiResponse<{ items: SiteChoice[] }>>(
+    `/sites?limit=${ALL_SITES_FETCH_LIMIT}&offset=0`,
+  );
   const items = response?.data.items ?? fallbackSiteChoices;
   if (items.some((site) => site.id === "site-3")) {
     return items;

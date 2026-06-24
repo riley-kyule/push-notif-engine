@@ -40,7 +40,7 @@ export default async function MediaLibraryPage({
               basePath="/media-library"
               currentParams={currentParams}
               paramKey="siteId"
-              allLabel="All sites"
+              allLabel="All Sites"
               options={realSites.map((site) => ({ value: site.id, label: site.name }))}
             />
           </div>
