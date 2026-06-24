@@ -13,6 +13,8 @@ export interface DashboardOverview {
   totalClicked: number;
   deliveryRate: number;
   clickThroughRate: number;
+  failedDeliveryReason: string | null;
+  failedDeliveryReasonCount: number;
 }
 
 const emptyOverview: DashboardOverview = {
@@ -28,6 +30,8 @@ const emptyOverview: DashboardOverview = {
   totalClicked: 0,
   deliveryRate: 0,
   clickThroughRate: 0,
+  failedDeliveryReason: null,
+  failedDeliveryReasonCount: 0,
 };
 
 interface OverviewApiResponse {
