@@ -37,6 +37,14 @@ async function postJson<T>(url: string, body: unknown, method = "POST"): Promise
 
 const ALL_SITES_VALUE = "__all_sites__";
 
+export function formatAutomationScope(siteId: string | null, sites: SiteChoice[]): string {
+  if (siteId === null) {
+    return "Inherited from All Sites";
+  }
+
+  return sites.find((site) => site.id === siteId)?.name ?? siteId;
+}
+
 export function AutomationManager({ sites, automations }: { sites: SiteChoice[]; automations: AutomationSummary[] }) {
   const router = useRouter();
   const realSites = sites.filter((site) => site.id !== "site-3");
@@ -349,17 +357,16 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
                     <strong>{automation.name}</strong>
                     <p className="subtle">{automation.title}</p>
                   </div>
-                  <span className={`badge ${automation.status}`}>{automation.status}</span>
+                  <div className="actions" style={{ alignItems: "center" }}>
+                    {automation.siteId === null ? <span className="badge neutral">Inherited</span> : null}
+                    <span className={`badge ${automation.status}`}>{automation.status}</span>
+                  </div>
                 </div>
 
                 <div className="workflow-feed-meta">
                   <div>
                     <span className="subtle">Scope</span>
-                    <strong>
-                      {automation.siteId === null
-                        ? "All Sites"
-                        : sites.find((site) => site.id === automation.siteId)?.name ?? automation.siteId}
-                    </strong>
+                    <strong>{formatAutomationScope(automation.siteId, sites)}</strong>
                   </div>
                   <div>
                     <span className="subtle">Trigger</span>
