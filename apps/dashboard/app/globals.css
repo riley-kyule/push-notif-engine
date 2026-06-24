@@ -560,6 +560,28 @@ a.nav-item[aria-current="page"] {
   opacity: 0.6;
 }
 
+.button.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.sortable-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.sortable-header:hover {
+  color: var(--primary);
+}
+
+.sortable-header-arrow {
+  font-size: 10px;
+}
+
 .button:focus-visible {
   outline: 2px solid rgba(234, 88, 12, 0.45);
   outline-offset: 2px;

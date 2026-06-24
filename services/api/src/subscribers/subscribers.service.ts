@@ -58,6 +58,8 @@ export class SubscribersService {
     if (query.deviceType) filters.deviceType = query.deviceType;
     if (query.country) filters.country = query.country;
     if (query.language) filters.language = query.language;
+    if (query.sortBy) filters.sortBy = query.sortBy;
+    if (query.sortDir) filters.sortDir = query.sortDir;
 
     return this.subscribersRepository.list(filters);
   }

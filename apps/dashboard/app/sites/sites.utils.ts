@@ -34,6 +34,7 @@ export interface SiteSummary {
   restApiAuthTokenLast4: string | null;
   restApiCredentialsGeneratedAt: string | null;
   lastConnectedAt: string | null;
+  createdAt: string;
 }
 
 export interface SiteListPayload {
@@ -80,6 +81,7 @@ interface ApiSiteRecord {
   restApiCredentialsGeneratedAt?: string | null;
   lastConnectedAt?: string | null;
   subscriberCount?: number;
+  createdAt?: string;
 }
 
 // Only rendered when the /sites API is unreachable. "All Sites" (site-3) is a
@@ -120,6 +122,7 @@ const fallbackSites: SiteSummary[] = [
     restApiAuthTokenLast4: null,
     restApiCredentialsGeneratedAt: null,
     lastConnectedAt: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
   },
   {
     id: "site-2",
@@ -155,6 +158,7 @@ const fallbackSites: SiteSummary[] = [
     restApiAuthTokenLast4: null,
     restApiCredentialsGeneratedAt: null,
     lastConnectedAt: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
   },
   {
     id: "site-3",
@@ -190,6 +194,7 @@ const fallbackSites: SiteSummary[] = [
     restApiAuthTokenLast4: null,
     restApiCredentialsGeneratedAt: null,
     lastConnectedAt: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
   },
 ];
 
@@ -228,17 +233,33 @@ function toSiteSummary(record: ApiSiteRecord, subscribers?: number): SiteSummary
     restApiAuthTokenLast4: record.restApiAuthTokenLast4 ?? null,
     restApiCredentialsGeneratedAt: record.restApiCredentialsGeneratedAt ?? null,
     lastConnectedAt: record.lastConnectedAt ?? null,
+    createdAt: record.createdAt ?? new Date().toISOString(),
   };
 }
 
-export async function getSiteList(): Promise<SiteListPayload> {
-  const response = await apiJson<SiteApiResponse<{ items: ApiSiteRecord[] }>>("/sites");
-  if (!response?.data.items) {
+export interface SiteListFilters {
+  search?: string | undefined;
+  sortBy?: "name" | "createdAt" | "subscriberCount" | "connection" | "country" | undefined;
+  sortDir?: "asc" | "desc" | undefined;
+  limit?: number | undefined;
+  offset?: number | undefined;
+}
+
+export async function getSiteList(filters: SiteListFilters = {}): Promise<SiteListPayload> {
+  const search = new URLSearchParams();
+  if (filters.search) search.set("search", filters.search);
+  if (filters.sortBy) search.set("sortBy", filters.sortBy);
+  if (filters.sortDir) search.set("sortDir", filters.sortDir);
+  search.set("limit", String(filters.limit ?? 20));
+  search.set("offset", String(filters.offset ?? 0));
+
+  const response = await apiJson<SiteApiResponse<{ items: ApiSiteRecord[]; total: number }>>(`/sites?${search.toString()}`);
+  if (!response?.data?.items) {
     return { items: fallbackSites, total: fallbackSites.length };
   }
 
   const items = response.data.items.map((record) => toSiteSummary(record));
-  return { items, total: items.length };
+  return { items, total: response.data.total };
 }
 
 export async function getSiteById(id: string): Promise<SiteSummary | null> {

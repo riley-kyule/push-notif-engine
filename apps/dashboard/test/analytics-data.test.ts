@@ -69,7 +69,7 @@ test("analytics dashboard data falls back to all sites when no sites exist", asy
   try {
     globalThis.fetch = (async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url.endsWith("/sites")) {
+      if (url.endsWith("/sites") || url.includes("/sites?")) {
         return new Response(JSON.stringify({ success: true, data: { items: [] } }), {
           status: 200,
           headers: { "content-type": "application/json" },
@@ -116,7 +116,7 @@ test("requesting siteId 'site-3' resolves to the All Sites aggregate even with r
         );
       }
 
-      if (url.endsWith("/sites")) {
+      if (url.endsWith("/sites") || url.includes("/sites?")) {
         return new Response(
           JSON.stringify({
             success: true,

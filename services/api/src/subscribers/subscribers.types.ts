@@ -16,6 +16,9 @@ export interface SubscriberRecord {
   updatedAt: Date;
 }
 
+export type SubscriberSortField = "createdAt" | "lastSeenAt" | "country" | "browser" | "deviceType" | "status";
+export type SortDirection = "asc" | "desc";
+
 export interface SubscriberListFilters {
   siteId?: string;
   search?: string;
@@ -24,6 +27,8 @@ export interface SubscriberListFilters {
   deviceType?: string;
   country?: string;
   language?: string;
+  sortBy?: SubscriberSortField;
+  sortDir?: SortDirection;
   limit: number;
   offset: number;
 }

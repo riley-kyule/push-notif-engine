@@ -304,6 +304,7 @@ function createAllSitesFallback(): SiteSummary {
     url: "",
     country: "Global",
     timezone: "UTC",
+    createdAt: "2026-01-01T00:00:00.000Z",
     language: "en",
     platform: "Other",
     status: "active",

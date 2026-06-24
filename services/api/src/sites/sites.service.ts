@@ -148,6 +148,8 @@ export class SitesService {
     if (filters.status) normalized.status = filters.status;
     if (filters.country) normalized.country = filters.country;
     if (filters.language) normalized.language = filters.language;
+    if (filters.sortBy) normalized.sortBy = filters.sortBy;
+    if (filters.sortDir) normalized.sortDir = filters.sortDir;
 
     return this.sitesRepository.list(normalized);
   }
