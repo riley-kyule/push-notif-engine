@@ -1,7 +1,11 @@
 import Link from "next/link";
 
 import { DashboardShell } from "../_components/dashboard-shell";
-import { getSubscriberList, getSubscriberStatusCounts } from "../_data/subscribers";
+import { buildHref } from "../_components/list-controls.utils";
+import { PageSizeSelect, Pagination } from "../_components/list-controls";
+import { getSubscriberList, getSubscriberStatusCounts, type SubscriberSortField } from "../_data/subscribers";
+import { fallbackSiteChoices, getSiteChoices } from "../_data/sites";
+import { SubscribersTable } from "./subscribers-table";
 
 const statusTabs = [
   { value: undefined, label: "All" },
@@ -11,17 +15,58 @@ const statusTabs = [
   { value: "expired", label: "Expired" },
 ] as const;
 
+const DEVICE_TYPES = ["desktop", "mobile", "tablet"] as const;
+const SORT_FIELDS = ["createdAt", "lastSeenAt", "country", "browser", "deviceType", "status"] as const;
+
 export default async function SubscribersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    siteId?: string;
+    deviceType?: string;
+    page?: string;
+    pageSize?: string;
+    sortBy?: string;
+    sortDir?: string;
+  }>;
 }) {
   const query = await searchParams;
   const status = statusTabs.some((tab) => tab.value === query.status)
     ? (query.status as "active" | "inactive" | "unsubscribed" | "expired" | undefined)
     : undefined;
+  const deviceType = (DEVICE_TYPES as readonly string[]).includes(query.deviceType ?? "") ? query.deviceType : undefined;
+  const page = Math.max(1, Number.parseInt(query.page ?? "1", 10) || 1);
+  const pageSize = Number.parseInt(query.pageSize ?? "25", 10) || 25;
+  const sortBy = (SORT_FIELDS as readonly string[]).includes(query.sortBy ?? "")
+    ? (query.sortBy as SubscriberSortField)
+    : undefined;
+  const sortDir = query.sortDir === "asc" ? "asc" : query.sortDir === "desc" ? "desc" : undefined;
 
-  const [subscribers, counts] = await Promise.all([getSubscriberList({ status }), getSubscriberStatusCounts()]);
+  const [subscribers, counts, sites] = await Promise.all([
+    getSubscriberList({
+      status,
+      siteId: query.siteId,
+      deviceType,
+      sortBy,
+      sortDir,
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+    }),
+    getSubscriberStatusCounts(query.siteId),
+    getSiteChoices().catch(() => fallbackSiteChoices),
+  ]);
+
+  const realSites = sites.filter((site) => site.id !== "site-3");
+  const siteNames = Object.fromEntries(sites.map((site) => [site.id, site.name]));
+  const currentParams = {
+    status: query.status,
+    siteId: query.siteId,
+    deviceType: query.deviceType,
+    sortBy: query.sortBy,
+    sortDir: query.sortDir,
+    pageSize: String(pageSize),
+  };
 
   return (
     <DashboardShell
@@ -48,7 +93,7 @@ export default async function SubscribersPage({
       </section>
 
       <section className="card" style={{ marginTop: 18 }}>
-        <div className="actions" style={{ marginBottom: 14 }}>
+        <div className="actions" style={{ marginBottom: 14, flexWrap: "wrap" }}>
           {statusTabs.map((tab) => (
             <Link
               key={tab.label}
@@ -60,47 +105,56 @@ export default async function SubscribersPage({
           ))}
         </div>
 
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Endpoint</th>
-                <th>Browser</th>
-                <th>Device</th>
-                <th>Country</th>
-                <th>Language</th>
-                <th>Last Seen</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {subscribers.items.map((subscriber) => (
-                <tr key={subscriber.id}>
-                  <td style={{ maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    <Link href={`/subscribers/${subscriber.id}`}>
-                      <strong>{subscriber.endpoint}</strong>
-                    </Link>
-                  </td>
-                  <td>{subscriber.browser}</td>
-                  <td>{subscriber.deviceType}</td>
-                  <td>{subscriber.country}</td>
-                  <td>{subscriber.language}</td>
-                  <td className="subtle">{subscriber.lastSeenAt}</td>
-                  <td>
-                    <span className={`badge ${subscriber.status}`}>{subscriber.status}</span>
-                  </td>
-                </tr>
+        <div className="grid cards-2" style={{ marginBottom: 14 }}>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <span className="subtle">Site</span>
+            <div className="actions" style={{ marginTop: 6, flexWrap: "wrap" }}>
+              <Link
+                href={buildHref("/subscribers", { ...currentParams, siteId: undefined, page: "1" })}
+                className={`button secondary ${!query.siteId ? "is-disabled" : ""}`}
+              >
+                All sites
+              </Link>
+              {realSites.map((site) => (
+                <Link
+                  key={site.id}
+                  href={buildHref("/subscribers", { ...currentParams, siteId: site.id, page: "1" })}
+                  className={`button secondary ${query.siteId === site.id ? "is-disabled" : ""}`}
+                >
+                  {site.name}
+                </Link>
               ))}
-              {subscribers.items.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="subtle">
-                    No subscribers match this filter.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
+            </div>
+          </div>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <span className="subtle">Device</span>
+            <div className="actions" style={{ marginTop: 6, flexWrap: "wrap" }}>
+              <Link
+                href={buildHref("/subscribers", { ...currentParams, deviceType: undefined, page: "1" })}
+                className={`button secondary ${!query.deviceType ? "is-disabled" : ""}`}
+              >
+                All devices
+              </Link>
+              {DEVICE_TYPES.map((device) => (
+                <Link
+                  key={device}
+                  href={buildHref("/subscribers", { ...currentParams, deviceType: device, page: "1" })}
+                  className={`button secondary ${query.deviceType === device ? "is-disabled" : ""}`}
+                >
+                  {device}
+                </Link>
+              ))}
+            </div>
+          </div>
         </div>
+
+        <div className="actions" style={{ justifyContent: "flex-end", marginBottom: 14 }}>
+          <PageSizeSelect basePath="/subscribers" currentParams={currentParams} pageSize={pageSize} />
+        </div>
+
+        <SubscribersTable subscribers={subscribers.items} siteNames={siteNames} basePath="/subscribers" currentParams={currentParams} />
+
+        <Pagination basePath="/subscribers" currentParams={currentParams} page={page} pageSize={pageSize} total={subscribers.total} />
       </section>
     </DashboardShell>
   );

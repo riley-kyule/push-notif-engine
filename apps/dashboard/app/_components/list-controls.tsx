@@ -4,20 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { buildHref } from "./list-controls.utils";
+
 const PAGE_SIZE_OPTIONS = [25, 50, 100, 200, 500] as const;
-
-function buildHref(basePath: string, params: Record<string, string | undefined>): string {
-  const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== "") {
-      search.set(key, value);
-    }
-  }
-  const query = search.toString();
-  return query ? `${basePath}?${query}` : basePath;
-}
-
-export { buildHref };
 
 export function PageSizeSelect({
   basePath,

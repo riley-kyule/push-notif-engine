@@ -134,9 +134,14 @@ function toApiSummary(record: ApiSubscriberRecord): SubscriberSummary {
   };
 }
 
+export type SubscriberSortField = "createdAt" | "lastSeenAt" | "country" | "browser" | "deviceType" | "status";
+
 export interface SubscriberListFilters {
   status?: SubscriberSummary["status"] | undefined;
   siteId?: string | undefined;
+  deviceType?: string | undefined;
+  sortBy?: SubscriberSortField | undefined;
+  sortDir?: "asc" | "desc" | undefined;
   limit?: number | undefined;
   offset?: number | undefined;
 }
@@ -145,6 +150,9 @@ function buildSubscribersQuery(filters: SubscriberListFilters = {}): string {
   const search = new URLSearchParams();
   if (filters.status) search.set("status", filters.status);
   if (filters.siteId) search.set("siteId", filters.siteId);
+  if (filters.deviceType) search.set("deviceType", filters.deviceType);
+  if (filters.sortBy) search.set("sortBy", filters.sortBy);
+  if (filters.sortDir) search.set("sortDir", filters.sortDir);
   search.set("limit", String(filters.limit ?? 50));
   search.set("offset", String(filters.offset ?? 0));
   return search.toString();
@@ -154,10 +162,12 @@ export async function getSubscriberList(filters: SubscriberListFilters = {}): Pr
   const response = await apiJson<SubscriberApiResponse<{ items: ApiSubscriberRecord[]; total: number }>>(
     `/subscribers?${buildSubscribersQuery(filters)}`,
   );
-  if (!response?.data.items) {
+  if (!response?.data?.items) {
     const fallbackItems = fallbackSubscribers
       .map((subscriber) => toSummary(subscriber))
-      .filter((subscriber) => !filters.status || subscriber.status === filters.status);
+      .filter((subscriber) => !filters.status || subscriber.status === filters.status)
+      .filter((subscriber) => !filters.siteId || subscriber.siteId === filters.siteId)
+      .filter((subscriber) => !filters.deviceType || subscriber.deviceType === filters.deviceType);
     return { items: fallbackItems, total: fallbackItems.length };
   }
 
