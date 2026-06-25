@@ -22,6 +22,25 @@ interface BrowserPushSubscriberRow {
 export class BrowserPushRepository {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool) {}
 
+  // Permanently removes failed-delivery history -- a deliberate reset, not a
+  // retention policy. Deliveries that are still pending/sent/delivered are
+  // untouched.
+  async clearFailedDeliveries(): Promise<number> {
+    const result = await this.pool.query(`DELETE FROM push_delivery_events WHERE status = 'failed'`);
+    return result.rowCount ?? 0;
+  }
+
+  // Full reset: every delivery record regardless of status -- sent,
+  // delivered, pending, expired, failed. Every metric derived from this
+  // table (CTR, delivery rate, sent/delivered counts) goes back to zero.
+  // Deliberately separate from clearFailedDeliveries rather than a shared
+  // "status?" parameter, so this far more destructive action can never be
+  // triggered by a default/omitted argument.
+  async clearAllDeliveryHistory(): Promise<number> {
+    const result = await this.pool.query(`DELETE FROM push_delivery_events`);
+    return result.rowCount ?? 0;
+  }
+
   async findSiteCredentials(siteId: string): Promise<BrowserPushSiteRow | null> {
     const { rows } = await this.pool.query<BrowserPushSiteRow>(
       `

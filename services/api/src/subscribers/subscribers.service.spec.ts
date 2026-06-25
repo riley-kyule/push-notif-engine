@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { createFakeAuditService } from "../audit/audit.service.fake";
 import { InMemorySubscribersRepository } from "./in-memory-subscribers.repository";
 import { SubscribersService } from "./subscribers.service";
 
@@ -12,7 +13,7 @@ test("subscribers service registers and filters subscribers", async () => {
       automationCalls.push(subscriber.id);
     },
   };
-  const service = new SubscribersService(repository, workflowService as never);
+  const service = new SubscribersService(repository, workflowService as never, createFakeAuditService());
 
   const subscriber = await service.registerSubscriber({
     siteId: "site-1",
@@ -41,7 +42,7 @@ test("subscribers service does not re-trigger automations on a re-registration",
       automationCalls.push(subscriber.id);
     },
   };
-  const service = new SubscribersService(repository, workflowService as never);
+  const service = new SubscribersService(repository, workflowService as never, createFakeAuditService());
 
   const input = {
     siteId: "site-1",
@@ -62,7 +63,7 @@ test("subscribers service does not re-trigger automations on a re-registration",
 test("subscribers service falls back to the detected country, then Unknown", async () => {
   const repository = new InMemorySubscribersRepository();
   const workflowService = { async handleSubscriberRegistered() {} };
-  const service = new SubscribersService(repository, workflowService as never);
+  const service = new SubscribersService(repository, workflowService as never, createFakeAuditService());
 
   const base = {
     siteId: "site-1",
@@ -100,7 +101,7 @@ test("subscribers service marks subscriptions as unsubscribed and fires the unsu
       unsubscribedIds.push(subscriber.id);
     },
   };
-  const service = new SubscribersService(repository, workflowService as never);
+  const service = new SubscribersService(repository, workflowService as never, createFakeAuditService());
 
   await service.registerSubscriber({
     siteId: "site-1",
@@ -126,4 +127,50 @@ test("subscribers service marks subscriptions as unsubscribed and fires the unsu
     subscriptionEndpoint: "https://push.example.com/endpoint-unsubscribe",
   });
   assert.deepEqual(unsubscribedIds, [unsubscribed?.id]);
+});
+
+test("clearInactiveSubscribers marks only active subscribers past the cutoff, scoped to the given sites", async () => {
+  const repository = new InMemorySubscribersRepository();
+  const workflowService = { async handleSubscriberRegistered() {} };
+  const service = new SubscribersService(repository, workflowService as never, createFakeAuditService());
+
+  const stale = await service.registerSubscriber({
+    siteId: "site-1",
+    browser: "Chrome",
+    deviceType: "desktop",
+    country: "US",
+    language: "en",
+    subscriptionEndpoint: "https://push.example.com/stale",
+    status: "active",
+  });
+  const ninetyOneDaysAgo = new Date(Date.now() - 91 * 24 * 60 * 60 * 1000);
+  await service.updateStatus(stale.id, { status: "active", lastSeenAt: ninetyOneDaysAgo.toISOString() });
+
+  const recent = await service.registerSubscriber({
+    siteId: "site-1",
+    browser: "Chrome",
+    deviceType: "desktop",
+    country: "US",
+    language: "en",
+    subscriptionEndpoint: "https://push.example.com/recent",
+    status: "active",
+  });
+
+  const staleOnOtherSite = await service.registerSubscriber({
+    siteId: "site-2",
+    browser: "Chrome",
+    deviceType: "desktop",
+    country: "US",
+    language: "en",
+    subscriptionEndpoint: "https://push.example.com/stale-other-site",
+    status: "active",
+  });
+  await service.updateStatus(staleOnOtherSite.id, { status: "active", lastSeenAt: ninetyOneDaysAgo.toISOString() });
+
+  const cleared = await service.clearInactiveSubscribers({ siteIds: ["site-1"], inactiveSinceDays: 90 }, "user-1");
+
+  assert.equal(cleared, 1);
+  assert.equal((await service.getSubscriber(stale.id)).status, "inactive");
+  assert.equal((await service.getSubscriber(recent.id)).status, "active");
+  assert.equal((await service.getSubscriber(staleOnOtherSite.id)).status, "active");
 });

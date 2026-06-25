@@ -1,7 +1,9 @@
 import { Inject, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import { Queue } from "bullmq";
 
+import { AuditService } from "../audit/audit.service";
 import { SitesService } from "../sites/sites.service";
+import { BrowserPushRepository } from "./browser-push.repository";
 import { BROWSER_PUSH_JOB_NAME, BROWSER_PUSH_QUEUE_NAME } from "./browser-push.constants";
 import type { BrowserPushJobPayload } from "./browser-push.types";
 import { CreateBrowserPushDispatchDto } from "./dto/create-browser-push-dispatch.dto";
@@ -24,6 +26,8 @@ export interface BrowserPushDispatchInput {
 export class BrowserPushService {
   constructor(
     private readonly sitesService: SitesService,
+    private readonly browserPushRepository: BrowserPushRepository,
+    private readonly auditService: AuditService,
     @Inject(BROWSER_PUSH_QUEUE) private readonly queue: Queue,
   ) {}
 
@@ -57,5 +61,33 @@ export class BrowserPushService {
       jobId: job.id,
       queued: true,
     };
+  }
+
+  async clearFailedDeliveries(actorUserId?: string): Promise<number> {
+    const cleared = await this.browserPushRepository.clearFailedDeliveries();
+
+    await this.auditService.log({
+      actorUserId: actorUserId ?? null,
+      action: "platform.failed_deliveries_cleared",
+      targetType: "platform",
+      targetId: "push_delivery_events",
+      metadata: { cleared },
+    });
+
+    return cleared;
+  }
+
+  async clearAllDeliveryHistory(actorUserId?: string): Promise<number> {
+    const cleared = await this.browserPushRepository.clearAllDeliveryHistory();
+
+    await this.auditService.log({
+      actorUserId: actorUserId ?? null,
+      action: "platform.all_delivery_history_cleared",
+      targetType: "platform",
+      targetId: "push_delivery_events",
+      metadata: { cleared },
+    });
+
+    return cleared;
   }
 }

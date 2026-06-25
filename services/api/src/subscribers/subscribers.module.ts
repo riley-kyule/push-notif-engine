@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 
+import { AuditModule } from "../audit/audit.module";
 import { DatabaseModule } from "../database/database.module";
 import { WorkflowModule } from "../workflows/workflow.module";
 import { SUBSCRIBERS_REPOSITORY } from "./subscribers.constants";
@@ -8,7 +9,7 @@ import { SubscribersService } from "./subscribers.service";
 import { PostgresSubscribersRepository } from "./postgres-subscribers.repository";
 
 @Module({
-  imports: [DatabaseModule, WorkflowModule],
+  imports: [DatabaseModule, WorkflowModule, AuditModule],
   controllers: [SubscribersController],
   providers: [
     SubscribersService,

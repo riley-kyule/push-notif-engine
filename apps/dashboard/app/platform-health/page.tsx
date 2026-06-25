@@ -3,6 +3,8 @@ import Link from "next/link";
 
 import { DashboardShell } from "../_components/dashboard-shell";
 import { getPlatformHealthBadge, getPlatformHealthSummary, getPlatformHealthTone, summarizePlatformHealth } from "../_data/platform-health";
+import { getSiteChoices } from "../_data/sites";
+import { DataCleanupPanel } from "./data-cleanup-panel";
 import { DeploymentActionsPanel } from "./deployment-actions-panel";
 
 function formatScore(value: number): string {
@@ -10,7 +12,11 @@ function formatScore(value: number): string {
 }
 
 export default async function PlatformHealthPage() {
-  const health = summarizePlatformHealth(await getPlatformHealthSummary());
+  const [health, sites] = await Promise.all([
+    getPlatformHealthSummary().then(summarizePlatformHealth),
+    getSiteChoices(),
+  ]);
+  const realSites = sites.filter((site) => site.id !== "site-3");
   const badge = getPlatformHealthBadge(health.score);
   const toneClass = getPlatformHealthTone(health.status);
   const sourceLabel =
@@ -283,6 +289,8 @@ export default async function PlatformHealthPage() {
           </p>
         </article>
       </section>
+
+      <DataCleanupPanel sites={realSites} />
 
       <DeploymentActionsPanel />
     </DashboardShell>
