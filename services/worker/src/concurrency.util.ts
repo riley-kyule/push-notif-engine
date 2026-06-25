@@ -27,3 +27,18 @@ export async function mapWithConcurrency<T, R>(
 
   return results;
 }
+
+// Splits `items` into arrays of at most `size`, preserving order. Used to bound
+// peak memory and per-statement size (e.g. a single bulk INSERT) when a job's
+// recipient list can run into the hundreds of thousands.
+export function chunk<T>(items: T[], size: number): T[][] {
+  if (items.length === 0) {
+    return [];
+  }
+
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+}

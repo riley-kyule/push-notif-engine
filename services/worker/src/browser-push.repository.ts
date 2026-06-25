@@ -106,6 +106,12 @@ export class BrowserPushRepository {
   // once batches reach tens of thousands of rows. Uses unnest() so the parameter count
   // stays fixed (2 arrays) regardless of batch size, rather than building a VALUES
   // list that could blow past Postgres's 65535-parameter limit on large sends.
+  //
+  // ON CONFLICT reuses the existing row instead of inserting a duplicate when this
+  // job_id/subscriber pair already has one (see migration 030) -- without it, a
+  // worker crash mid-job followed by BullMQ's stalled-job retry would insert a
+  // second pending row per recipient on every retry, and that second row would
+  // queue a real second push send to anyone the first attempt had already reached.
   async createPendingDeliveryEvents(input: {
     siteId: string;
     campaignId?: string | null;
@@ -125,6 +131,8 @@ export class BrowserPushRepository {
       )
       SELECT $1::uuid, $2::uuid, $3::uuid, sub_id, ep, 'pending', $4::jsonb, $5::text, NOW(), NOW()
       FROM unnest($6::uuid[], $7::text[]) AS t(sub_id, ep)
+      ON CONFLICT (job_id, subscriber_id) WHERE job_id IS NOT NULL AND subscriber_id IS NOT NULL
+      DO UPDATE SET updated_at = push_delivery_events.updated_at
       RETURNING id, subscriber_id
       `,
       [

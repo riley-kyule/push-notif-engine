@@ -10,7 +10,7 @@ import { DATABASE_POOL } from "../database/database.constants";
 import { CAMPAIGN_MEDIA_STORAGE } from "../campaign-media/campaign-media.constants";
 import type { CampaignMediaStoragePort } from "../campaign-media/campaign-media-storage.port";
 import { AuditService } from "../audit/audit.service";
-import { DeploymentAction, DeploymentOperationsService, type DeploymentVersionInfo } from "./deployment-operations.service";
+import { DeploymentAction, DeploymentOperationsService, type DeploymentVersionInfo, type Pm2ProcessStatus } from "./deployment-operations.service";
 import { PlatformHealthService } from "./platform-health.service";
 
 @Controller("health")
@@ -60,6 +60,13 @@ export class HealthController {
   @Roles("super-admin")
   async getDeploymentVersion(): Promise<{ success: true; data: DeploymentVersionInfo }> {
     return { success: true, data: await this.deploymentOperationsService.getVersionInfo() };
+  }
+
+  @Get("deployment/pm2-status")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("super-admin")
+  async getPm2Status(): Promise<{ success: true; data: Pm2ProcessStatus[] }> {
+    return { success: true, data: await this.deploymentOperationsService.getPm2Status() };
   }
 
   @Post("deployment")
