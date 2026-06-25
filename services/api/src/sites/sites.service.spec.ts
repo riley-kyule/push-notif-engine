@@ -5,6 +5,18 @@ import { createFakeAuditService } from "../audit/audit.service.fake";
 import { InMemorySitesRepository } from "./in-memory-sites.repository";
 import { SitesService } from "./sites.service";
 
+// Wraps the in-memory fake so a test can assert on the
+// expireActiveSubscribers call without modeling real subscriber rows.
+class SpyingSitesRepository extends InMemorySitesRepository {
+  expireCalls: string[] = [];
+  expireReturnValue = 0;
+
+  async expireActiveSubscribers(siteId: string): Promise<number> {
+    this.expireCalls.push(siteId);
+    return this.expireReturnValue;
+  }
+}
+
 test("sites service creates and lists sites", async () => {
   const repository = new InMemorySitesRepository();
   const service = new SitesService(repository, createFakeAuditService());
@@ -354,4 +366,45 @@ test("sites service generates rest api credentials", async () => {
   assert.equal(credentials.site.restApiKeyId?.startsWith("rest_"), true);
   assert.equal(credentials.authToken.length > 10, true);
   assert.equal(credentials.site.restApiAuthTokenLast4, credentials.authToken.slice(-4));
+});
+
+test("generateVapidKeys expires every active subscriber, since they're permanently invalid under the new key pair", async () => {
+  const repository = new SpyingSitesRepository();
+  repository.expireReturnValue = 42;
+  const service = new SitesService(repository, createFakeAuditService());
+
+  const site = await service.createSite({
+    name: "Exotic News",
+    url: "https://news.example.com",
+    country: "US",
+    language: "en",
+    platform: "WordPress",
+    logoUrl: null,
+    appName: "Exotic News",
+    iconUrl: null,
+    themeColor: "#1c1917",
+    optInPromptType: "lightbox-1",
+    optInPromptAnimation: "slide-in",
+    optInPromptBackgroundColor: "#ffffff",
+    optInPromptHeadline: "Stay in the loop",
+    optInPromptHeadlineTextColor: "#111111",
+    optInPromptText: "Get important updates delivered to your browser.",
+    optInPromptTextColor: "#444444",
+    optInPromptIconUrl: null,
+    optInPromptCancelButtonLabel: "Not now",
+    optInPromptCancelButtonTextColor: "#ffffff",
+    optInPromptCancelButtonBackgroundColor: "#111111",
+    optInPromptApproveButtonLabel: "Enable",
+    optInPromptApproveButtonTextColor: "#ffffff",
+    optInPromptApproveButtonBackgroundColor: "#ea580c",
+    optInPromptRepromptDelayDays: 30,
+    vapidSubject: "mailto:push@news.example.com",
+    vapidPublicKey: "original-public-key",
+    vapidPrivateKey: "original-private-key",
+    status: "active",
+  });
+
+  await service.generateVapidKeys(site.id);
+
+  assert.deepEqual(repository.expireCalls, [site.id]);
 });

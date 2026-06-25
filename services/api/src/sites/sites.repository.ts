@@ -92,4 +92,10 @@ export interface SitesRepository {
   list(filters: SiteListFilters): Promise<SiteListResult>;
   delete(id: string): Promise<boolean>;
   recordConnection(id: string): Promise<void>;
+  // Regenerating a site's VAPID keys permanently invalidates every browser
+  // subscription created under the old public key -- there is no recovery,
+  // the push service will reject them forever. Returns the number expired
+  // so the count shown to the admin stays accurate immediately, instead of
+  // drifting until each one eventually fails a real send.
+  expireActiveSubscribers(siteId: string): Promise<number>;
 }

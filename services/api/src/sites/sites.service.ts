@@ -209,11 +209,19 @@ export class SitesService {
       throw new NotFoundException("Site not found");
     }
 
+    // Every browser subscription on this site was created against the old
+    // public key -- the push service will reject all of them forever under
+    // the new key pair, with no way to recover them. Expire them now rather
+    // than letting the active subscriber count silently drift until each
+    // one eventually fails a real send.
+    const expiredCount = await this.sitesRepository.expireActiveSubscribers(id);
+
     await this.auditService.log({
       actorUserId: actorUserId ?? null,
       action: "site.vapid_generated",
       targetType: "site",
       targetId: updated.id,
+      metadata: { expiredSubscriberCount: expiredCount },
     });
 
     return updated;

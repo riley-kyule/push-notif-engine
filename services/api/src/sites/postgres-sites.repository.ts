@@ -389,4 +389,12 @@ export class PostgresSitesRepository implements SitesRepository {
   async recordConnection(id: string): Promise<void> {
     await this.pool.query("UPDATE sites SET last_connected_at = NOW() WHERE id = $1", [id]);
   }
+
+  async expireActiveSubscribers(siteId: string): Promise<number> {
+    const result = await this.pool.query(
+      "UPDATE subscribers SET status = 'expired', updated_at = NOW() WHERE site_id = $1 AND status = 'active'",
+      [siteId],
+    );
+    return result.rowCount ?? 0;
+  }
 }

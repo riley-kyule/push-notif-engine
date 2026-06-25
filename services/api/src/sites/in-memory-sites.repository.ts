@@ -141,4 +141,11 @@ export class InMemorySitesRepository implements SitesRepository {
     }
     this.sites.set(id, { ...existing, lastConnectedAt: new Date() });
   }
+
+  // This fake only models sites, not subscribers -- tests that need to
+  // assert on expiry behavior inject their own fake SitesRepository
+  // directly (see sites.service.spec.ts) rather than relying on this one.
+  async expireActiveSubscribers(_siteId: string): Promise<number> {
+    return 0;
+  }
 }
