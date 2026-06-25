@@ -10,6 +10,18 @@ import type { CampaignMediaRepository } from "./campaign-media.repository";
 import type { CampaignMediaUploadFile } from "./campaign-media-file.type";
 import type { CampaignMediaStoragePort } from "./campaign-media-storage.port";
 import type { CampaignMediaKind, CampaignMediaRecord, CampaignMediaUploadResult } from "./campaign-media.types";
+import { detectImageMimeType } from "./image-type-sniffer";
+
+// Extensions are derived from the *detected* format, not the client-supplied
+// original filename -- an attacker-controlled ".svg" or ".html" extension on
+// a file that actually sniffs as PNG bytes would otherwise reach storage and
+// could change how some servers/CDNs decide to serve it back.
+const EXTENSION_BY_MIME_TYPE: Record<string, string> = {
+  "image/png": ".png",
+  "image/jpeg": ".jpg",
+  "image/gif": ".gif",
+  "image/webp": ".webp",
+};
 
 const MAX_MEDIA_SIZE_BYTES = 5 * 1024 * 1024;
 
@@ -35,22 +47,27 @@ export class CampaignMediaService {
     if (!input.file) {
       throw new BadRequestException("File is required");
     }
-    if (!input.file.mimetype.startsWith("image/")) {
-      throw new BadRequestException("Only image files can be uploaded");
-    }
     if (input.file.size > MAX_MEDIA_SIZE_BYTES) {
       throw new BadRequestException("Uploaded images must be 5 MB or smaller");
     }
 
+    // The client-supplied mimetype is just a request header an attacker
+    // controls -- detect the real format from the file's own bytes instead,
+    // and store/serve that detected type, never the claimed one.
+    const detectedMimeType = detectImageMimeType(input.file.buffer);
+    if (!detectedMimeType) {
+      throw new BadRequestException("Only PNG, JPEG, GIF, or WebP image files can be uploaded");
+    }
+
     const assetId = randomUUID();
-    const extension = extname(input.file.originalname) || ".bin";
+    const extension = EXTENSION_BY_MIME_TYPE[detectedMimeType] ?? ".bin";
     const storagePath = `campaign-media/${assetId}${extension}`;
     const publicUrl = `${this.getApiBaseUrl().replace(/\/$/, "")}/campaign-media/${assetId}/file`;
 
     await this.campaignMediaStorage.upload({
       key: storagePath,
       body: input.file.buffer,
-      contentType: input.file.mimetype,
+      contentType: detectedMimeType,
     });
 
     const asset = await this.campaignMediaRepository.create({
@@ -59,7 +76,7 @@ export class CampaignMediaService {
       campaignId: null,
       kind: input.kind,
       originalName: sanitizeFileName(input.file.originalname),
-      mimeType: input.file.mimetype,
+      mimeType: detectedMimeType,
       sizeBytes: input.file.size,
       storagePath,
       publicUrl,

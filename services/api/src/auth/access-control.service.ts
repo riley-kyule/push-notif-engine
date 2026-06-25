@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import crypto from "node:crypto";
 
 import { AuditService } from "../audit/audit.service";
@@ -38,6 +38,20 @@ export interface AccessControlRoleRecord extends RoleRecord {}
 // Skips visually similar characters (0/O, 1/l/I) so a password read aloud or
 // typed by hand from a screenshot doesn't trip people up.
 const PASSWORD_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+
+// Lower number = more privileged. The access-control controller only
+// requires "super-admin" or "admin" at the route level, so without this an
+// admin could PATCH any user's role to "super-admin" -- including their own
+// -- and grant themselves full control. An actor may only assign a role at
+// or below their own rank, and only super-admin can touch super-admin.
+const ROLE_RANK: Record<RoleSlug, number> = {
+  "super-admin": 0,
+  admin: 1,
+  "sub-admin": 2,
+  "customer-service": 3,
+  editor: 3,
+  analyst: 3,
+};
 
 function generatePassword(length = 14): string {
   const bytes = crypto.randomBytes(length);
@@ -121,6 +135,23 @@ export class AccessControlService {
   }
 
   async updateUserRole(userId: string, role: RoleSlug, actorUserId?: string): Promise<AccessControlUserRecord> {
+    if (actorUserId) {
+      const actor = await this.authRepository.findUserById(actorUserId);
+      const actorRank = actor ? ROLE_RANK[actor.role] : undefined;
+      if (actorRank === undefined) {
+        throw new ForbiddenException("Unable to verify actor role");
+      }
+
+      if (ROLE_RANK[role] < actorRank) {
+        throw new ForbiddenException("Cannot grant a role more privileged than your own");
+      }
+
+      const target = await this.authRepository.findUserById(userId);
+      if (target && ROLE_RANK[target.role] < actorRank) {
+        throw new ForbiddenException("Cannot change the role of a user more privileged than you");
+      }
+    }
+
     const user = await this.authRepository.updateUserRole(userId, role);
     if (!user) {
       throw new NotFoundException("User not found");

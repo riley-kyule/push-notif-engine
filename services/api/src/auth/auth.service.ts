@@ -9,6 +9,17 @@ import { PasswordService } from "./password.service";
 import { TokenService } from "./token.service";
 import { AuditService } from "../audit/audit.service";
 
+// Both inputs are SHA-256 hex digests (64 chars), but length is still
+// checked explicitly -- timingSafeEqual throws on a length mismatch rather
+// than returning false, and a stored hash should never legitimately differ
+// in length from a freshly computed one anyway.
+function timingSafeEqualHex(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  return crypto.timingSafeEqual(Buffer.from(a, "hex"), Buffer.from(b, "hex"));
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -121,7 +132,7 @@ export class AuthService {
       throw new UnauthorizedException("Refresh token revoked");
     }
 
-    if (storedToken.tokenHash !== this.hashToken(refreshToken)) {
+    if (!timingSafeEqualHex(storedToken.tokenHash, this.hashToken(refreshToken))) {
       throw new UnauthorizedException("Refresh token mismatch");
     }
 
@@ -151,6 +162,30 @@ export class AuthService {
     await this.authRepository.recordLastLogin(user.id, new Date());
 
     return result;
+  }
+
+  // Without this, logging out only cleared the dashboard's cookies -- the
+  // refresh token itself stayed valid server-side for its full 30-day
+  // lifetime, so a copy of it captured before logout (XSS, a synced device,
+  // a shared machine) could still mint fresh access tokens indefinitely.
+  async logout(refreshToken: string): Promise<void> {
+    let jti: string | undefined;
+    try {
+      jti = this.tokenService.verifyRefreshToken(refreshToken).jti;
+    } catch {
+      // An already-invalid/expired token has nothing to revoke -- logout
+      // should still succeed from the caller's point of view either way.
+      return;
+    }
+
+    if (!jti) {
+      return;
+    }
+
+    const storedToken = await this.authRepository.findRefreshTokenById(jti);
+    if (storedToken && !storedToken.revokedAt) {
+      await this.authRepository.revokeRefreshToken(storedToken.id);
+    }
   }
 
   async getCurrentUser(userId: string): Promise<AuthenticatedUser> {

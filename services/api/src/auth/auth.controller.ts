@@ -44,6 +44,14 @@ export class AuthController {
     return { success: true, data: current };
   }
 
+  @Post("logout")
+  @UseGuards(JwtAuthGuard)
+  @RateLimit({ limit: 30, ttl: 60_000 })
+  async logout(@Body() dto: RefreshTokenDto): Promise<{ success: true; data: { loggedOut: true } }> {
+    await this.authService.logout(dto.refreshToken);
+    return { success: true, data: { loggedOut: true } };
+  }
+
   @Get("admin-only")
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("super-admin", "admin")
