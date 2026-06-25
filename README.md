@@ -24,6 +24,7 @@ Not a SaaS product. Not multi-tenant. Built for Exotic's own sites only.
 - [Other platform integrations](#other-platform-integrations)
 - [Production deployment](#production-deployment)
 - [Infrastructure runbooks](#infrastructure-runbooks)
+- [Security](#security)
 - [Testing](#testing)
 - [Known gaps](#known-gaps)
 
@@ -161,6 +162,7 @@ A "site" is one Exotic-owned website. Each site has its own VAPID key pair — g
 - `POST /api/sites/:id/rest-api-credentials` — generates the site-scoped REST API key id and auth token for CRM integrations.
 - `GET/PATCH /api/sites/:id`, `GET /api/sites`. Once a site has a key pair, `PATCH` rejects a `vapidPublicKey` change unless `vapidPrivateKey` is sent in the same request (`SitesService.updateSite`) — the push service validates them as a pair, so changing one alone desyncs it from the other and breaks every existing subscriber's delivery with an unexplained 403, the same failure pattern as a real key rotation but with no warning. The dashboard's site edit form locks the public key field entirely once a site has one configured; `generate-vapid` (above) is the only supported way to change it, since it replaces both keys together and warns about the consequence first.
 - `DELETE /api/sites/:id` — super-admin only. The site must already be `inactive` (rejects with 400 otherwise) since campaigns and subscribers reference it by foreign key. Audit-logged. The dashboard exposes this as a "Delete Site" button on the site detail page.
+- The sites list's first column is the site's icon, so a site missing one is immediately visible while scanning the table instead of only discoverable by opening each site individually.
 
 ### REST API credentials
 
@@ -207,6 +209,15 @@ Two service worker implementations carry this logic and must be kept in sync if 
 - The inline SW served by `integrations/wordpress/epe-push/epe-push.php` at `/push-sw.js` on every WordPress site running the plugin. **This is the one that matters in production** — it's what actually runs on the 110+ WP sites.
 
 `push_delivery_events.status` lifecycle: `pending → sent → delivered` (or `failed`/`expired` instead of `delivered`). `clicked_at` is a separate timestamp, independent of status.
+
+### Scaling to large sends
+
+A single dispatch (one campaign, one automation fire, one segment) can fan out to hundreds of thousands of subscribers on a popular site, and the worker is built to take that without falling over:
+
+- The recipient list is processed in batches of 5,000 (`SEND_BATCH_SIZE` in `browser-push.processor.ts`/`mobile-push.processor.ts`) instead of one giant in-memory array and one giant bulk insert for the whole job — bounds peak memory and keeps any single SQL statement a reasonable size.
+- Pending delivery rows are inserted with `ON CONFLICT (job_id, subscriber_id) DO UPDATE` (migration `030_delivery_event_idempotency.sql`). Without this, a worker process killed mid-job (a deploy's PM2 restart, an OOM) followed by BullMQ's stalled-job retry would insert a brand new pending row per recipient on every retry instead of reusing the row from the previous attempt — at scale that both piles up duplicate rows and queues a second real push send to recipients the first attempt had already reached.
+- The BullMQ `Worker`'s `lockDuration` is explicit (10 minutes) rather than the 30-second default, so a brief Redis hiccup delaying one lock renewal doesn't flag a long-running, hundred-thousand-recipient job as stalled and hand it to a second concurrent attempt.
+- Queue producers cap completed/failed job retention (`removeOnComplete`/`removeOnFail`) so Redis memory can't grow unbounded from job history at sustained send volume.
 
 ## Mobile push
 
@@ -311,15 +322,28 @@ All read from `push_delivery_events`, `subscribers`, and `campaigns` — no sepa
 - `GET /api/analytics/time-performance?days=30` — hour-by-hour delivery and click volume in UTC.
 - `GET /api/analytics/content-performance?days=30` — campaign performance grouped by controlled content taxonomy.
 - `GET /api/analytics/failed-deliveries?siteId=&pushType=campaign|automation|manual&reason=&limit=&offset=` — the individual `push_delivery_events` rows behind the "Failed deliveries" count, not just the aggregate. Each row resolves which push actually caused it: `campaign_id` set → `pushType: "campaign"` with the campaign's name; `automation_id` set → `"automation"` with the automation's name; neither → `"manual"` (a one-off `POST /browser-push/dispatch`, no campaign or automation attached). `push_delivery_events.automation_id` is set by `WorkflowService.executeAction` whenever a `send_notification` action dispatches — it didn't exist before this column was added, so deliveries recorded before that migration show as `"manual"` even if an automation actually sent them. `GET /api/analytics/failed-deliveries/reasons` returns the distinct `error_code`/`error_message` combinations with counts, for the reason filter dropdown. The dashboard's `/analytics/failures` page is the filterable table UI for this (site, push type, and reason as real dropdowns, the same list-controls pattern as every other list page) — it's what "Failed deliveries" on the analytics/home overview cards links to.
+- `GET /api/analytics/peak-hours?days=30&siteId=` — new-subscriber and click-through activity broken down by hour-of-day (0-23, UTC+3) across the whole selected range, for "when should we actually schedule sends." Distinct from `time-performance` above: that one shows a trend over the range (one point per day/hour-of-that-day), this one collapses every day in the range onto the same 24 hour-of-day buckets to reveal a recurring pattern. With `siteId`, it's that site's real totals; without one, every site's numbers are computed independently and **averaged**, not summed, so one large site can't single-handedly define what "all sites" looks like.
 - `GET /api/analytics/export?report=content-performance&days=30&format=csv|xlsx|pdf` — export for the current analytics views.
 - The export menu on the analytics performance card (the icon next to the report tabs) also offers **Export to Google Sheets**, which pushes the active report straight into a new spreadsheet instead of downloading a file.
 - The dashboard now has dedicated `/analytics`, `/segments`, `/automations`, and `/workflow` surfaces covering reporting, audience targeting, event-driven rules, and RSS management.
-- The analytics command center uses a full-width performance card with interactive line charts, compact date presets plus custom ranges, and comparison mode. Chart hover and keyboard navigation reveal the exact point being inspected.
 - Reporting drilldowns stay scoped to the selected site unless `All Sites` is selected, and the campaign panel lets editors switch campaign context without leaving the page.
 
 **Click-through rate is computed against successfully handed-off pushes (`sent + delivered`), not against total attempts.** A push that failed or expired was never shown to anyone, so it shouldn't dilute the CTR denominator.
 
-This is still a staged analytics layer — country, site, time-of-day, and controlled content-taxonomy reporting are live, and export formats now include CSV, Excel, PDF, and Google Sheets. See [Known gaps](#known-gaps).
+### Dashboard analytics structure
+
+The single, crowded `/analytics` page from earlier in the project has been split into dedicated routes, reachable through an expandable "Analytics" group in the sidebar instead of one generic link:
+
+- **`/analytics`** — a lean overview: summary cards, a delivery-trend chart reacting to the selected range, the full date-range/comparison picker, and quick-link cards into every detailed report.
+- **`/analytics/sites`**, **`/analytics/countries`**, **`/analytics/content`**, **`/analytics/time`** — each a dedicated, single-report page reusing the same chart/table explorer component, each with its own range picker and comparison mode (see below). `/analytics/time` also shows the "Best times to send" peak-hours panel.
+- **`/analytics/failures`** — the filterable failed-deliveries table (site, push type, reason). No date-range picker — it's a different shape (a filtered raw event list, not an aggregate-by-something breakdown).
+- **`/analytics/campaigns`** — drill into one campaign's own sent/delivered/clicked/CTR. No date-range picker either — a campaign has its own send date, not a sweep range to filter by.
+
+**Custom date ranges filter by the actual calendar dates selected**, not a day count. Every report endpoint above accepts `startDate`/`endDate` (in addition to `days`) and, when given, filters `created_at` against the precise UTC instant those dates represent in UTC+3 (the timezone every other admin-facing timestamp in the dashboard now uses — see [Dashboard](#dashboard)), computed in application code rather than cast inside SQL, which would otherwise resolve in whatever timezone the Postgres session happens to be in. Before this, every report (including the overview) silently converted a custom range into "the last N days from right now," so picking, say, a specific week from two months ago actually showed last week's data instead — this is fixed at the source for every report listed above.
+
+**Comparison mode** (previous period, or a second custom range) is available on the overview and on Sites, Countries, Content, and Time, rendered with the same `AnalyticsComparisonCard` component everywhere so the comparison view looks identical regardless of which report it's on.
+
+This is still a staged analytics layer — country, site, time-of-day, peak-hours, and controlled content-taxonomy reporting are live, and export formats include CSV, Excel, PDF, and Google Sheets. See [Known gaps](#known-gaps).
 
 ### Setting up "Export to Google Sheets"
 
@@ -336,9 +360,10 @@ Until that redirect URI is registered and the env var is set, the export menu st
 
 ## Dashboard
 
-Next.js 15 App Router. Pages: `/` (overview), `/analytics`, `/sites`, `/sites/new`, `/sites/:id`, `/sites/:id/edit`, `/campaigns`, `/campaigns/new`, `/campaigns/:id`, `/campaign-taxonomies`, `/subscribers`, `/subscribers/:id`, `/segments`, `/automations`, `/workflow`, `/audit-logs`, `/platform-health`, `/platform/backup-config`, `/access-control`, `/login`.
+Next.js 15 App Router. Pages: `/` (overview), `/analytics` (+ `/analytics/sites`, `/countries`, `/content`, `/time`, `/failures`, `/campaigns`), `/sites`, `/sites/new`, `/sites/:id`, `/sites/:id/edit`, `/campaigns`, `/campaigns/new`, `/campaigns/:id`, `/campaign-taxonomies`, `/subscribers`, `/subscribers/:id`, `/segments`, `/automations`, `/workflow`, `/audit-logs`, `/platform-health`, `/platform/backup-config`, `/access-control`, `/login`.
 
 - **Auth:** `middleware.ts` gates every route except `/login` and `/api/dashboard/auth/*` on the presence of the `epe_access_token` cookie.
+- **Date/time formatting is standardized**: every admin-facing timestamp (Last Seen, joined dates, audit log entries, platform health, backup history, etc.) renders as `dd/mm/yyyy-hh:mm:ss` in UTC+3 via `app/_components/format-date.ts`'s `formatDisplayDateTime`/`formatDisplayDate`, regardless of the server's or browser's own locale/timezone. A campaign's `Scheduled At` is the one exception — it's shown in the **target site's own local timezone** (`formatDisplayDateTimeInZone`) instead, since "when did I actually tell this site's campaign to fire" is the more useful reading there than an admin's own UTC+3. This is purely a display concern — the worker's actual send timing already used each site's real IANA timezone before this (see [Campaigns](#campaigns)) and is unaffected.
 - **Data fetching:** server components call the real NestJS API directly via `lib/server-api.ts`'s `apiFetch`/`apiJson`, which attach the Bearer token from the cookie automatically.
 - **Client-side mutations** (forms, action buttons) go through `/api/dashboard/*` route handlers, which proxy to the NestJS API with the same cookie-based auth. None of these routes touch Postgres directly — they're a thin pass-through layer.
 - **Fallback data:** several `_data/*.ts` files keep small hardcoded fallback objects (e.g. `fallbackSiteChoices`) used only if the API call fails or returns nothing — this is what lets the dashboard render something reasonable in a broken-API scenario, not a feature to rely on. This silent fallback is exactly what made a real bug invisible in production: `ListAutomationsQueryDto` was missing `@Type(() => Number)` on `limit`/`offset` (every sibling list DTO has it), so the real `GET /automations` call failed validation on every request and `/automations` rendered the hardcoded `fallbackAutomations` mock entries (`automation-1`/`automation-2`, fake non-UUID ids) indistinguishably from real data — clicking Edit/Delete/Pause on them then 500'd against the real API, since those ids don't exist. If a page looks populated but every mutation on it 500s, check whether the list endpoint behind it is actually erroring and being masked by a fallback before assuming the mutation logic itself is broken.
@@ -356,8 +381,8 @@ Next.js 15 App Router. Pages: `/` (overview), `/analytics`, `/sites`, `/sites/ne
 - Injects the SDK (`assets/epe-sdk.js`) on every page via `wp_enqueue_scripts`.
 - Admin settings page (`Settings → EPE Push`): API URL and Site Key only. Branding and opt-in prompt settings live in the EPE site settings and are fetched automatically.
 - The SDK renders the custom EPE opt-in prompt, so sites do not rely on the native browser permission prompt as the primary user-facing experience.
-- Once a browser is subscribed, the SDK shows a bottom-left bell launcher with recent notifications and an unsubscribe action. The tray count is controlled per site in EPE.
-- The SDK handles the full subscribe flow: register the service worker → request notification permission → `PushManager.subscribe()` with the site's VAPID key → POST the resulting subscription to `/api/subscribers/register`.
+- Once a browser is subscribed, the SDK shows a small, low-opacity bottom-left bell launcher (an inline SVG icon, not an emoji) with recent notifications and an unsubscribe action. The tray count is controlled per site in EPE. The launcher's position-avoidance heuristic only reacts to elements actually flush against the bottom edge now — the old, looser check treated any tall fixed/sticky element merely overlapping that corner (off-canvas nav drawers, full-height overlays many themes leave in the DOM) as something to dodge, which could push the bell to the top of the page or off-screen entirely.
+- The SDK handles the full subscribe flow: register the service worker → request notification permission → `PushManager.subscribe()` with the site's VAPID key → POST the resulting subscription to `/api/subscribers/register`. If the browser already has an active subscription from before a VAPID key rotation, the SDK unsubscribes it first rather than reusing it as-is — `pushManager.subscribe()` otherwise just hands back the existing (now-mismatched) subscription, which silently fails every send afterward even though the subscriber row gets created successfully (the "count goes up, push never arrives" symptom).
 - Site Settings → Integrations → REST API provides per-site API key and auth token credentials for CRM-managed push and scheduling use cases. The auth token is shown only once when generated.
 - An `epe_push_engine_csp_nonce` filter lets a host site inject its CSP nonce into both the inline config script and the SDK `<script>` tag, for sites running a strict Content-Security-Policy.
 - The SDK fires a `page_visit` workflow trigger on every page load via the public `/workflow/track` endpoint (see [Workflow automation](#workflow-automation)).
@@ -371,6 +396,8 @@ WordPress has a working installable plugin (see [WordPress plugin](#wordpress-pl
 - **Magento** — a production module scaffold under [`integrations/magento/Exotic/PushEngine/`](integrations/magento/Exotic/PushEngine/), installed through the normal Magento module pipeline.
 - **Node.js** — [`integrations/node/`](integrations/node/README.md). `mountEpePush(app, config, express.static)` registers `/push-sw.js`, `/manifest.json`, and the SDK on an Express app in one line; framework-agnostic generator functions are also exported for everything else.
 - **Laravel** — [`integrations/laravel/`](integrations/laravel/README.md). `composer require epe/laravel-starter` registers the same three routes automatically — `manifest.json` and `push-sw.js` are generated from config on every request, never a stale published file.
+
+All four integrations vendor the exact same `epe-sdk.js` (the WordPress plugin's copy is the source of truth — re-copy it into the other three if you fix something in one). The Node and Laravel READMEs' `apiUrl`/`EPE_API_URL` examples no longer suggest an `/api` suffix — the backend has no such prefix, and that suffix would 404 every request.
 
 `docs/phase-2-6-*.md` are the original planning notes for these, now pointing at the packages above.
 
@@ -397,13 +424,28 @@ The dashboard's `Platform Health` page also exposes two guarded maintenance acti
 - `Minor Update` for the pull-and-restart path
 - `Core Update` for the full install/build/migrate/restart path
 
-That panel also shows the local VM commit and the current GitHub `main` commit so you can see whether the VM is behind before triggering an update.
+That panel also shows the local VM commit and the current GitHub `main` commit so you can see whether the VM is behind before triggering an update. `scripts/pm2-restart.sh` deliberately delays the actual `pm2 restart` by 5 seconds so it doesn't kill the very process sending the deploy action's HTTP response — the panel accounts for this: after the script finishes, it polls a `GET /api/health/deployment/pm2-status` endpoint (backed by `pm2 jlist`) for up to ~40 seconds, then shows each process's real status/uptime/restarts/memory and a toast confirming `epe-api`, `epe-worker`, and `epe-dashboard` actually came back online — not just that the deploy script itself exited 0.
 
 ## Infrastructure runbooks
 
 - [VM setup checklist](./VM_SETUP.md) — Proxmox VM sizing, Ubuntu bootstrap commands, package install order, environment file layout, PM2 startup, and Nginx reverse proxy wiring.
 - [Proxmox remote access guide](./PROXMOX.md) — VPN-first access model plus the hardened port-forwarding fallback.
 - [VM update + Cloudflare Tunnel runbook](./docs/vm-cloudflare-tunnel.md) — safe git update flow on the VM, PM2 restart helper usage, dashboard/API timeout behavior, and public access through `push.exotic-online.com`.
+
+## Security
+
+A full audit pass (auth/authorization, injection surfaces, secrets/headers/dependencies) was run across the API, dashboard, and worker. What it found and fixed:
+
+- **Privilege escalation (critical, fixed):** `PATCH /api/access-control/users/:id/role` only required `super-admin` or `admin` at the route level, with no check that the actor wasn't granting a role above their own — an admin could promote any user, including themselves, to super-admin. `AccessControlService.updateUserRole` now enforces a role-rank check: an actor can only assign a role at or below their own rank, and can't change the role of a user already more privileged than they are.
+- **No server-side logout (high, fixed):** logging out only cleared the dashboard's cookies; the refresh token itself stayed valid server-side for its full 30-day lifetime regardless, so a copy captured before logout (XSS, a shared machine, a synced browser) kept working. `POST /api/auth/logout` now revokes it, called by the dashboard's logout route before clearing cookies.
+- **SSRF on admin-supplied URLs (fixed):** RSS feed polling and automation webhook actions fetch a URL an admin configured, with nothing stopping that URL from pointing at an internal service or a cloud metadata endpoint (`169.254.169.254`). `services/api/src/common/ssrf-guard.ts`'s `assertSafeFetchTarget` resolves the hostname and rejects private/loopback/link-local/reserved ranges, re-checked immediately before every fetch (not just when the URL was saved) so DNS rebinding can't repoint an initially-public hostname at an internal one later.
+- **File upload content-type spoofing (fixed):** campaign media uploads validated only the client-supplied `Content-Type` header — fully attacker-controlled — so an SVG (script-capable markup) could be uploaded claiming to be a PNG and served back with that claimed type. `services/api/src/campaign-media/image-type-sniffer.ts` detects the real format from the file's own magic bytes (PNG/JPEG/GIF/WebP only, no SVG/XML path at all) and that detected type is what gets stored and served, never the claimed one.
+- **Missing security headers (fixed):** the API now runs `helmet()` (HSTS, `X-Content-Type-Options`, a restrictive CSP, etc.); the dashboard's `next.config.mjs` sets `X-Frame-Options`, `Referrer-Policy`, `Strict-Transport-Security`, and `Permissions-Policy`. Neither existed before.
+- **Timing-unsafe comparison (fixed):** refresh token hash matching used `!==` on a SHA-256 digest; now `crypto.timingSafeEqual`. (The REST API site-key-id comparison flagged in the same pass was reviewed and left as-is — that ID is a public identifier, not a secret; the actual secret comparison there already goes through `argon2.verify`, which is timing-safe.)
+- **Dependency vulnerabilities (fixed):** a stale lockfile plus a transitive `multer`/`uuid` pin had accumulated several known CVEs (multer DoS, uuid buffer bounds, a `next`/`postcss` XSS advisory). Root `package.json` now pins `overrides` for `multer`/`uuid`; a clean reinstall resolved the rest. `npm audit` reports zero vulnerabilities as of this pass.
+- **Reviewed, confirmed safe by design:** SQL injection (every query is parameterized; the few dynamic `ORDER BY`/segment-filter builders use a fixed column allowlist, never raw interpolation of user input); command injection (`execFile` with argv arrays only, never a shell string, and only fixed script paths/args — the deployment actions panel never lets user input reach argv); mass assignment (global `ValidationPipe` has `whitelist: true` + `forbidNonWhitelisted: true`); the unauthenticated `GET /campaign-media/:id/file` endpoint (intentionally public — these are images embedded in push notifications shown to anonymous subscribers' browsers, not private documents); CORS (dynamically validated against registered site URLs, not a wildcard).
+- **Already solid, no change needed:** Argon2 password hashing, JWT access/refresh separation with rotation, Google ID token verification (audience/issuer/email-verified checks), rate limiting on auth and public endpoints, audit logging coverage, and the global exception filter never leaking stack traces to the client.
+- **Accepted, bounded risk:** an access token retains its embedded role for up to its own 15-minute lifetime even if the user is demoted or deactivated in that window (refresh tokens already re-check current role/`isActive` on every refresh, so this can't extend past 15 minutes). Postgres connection SSL isn't explicitly enforced — acceptable given the deployment model (Postgres runs alongside the API on the same single VPS, not reached over the public internet).
 
 ## Testing
 
