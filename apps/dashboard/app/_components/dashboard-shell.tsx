@@ -11,7 +11,20 @@ export const dashboardNavigationSections: DashboardNavSection[] = [
     label: "Dashboard",
     items: [
       { href: "/", label: "Overview", description: "Your at-a-glance summary", icon: "overview" },
-      { href: "/analytics", label: "Analytics", description: "See how your campaigns and sites are performing", icon: "analytics" },
+      {
+        href: "/analytics",
+        label: "Analytics",
+        description: "See how your campaigns and sites are performing",
+        icon: "analytics",
+        children: [
+          { href: "/analytics/sites", label: "Sites", description: "Compare delivery and CTR across sites", icon: "sites" },
+          { href: "/analytics/countries", label: "Countries", description: "Performance grouped by subscriber country", icon: "reporting" },
+          { href: "/analytics/content", label: "Content", description: "Performance by content category", icon: "campaigns" },
+          { href: "/analytics/time", label: "Time", description: "Delivery volume over the day or range", icon: "reporting" },
+          { href: "/analytics/failures", label: "Failures", description: "Every failed delivery, filterable by site, push, and reason", icon: "health" },
+          { href: "/analytics/campaigns", label: "Campaigns", description: "Drill into one campaign's performance", icon: "campaigns" },
+        ],
+      },
       { href: "/subscribers", label: "Subscribers", description: "Everyone who can receive your notifications", icon: "subscribers" },
     ],
   },

@@ -277,6 +277,48 @@ a.nav-item[aria-current="page"] {
   color: #d6d3d1;
 }
 
+.nav-item-group {
+  display: grid;
+  gap: 4px;
+}
+
+button.nav-item--group {
+  appearance: none;
+  border: 1px solid transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.nav-item--group:hover,
+.nav-item--group-active {
+  background: var(--sidebar-hover);
+  border-color: rgba(255, 255, 255, 0.04);
+}
+
+.nav-group-chevron {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: #a8a29e;
+  transition: transform 120ms ease;
+}
+
+.nav-group-chevron--open {
+  transform: rotate(-180deg);
+}
+
+.nav-subitems {
+  display: grid;
+  gap: 3px;
+  padding-left: 22px;
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+  margin-left: 19px;
+}
+
+.nav-subitems .nav-item-label {
+  font-size: 11.5px;
+}
+
 .sidebar-footer {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   padding-top: 12px;
@@ -2810,7 +2852,9 @@ a.nav-item[aria-current="page"] {
 
 .dashboard-shell.is-collapsed .nav-item-copy,
 .dashboard-shell.is-collapsed .nav-pill,
-.dashboard-shell.is-collapsed .nav-item-description {
+.dashboard-shell.is-collapsed .nav-item-description,
+.dashboard-shell.is-collapsed .nav-group-chevron,
+.dashboard-shell.is-collapsed .nav-subitems {
   display: none;
 }
 
