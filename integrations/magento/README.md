@@ -39,3 +39,4 @@ Allow at minimum:
 - Browser push only.
 - No Docker assumptions.
 - No native app push.
+- The vendored `epe-sdk.js` is the same file shipped by the WordPress plugin (the source of truth) and the Node/Laravel starters — re-copy it from there if it's updated upstream rather than editing this copy independently.
