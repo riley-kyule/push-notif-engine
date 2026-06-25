@@ -11,6 +11,10 @@ import type { CampaignMediaUploadFile } from "./campaign-media-file.type";
 // than silently falling back to a broken 127.0.0.1 default.
 process.env.PUBLIC_API_BASE_URL ??= "https://api.example.com/api";
 
+// uploadMedia() now sniffs the real format from file content instead of
+// trusting the client-supplied mimetype, so fixtures need real magic bytes.
+const PNG_BYTES = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("fake-png-body")]);
+
 function createStorage(): CampaignMediaStoragePort & { entries: Map<string, Buffer> } {
   const entries = new Map<string, Buffer>();
   return {
@@ -61,10 +65,10 @@ test("campaign media service uploads image assets to object storage", async () =
     siteId: "site-1",
     kind: "image",
     file: {
-      buffer: Buffer.from("media-bytes"),
+      buffer: PNG_BYTES,
       mimetype: "image/png",
       originalname: "hero image.png",
-      size: 11,
+      size: PNG_BYTES.length,
     } as CampaignMediaUploadFile,
   });
 
@@ -73,7 +77,38 @@ test("campaign media service uploads image assets to object storage", async () =
   assert.equal(result.publicUrl.includes(result.id), true);
   const asset = repository.assets[0];
   assert.ok(asset);
-  assert.equal(storage.entries.get(asset.storagePath)?.toString("utf8"), "media-bytes");
+  assert.equal(asset.mimeType, "image/png");
+  assert.ok(storage.entries.get(asset.storagePath)?.equals(PNG_BYTES));
+});
+
+test("campaign media service rejects an upload whose content doesn't match a known image format", async () => {
+  const repository = new InMemoryCampaignMediaRepository();
+  const storage = createStorage();
+  const service = new CampaignMediaService(
+    {
+      async getSite() {
+        return { id: "site-1" };
+      },
+    } as never,
+    repository as never,
+    storage,
+  );
+
+  await assert.rejects(
+    () =>
+      service.uploadMedia({
+        siteId: "site-1",
+        kind: "image",
+        file: {
+          buffer: Buffer.from("<svg onload=alert(1)></svg>"),
+          mimetype: "image/svg+xml",
+          originalname: "totally-a-photo.png",
+          size: 28,
+        } as CampaignMediaUploadFile,
+      }),
+    /Only PNG, JPEG, GIF, or WebP/,
+  );
+  assert.equal(repository.assets.length, 0);
 });
 
 test("campaign media service lists gallery assets for a site, newest first, optionally filtered by kind", async () => {

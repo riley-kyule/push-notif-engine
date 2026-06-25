@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 
+import { assertSafeFetchTarget } from "../common/ssrf-guard";
 import { BrowserPushService } from "../browser-push/browser-push.service";
 import { AutomationsService } from "../automations/automations.service";
 import type { AutomationAction, AutomationRecord, AutomationTriggerEvent } from "../automations/automations.types";
@@ -205,11 +206,17 @@ export class WorkflowService {
   }
 
   async pollFeed(feed: RssFeedRecord): Promise<void> {
+    // Re-checked at fetch time, not just when the feed was created -- the
+    // hostname could resolve to a public IP then but to an internal one now
+    // (DNS rebinding), and re-validating here is what actually closes that.
+    await assertSafeFetchTarget(feed.feedUrl);
+
     const response = await fetch(feed.feedUrl, {
       headers: {
         "user-agent": "ExoticPushEngine/1.0 (+https://github.com/riley-kyule/push-notif-engine)",
         accept: "application/rss+xml, application/xml, text/xml, */*",
       },
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!response.ok) {
@@ -335,6 +342,9 @@ export class WorkflowService {
       return;
     }
 
+    // Re-checked at fetch time for the same DNS-rebinding reason as pollFeed.
+    await assertSafeFetchTarget(action.url);
+
     const response = await fetch(action.url, {
       method: action.method,
       headers: { "content-type": "application/json" },
@@ -347,6 +357,7 @@ export class WorkflowService {
         payload: context.payload,
         actionPayload: action.payload,
       }),
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!response.ok) {

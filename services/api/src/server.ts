@@ -2,6 +2,7 @@ import "reflect-metadata";
 
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
+import helmet from "helmet";
 import { Pool } from "pg";
 
 import { AppModule } from "./app.module";
@@ -15,6 +16,22 @@ export async function createApiApp() {
   });
 
   app.enableShutdownHooks();
+
+  // This API never serves HTML itself, but helmet's defaults (HSTS,
+  // X-Content-Type-Options, X-Frame-Options, a restrictive CSP, etc.) cost
+  // nothing for a JSON API and close off header-based attacks against any
+  // browser that does end up rendering a response directly (an error page,
+  // a misconfigured proxy, a future endpoint that does serve HTML).
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'none'"],
+          frameAncestors: ["'none'"],
+        },
+      },
+    }),
+  );
 
   const pool = app.get<Pool>(DATABASE_POOL);
   const corsOrigins = (process.env.CORS_ORIGINS ?? "")

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import dns from "node:dns";
 import test from "node:test";
 
 import { createFakeAuditService } from "../audit/audit.service.fake";
@@ -140,10 +141,19 @@ test("workflow service polls RSS feeds and emits rss_item_published events", asy
       { status: 200, headers: { "content-type": "application/rss+xml" } },
     )) as never;
 
+  // assertSafeFetchTarget (SSRF guard) does a real DNS lookup before every
+  // fetch -- stub it to a public IP so this test doesn't depend on actual
+  // network/DNS access.
+  const originalLookup = dns.promises.lookup;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (dns.promises as any).lookup = async () => [{ address: "93.184.216.34", family: 4 }];
+
   try {
     await workflowService.pollFeed(feed);
   } finally {
     globalWithFetch.fetch = originalFetch;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (dns.promises as any).lookup = originalLookup;
   }
 
   assert.equal(repository.events.length, 1);

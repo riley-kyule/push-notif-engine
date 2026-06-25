@@ -75,6 +75,59 @@ test("auth service logs in and rotates refresh tokens", async () => {
   assert.notEqual(refreshed.tokens.refreshToken, session.tokens.refreshToken);
 });
 
+test("auth service logout revokes the refresh token so it can no longer mint new sessions", async () => {
+  const passwordService = new PasswordService();
+  const tokenService = new TokenService();
+  const passwordHash = await passwordService.hash("Password123!");
+
+  const user: AuthUserRecord = {
+    id: "user-1",
+    firstName: "Admin",
+    lastName: "User",
+    username: "adminuser",
+    email: "admin@example.com",
+    name: "Admin User",
+    passwordHash,
+    role: "admin",
+    isActive: true,
+    authProvider: "local",
+    googleSubject: null,
+    emailVerifiedAt: null,
+    lastLoginAt: null,
+  };
+
+  const repository = new InMemoryAuthRepository({ roles: [role], users: [user] });
+  const auditService = {
+    async log() {
+      return undefined;
+    },
+  } as unknown as AuditService;
+  const googleIdentityService = {
+    async verifyIdToken() {
+      throw new Error("not expected");
+    },
+  };
+
+  const authService = new AuthService(repository, passwordService, tokenService, googleIdentityService as never, auditService);
+
+  const session = await authService.login("admin@example.com", "Password123!");
+  await authService.logout(session.tokens.refreshToken);
+
+  await assert.rejects(() => authService.refreshTokens(session.tokens.refreshToken), /revoked/i);
+});
+
+test("auth service logout on an already-invalid token does not throw", async () => {
+  const passwordService = new PasswordService();
+  const tokenService = new TokenService();
+  const repository = new InMemoryAuthRepository({ roles: [role], users: [] });
+  const auditService = { async log() { return undefined; } } as unknown as AuditService;
+  const googleIdentityService = { async verifyIdToken() { throw new Error("not expected"); } };
+
+  const authService = new AuthService(repository, passwordService, tokenService, googleIdentityService as never, auditService);
+
+  await assert.doesNotReject(() => authService.logout("not-a-real-token"));
+});
+
 test("auth service links and logs in with google identity", async () => {
   const passwordService = new PasswordService();
   const tokenService = new TokenService();

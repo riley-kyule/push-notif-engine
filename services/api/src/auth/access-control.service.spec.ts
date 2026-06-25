@@ -8,7 +8,8 @@ import type { RoleRecord } from "./auth.repository";
 
 const roles: RoleRecord[] = [
   { id: "role-1", slug: "super-admin", name: "Super Admin", permissions: ["roles:manage"] },
-  { id: "role-2", slug: "sub-admin", name: "Sub-Admin", permissions: ["sites:manage"] },
+  { id: "role-2", slug: "admin", name: "Admin", permissions: [] },
+  { id: "role-3", slug: "sub-admin", name: "Sub-Admin", permissions: ["sites:manage"] },
 ];
 
 test("access control service can create users and update roles", async () => {
@@ -72,4 +73,47 @@ test("access control service resets a user's password and returns the new plaint
   const stored = await repository.findUserById(created.id);
   assert.equal(await passwordService.verify(stored!.passwordHash!, reset.password), true);
   assert.equal(await passwordService.verify(stored!.passwordHash!, created.password), false);
+});
+
+test("an admin cannot promote anyone to super-admin", async () => {
+  const repository = new InMemoryAuthRepository({ roles });
+  const passwordService = new PasswordService();
+  const auditService = { async log() { return undefined; } };
+  const service = new AccessControlService(repository as never, passwordService, auditService as never);
+
+  const adminActor = await service.createUser({ email: "admin-actor@example.com", firstName: "Ad", lastName: "Min", role: "admin" }, undefined);
+  const target = await service.createUser({ email: "target@example.com", firstName: "Tar", lastName: "Get", role: "sub-admin" }, undefined);
+
+  await assert.rejects(
+    () => service.updateUserRole(target.id, "super-admin", adminActor.id),
+    /Cannot grant a role more privileged than your own/,
+  );
+});
+
+test("an admin cannot change the role of an existing super-admin", async () => {
+  const repository = new InMemoryAuthRepository({ roles });
+  const passwordService = new PasswordService();
+  const auditService = { async log() { return undefined; } };
+  const service = new AccessControlService(repository as never, passwordService, auditService as never);
+
+  const adminActor = await service.createUser({ email: "admin-actor-2@example.com", firstName: "Ad", lastName: "Min", role: "admin" }, undefined);
+  const superAdminTarget = await service.createUser({ email: "super@example.com", firstName: "Su", lastName: "Per", role: "super-admin" }, undefined);
+
+  await assert.rejects(
+    () => service.updateUserRole(superAdminTarget.id, "admin", adminActor.id),
+    /Cannot change the role of a user more privileged than you/,
+  );
+});
+
+test("a super-admin can promote a user to admin", async () => {
+  const repository = new InMemoryAuthRepository({ roles });
+  const passwordService = new PasswordService();
+  const auditService = { async log() { return undefined; } };
+  const service = new AccessControlService(repository as never, passwordService, auditService as never);
+
+  const superAdminActor = await service.createUser({ email: "root@example.com", firstName: "Ro", lastName: "Ot", role: "super-admin" }, undefined);
+  const target = await service.createUser({ email: "promote-me@example.com", firstName: "Pro", lastName: "Mote", role: "sub-admin" }, undefined);
+
+  const updated = await service.updateUserRole(target.id, "admin", superAdminActor.id);
+  assert.equal(updated.role, "admin");
 });
