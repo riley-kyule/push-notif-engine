@@ -32,8 +32,8 @@ export class AnalyticsService {
     return this.analyticsRepository.getSubscriberGrowth(siteId, days);
   }
 
-  async getOverview(days = 30) {
-    return this.analyticsRepository.getOverview(days);
+  async getOverview(days = 30, siteId?: string) {
+    return this.analyticsRepository.getOverview(days, siteId);
   }
 
   async getCountryPerformance(days = 30, siteId?: string) {

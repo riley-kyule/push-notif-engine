@@ -39,7 +39,8 @@ interface OverviewApiResponse {
   data: DashboardOverview;
 }
 
-export async function getDashboardOverview(days = 30): Promise<DashboardOverview> {
-  const response = await apiJson<OverviewApiResponse>(`/analytics/overview?days=${days}`);
+export async function getDashboardOverview(days = 30, siteId?: string): Promise<DashboardOverview> {
+  const query = siteId ? `/analytics/overview?days=${days}&siteId=${encodeURIComponent(siteId)}` : `/analytics/overview?days=${days}`;
+  const response = await apiJson<OverviewApiResponse>(query);
   return response?.data ?? emptyOverview;
 }
