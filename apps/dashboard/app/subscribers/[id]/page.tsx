@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { DashboardShell } from "../../_components/dashboard-shell";
+import { formatDisplayDateTime } from "../../_components/format-date";
 import { getSubscriber } from "../../_data/subscribers";
 
 export default async function SubscriberDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -40,6 +41,10 @@ export default async function SubscriberDetailPage({ params }: { params: Promise
           <h3>Status</h3>
           <p className={`badge ${subscriber.status}`}>{subscriber.status}</p>
         </article>
+        <article className="card">
+          <h3>Last seen (UTC+3)</h3>
+          <p className="stat">{subscriber.lastSeenAt ? formatDisplayDateTime(subscriber.lastSeenAt) : "Never"}</p>
+        </article>
       </section>
 
       <section className="card" style={{ marginTop: 18 }}>
@@ -52,7 +57,7 @@ export default async function SubscriberDetailPage({ params }: { params: Promise
                 <span className={`badge ${event.status}`}>{event.status}</span>
               </div>
               <p className="subtle" style={{ marginBottom: 0 }}>
-                {event.timestamp} · {event.channel.toUpperCase()} · {event.status}
+                {formatDisplayDateTime(event.timestamp)} · {event.channel.toUpperCase()} · {event.status}
               </p>
             </article>
           ))}

@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { postJson } from "../../lib/api-client";
+import { formatDisplayDateTime } from "../_components/format-date";
 import { useToast } from "../_components/toast";
 import type { SiteChoice } from "../_data/sites";
 import type { AutomationStatus, AutomationSummary, AutomationTriggerEvent } from "../_data/automations";
@@ -177,7 +178,7 @@ export function AutomationManager({ sites, automations }: { sites: SiteChoice[];
   }
 
   function formatDate(value: string): string {
-    return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+    return formatDisplayDateTime(value);
   }
 
   return (

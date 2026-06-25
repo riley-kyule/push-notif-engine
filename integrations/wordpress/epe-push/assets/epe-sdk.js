@@ -9,6 +9,12 @@
     bellOffset: 20,
   };
 
+  var BELL_ICON_SVG =
+    '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+    '<path d="M12 4.5a4.5 4.5 0 0 0-4.5 4.5v2.7c0 .9-.32 1.78-.9 2.48L5.4 15.5a1 1 0 0 0 .77 1.64h11.66a1 1 0 0 0 .77-1.64l-1.2-1.32a3.8 3.8 0 0 1-.9-2.48V9a4.5 4.5 0 0 0-4.5-4.5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>' +
+    '<path d="M9.8 19.5a2.3 2.3 0 0 0 4.4 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>' +
+    "</svg>";
+
   if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
     return;
   }
@@ -337,16 +343,24 @@
       .epe-optin-launcher {
         position: fixed;
         z-index: 2147483000;
-        width: 58px;
-        height: 58px;
+        width: 40px;
+        height: 40px;
         border-radius: 999px;
         border: 0;
         cursor: pointer;
-        box-shadow: 0 18px 36px rgba(15, 23, 42, 0.28);
+        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
         display: grid;
         place-items: center;
-        font-size: 24px;
-        line-height: 1;
+        opacity: 0.85;
+        transition: opacity 0.15s ease, transform 0.15s ease;
+      }
+      .epe-optin-launcher:hover {
+        opacity: 1;
+        transform: scale(1.05);
+      }
+      .epe-optin-launcher svg {
+        width: 18px;
+        height: 18px;
       }
       .epe-notification-tray {
         position: fixed;
@@ -425,22 +439,61 @@
     document.head.appendChild(style);
   }
 
+  function subscriptionKeyMatches(subscription, desiredKeyBytes) {
+    try {
+      var existingKey = subscription.options && subscription.options.applicationServerKey;
+      if (!existingKey) {
+        return false;
+      }
+      var existingBytes = new Uint8Array(existingKey);
+      if (existingBytes.length !== desiredKeyBytes.length) {
+        return false;
+      }
+      for (var i = 0; i < existingBytes.length; i++) {
+        if (existingBytes[i] !== desiredKeyBytes[i]) {
+          return false;
+        }
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   function registerSubscription(registration) {
     if (!config.apiUrl || !getSiteKey() || !config.vapidPublicKey) {
       return Promise.resolve(null);
     }
 
+    var desiredKey = decodeBase64Url(config.vapidPublicKey);
+
     return registration.pushManager
       .getSubscription()
       .then(function (existing) {
-        if (existing) {
+        if (existing && subscriptionKeyMatches(existing, desiredKey)) {
           return existing;
         }
 
-        return registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: decodeBase64Url(config.vapidPublicKey),
-        });
+        var subscribeFresh = function () {
+          return registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: desiredKey,
+          });
+        };
+
+        // pushManager.subscribe() returns an already-active subscription
+        // as-is, even if it was created under a since-rotated VAPID key --
+        // it does NOT renegotiate the key pair. Sends signed with the
+        // current private key are then rejected by the push service and
+        // never reach the browser, even though registerSubscription still
+        // succeeds and a subscriber row gets created. Tearing down a
+        // key-mismatched subscription first forces a fresh one under the
+        // current key.
+        if (existing) {
+          return existing.unsubscribe().then(subscribeFresh);
+        }
+
+        return subscribeFresh();
       })
       .then(function (subscription) {
         if (!subscription) {
@@ -787,7 +840,7 @@
     bell.setAttribute("aria-label", "Open recent notifications");
     bell.style.background = config.optInPromptApproveButtonBackgroundColor || "#ea580c";
     bell.style.color = config.optInPromptApproveButtonTextColor || "#ffffff";
-    bell.textContent = "🔔";
+    bell.innerHTML = BELL_ICON_SVG;
     bell.addEventListener("click", function () {
       if (state.tray) {
         removeTray();
@@ -813,7 +866,7 @@
     bell.setAttribute("aria-label", "Open notification prompt");
     bell.style.background = config.optInPromptApproveButtonBackgroundColor || "#ea580c";
     bell.style.color = config.optInPromptApproveButtonTextColor || "#ffffff";
-    bell.textContent = "🔔";
+    bell.innerHTML = BELL_ICON_SVG;
     bell.addEventListener("click", function () {
       showPrompt(registration);
       removeLauncher();

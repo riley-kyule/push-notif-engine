@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import Link from "next/link";
 
 import { DashboardShell } from "../_components/dashboard-shell";
+import { formatDisplayDateTime } from "../_components/format-date";
 import { getPlatformHealthBadge, getPlatformHealthSummary, getPlatformHealthTone, summarizePlatformHealth } from "../_data/platform-health";
 import { getSiteChoices } from "../_data/sites";
 import { DataCleanupPanel } from "./data-cleanup-panel";
@@ -50,7 +51,7 @@ export default async function PlatformHealthPage() {
               <p className="eyebrow">Health summary</p>
               <h3>Current platform state</h3>
             </div>
-            <p className="subtle">Last checked {health.checkedAt ? new Date(health.checkedAt).toLocaleString() : "just now"}</p>
+            <p className="subtle">Last checked {health.checkedAt ? formatDisplayDateTime(health.checkedAt) : "just now"}</p>
           </div>
 
           <div className="platform-health-copy">
@@ -185,7 +186,7 @@ export default async function PlatformHealthPage() {
                   <div>
                     <strong>{worker.label}</strong>
                     <span>
-                      {worker.lastSeenAt ? `Last seen ${new Date(worker.lastSeenAt).toLocaleTimeString()}` : "No heartbeat"}
+                      {worker.lastSeenAt ? `Last seen ${formatDisplayDateTime(worker.lastSeenAt)}` : "No heartbeat"}
                       {" · "}
                       {Math.round(worker.uptimeMs / 1000).toLocaleString()}s uptime
                       {" · "}

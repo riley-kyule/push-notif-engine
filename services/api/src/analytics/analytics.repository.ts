@@ -114,6 +114,7 @@ interface HourPerformanceRow {
   total_clicked: string;
 }
 
+
 interface ContentPerformanceRow {
   content_type: string;
   total_campaigns: string;
@@ -561,6 +562,89 @@ export class AnalyticsRepository {
         totalClicked,
         deliveryRate: totalAttempts > 0 ? Math.round((totalDelivered / totalAttempts) * 10000) / 100 : 0,
         clickThroughRate: successfullyHandedOff > 0 ? Math.round((totalClicked / successfullyHandedOff) * 10000) / 100 : 0,
+      };
+    });
+  }
+
+  // Hour-of-day (0-23, UTC+3 -- the timezone the team actually schedules
+  // sends in) aggregated across the whole range, collapsing every day onto
+  // the same 24 buckets. This is what answers "when do people subscribe and
+  // engage," which a day-by-day or single-day-hourly bucket (getTimePerformance)
+  // can't: that one shows a trend over time, this shows a recurring pattern.
+  async getPeakHours(days: number, siteId?: string): Promise<
+    Array<{
+      hour: number;
+      newSubscribers: number;
+      totalDelivered: number;
+      totalSent: number;
+      totalClicked: number;
+      clickThroughRate: number;
+    }>
+  > {
+    const subscriberParams: Array<string | number> = siteId ? [days, siteId] : [days];
+    const subscriberSiteFilter = siteId ? "AND site_id = $2" : "";
+
+    const { rows: subscriberRows } = await this.pool.query<{ hour_of_day: string; new_subscribers: string }>(
+      `
+      SELECT
+        EXTRACT(HOUR FROM created_at AT TIME ZONE 'Etc/GMT-3') AS hour_of_day,
+        COUNT(*) AS new_subscribers
+      FROM subscribers
+      WHERE created_at >= NOW() - ($1 || ' days')::interval
+      ${subscriberSiteFilter}
+      GROUP BY hour_of_day
+      `,
+      subscriberParams,
+    );
+
+    const eventParams: Array<string | number> = siteId ? [days, siteId] : [days];
+    const eventSiteFilter = siteId ? "AND site_id = $2" : "";
+
+    const { rows: eventRows } = await this.pool.query<{
+      hour_of_day: string;
+      total_delivered: string;
+      total_sent: string;
+      total_clicked: string;
+    }>(
+      `
+      SELECT
+        EXTRACT(HOUR FROM created_at AT TIME ZONE 'Etc/GMT-3') AS hour_of_day,
+        COUNT(*) FILTER (WHERE status = 'delivered') AS total_delivered,
+        COUNT(*) FILTER (WHERE status = 'sent') AS total_sent,
+        COUNT(*) FILTER (WHERE clicked_at IS NOT NULL) AS total_clicked
+      FROM push_delivery_events
+      WHERE created_at >= NOW() - ($1 || ' days')::interval
+      ${eventSiteFilter}
+      GROUP BY hour_of_day
+      `,
+      eventParams,
+    );
+
+    const subscribersByHour = new Map<number, number>();
+    for (const row of subscriberRows) {
+      subscribersByHour.set(Math.trunc(Number(row.hour_of_day)), parseInt(row.new_subscribers ?? "0", 10));
+    }
+
+    const eventsByHour = new Map<number, { totalDelivered: number; totalSent: number; totalClicked: number }>();
+    for (const row of eventRows) {
+      eventsByHour.set(Math.trunc(Number(row.hour_of_day)), {
+        totalDelivered: parseInt(row.total_delivered ?? "0", 10),
+        totalSent: parseInt(row.total_sent ?? "0", 10),
+        totalClicked: parseInt(row.total_clicked ?? "0", 10),
+      });
+    }
+
+    return Array.from({ length: 24 }, (_, hour) => {
+      const events = eventsByHour.get(hour) ?? { totalDelivered: 0, totalSent: 0, totalClicked: 0 };
+      const successfullyHandedOff = events.totalSent + events.totalDelivered;
+
+      return {
+        hour,
+        newSubscribers: subscribersByHour.get(hour) ?? 0,
+        totalDelivered: events.totalDelivered,
+        totalSent: events.totalSent,
+        totalClicked: events.totalClicked,
+        clickThroughRate: successfullyHandedOff > 0 ? Math.round((events.totalClicked / successfullyHandedOff) * 10000) / 100 : 0,
       };
     });
   }

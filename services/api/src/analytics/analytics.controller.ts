@@ -99,6 +99,12 @@ export class AnalyticsController {
     return { success: true, data: performance };
   }
 
+  @Get("peak-hours")
+  async getPeakHours(@Query("days") days?: string, @Query("siteId") siteId?: string): Promise<{ success: true; data: unknown }> {
+    const performance = await this.analyticsService.getPeakHours(days ? parseInt(days, 10) : 30, siteId);
+    return { success: true, data: performance };
+  }
+
   @Get("content-performance")
   async getContentPerformance(@Query("days") days?: string, @Query("siteId") siteId?: string): Promise<{ success: true; data: unknown }> {
     const performance = await this.analyticsService.getContentPerformance(days ? parseInt(days, 10) : 30, siteId);

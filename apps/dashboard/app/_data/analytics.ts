@@ -52,6 +52,24 @@ export interface TimePerformanceSummary {
   clickThroughRate: number;
 }
 
+// Hour-of-day (0-23, UTC+3) aggregated across the whole selected range --
+// the same hour on every day in range is collapsed into one bucket, so this
+// answers "what time of day" rather than "which day."
+export interface PeakHourSummary {
+  hour: number;
+  newSubscribers: number;
+  totalDelivered: number;
+  totalSent: number;
+  totalClicked: number;
+  clickThroughRate: number;
+}
+
+export function formatHourOfDayLabel(hour: number): string {
+  const start = String(hour).padStart(2, "0");
+  const end = String((hour + 1) % 24).padStart(2, "0");
+  return `${start}:00-${end}:00`;
+}
+
 // Hourly buckets (single-day range) -> "HH:00". Within a week -> weekday
 // name. Longer ranges -> day-of-month with month, matching how far apart
 // the buckets actually are.
@@ -254,6 +272,30 @@ function fallbackTimePerformance(days: number): TimePerformanceSummary[] {
       totalClicked: cyclicalIndex % 3 === 0 ? 260 + cyclicalIndex * 12 : 60 + cyclicalIndex * 5,
       deliveryRate: cyclicalIndex % 4 === 0 ? 93 : 84,
       clickThroughRate: cyclicalIndex % 3 === 0 ? 6.2 : 2.8,
+    };
+  });
+}
+
+function fallbackPeakHours(): PeakHourSummary[] {
+  return Array.from({ length: 24 }, (_, hour) => {
+    // Loosely shaped like real-world engagement: a morning bump, a bigger
+    // evening peak, and a quiet overnight trough -- enough to demo the
+    // insight panel when the API is unreachable.
+    const eveningPeak = Math.exp(-((hour - 19) ** 2) / 18);
+    const morningPeak = Math.exp(-((hour - 8) ** 2) / 10);
+    const activity = Math.max(eveningPeak, morningPeak * 0.7);
+    const newSubscribers = Math.round(20 + activity * 180);
+    const totalSent = Math.round(400 + activity * 3200);
+    const totalDelivered = Math.round(totalSent * 0.94);
+    const totalClicked = Math.round(totalDelivered * (0.04 + activity * 0.05));
+    const successfullyHandedOff = totalSent + totalDelivered;
+    return {
+      hour,
+      newSubscribers,
+      totalDelivered,
+      totalSent,
+      totalClicked,
+      clickThroughRate: successfullyHandedOff > 0 ? Math.round((totalClicked / successfullyHandedOff) * 10000) / 100 : 0,
     };
   });
 }
@@ -487,5 +529,12 @@ export async function getTimePerformancePage(days: AnalyticsDays, siteId?: strin
   return getAnalyticsApiList<TimePerformanceSummary>(
     `/analytics/time-performance?days=${days}${siteId ? `&siteId=${encodeURIComponent(siteId)}` : ""}`,
     fallbackTimePerformance(days),
+  );
+}
+
+export async function getPeakHoursPage(days: AnalyticsDays, siteId?: string): Promise<PeakHourSummary[]> {
+  return getAnalyticsApiList<PeakHourSummary>(
+    `/analytics/peak-hours?days=${days}${siteId ? `&siteId=${encodeURIComponent(siteId)}` : ""}`,
+    fallbackPeakHours(),
   );
 }

@@ -17,7 +17,7 @@ boots, generated from your config on every request.
 Set the two required values in `.env`:
 
 ```
-EPE_API_URL=https://push.example.com/api
+EPE_API_URL=https://push.example.com
 EPE_SITE_KEY=your-site-uuid
 ```
 

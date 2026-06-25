@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDisplayDateTime } from "../_components/format-date";
 import { useToast } from "../_components/toast";
 
 import { useEffect, useState, useTransition } from "react";
@@ -302,7 +303,7 @@ export function MobilePushPanel({ site }: { site: SiteSummary }) {
                 <td>{device.platform === "ios" ? "iOS" : "Android"}</td>
                 <td>{device.country ?? "—"}</td>
                 <td>{device.language ?? "—"}</td>
-                <td className="subtle">{device.lastSeenAt ? new Date(device.lastSeenAt).toLocaleString() : "Never"}</td>
+                <td className="subtle">{device.lastSeenAt ? formatDisplayDateTime(device.lastSeenAt) : "Never"}</td>
                 <td>
                   <span className={`badge ${device.status}`}>{device.status}</span>
                 </td>

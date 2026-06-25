@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { formatDisplayDateTime } from "../_components/format-date";
 import { SortableHeader } from "../_components/list-controls";
 import type { SubscriberSummary } from "../_data/subscribers";
 
@@ -25,7 +26,7 @@ export function SubscribersTable({
             <SortableHeader basePath={basePath} currentParams={currentParams} field="deviceType" label="Device" />
             <SortableHeader basePath={basePath} currentParams={currentParams} field="country" label="Country" />
             <th>Language</th>
-            <SortableHeader basePath={basePath} currentParams={currentParams} field="lastSeenAt" label="Last Seen" />
+            <SortableHeader basePath={basePath} currentParams={currentParams} field="lastSeenAt" label="Last Seen (UTC+3)" />
             <SortableHeader basePath={basePath} currentParams={currentParams} field="status" label="Status" />
           </tr>
         </thead>
@@ -42,7 +43,7 @@ export function SubscribersTable({
               <td>{subscriber.deviceType}</td>
               <td>{subscriber.country}</td>
               <td>{subscriber.language}</td>
-              <td className="subtle">{subscriber.lastSeenAt}</td>
+              <td className="subtle">{subscriber.lastSeenAt ? formatDisplayDateTime(subscriber.lastSeenAt) : "Never"}</td>
               <td>
                 <span className={`badge ${subscriber.status}`}>{subscriber.status}</span>
               </td>

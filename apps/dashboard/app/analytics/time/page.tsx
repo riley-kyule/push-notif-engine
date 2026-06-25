@@ -2,7 +2,14 @@ import Link from "next/link";
 
 import { DashboardShell } from "../../_components/dashboard-shell";
 import { FilterSelect } from "../../_components/list-controls";
-import { formatTimeBucketLabel, getTimePerformancePage, normalizeDays } from "../../_data/analytics";
+import {
+  formatHourOfDayLabel,
+  formatTimeBucketLabel,
+  getPeakHoursPage,
+  getTimePerformancePage,
+  normalizeDays,
+  type PeakHourSummary,
+} from "../../_data/analytics";
 import { getSiteChoices } from "../../_data/sites";
 import { AnalyticsDaysFilter } from "../analytics-days-filter";
 import { AnalyticsPerformanceExplorer, type ExplorerSection } from "../analytics-performance-explorer";
@@ -15,6 +22,17 @@ function formatPercent(value: number): string {
   return `${value}%`;
 }
 
+function topHoursBySubscribers(peakHours: PeakHourSummary[], count: number): PeakHourSummary[] {
+  return [...peakHours].sort((a, b) => b.newSubscribers - a.newSubscribers).slice(0, count);
+}
+
+function topHoursByCtr(peakHours: PeakHourSummary[], count: number): PeakHourSummary[] {
+  return [...peakHours]
+    .filter((entry) => entry.totalSent + entry.totalDelivered > 0)
+    .sort((a, b) => b.clickThroughRate - a.clickThroughRate)
+    .slice(0, count);
+}
+
 export default async function TimePerformancePage({
   searchParams,
 }: {
@@ -22,13 +40,16 @@ export default async function TimePerformancePage({
 }) {
   const query = await searchParams;
   const days = normalizeDays(query.days);
-  const [timePerformance, sites] = await Promise.all([
+  const [timePerformance, peakHours, sites] = await Promise.all([
     getTimePerformancePage(days, query.siteId),
+    getPeakHoursPage(days, query.siteId),
     getSiteChoices(),
   ]);
   const realSites = sites.filter((site) => site.id !== "site-3");
 
   const currentParams = { days: String(days), siteId: query.siteId };
+  const bestSubscriptionHours = topHoursBySubscribers(peakHours, 3);
+  const bestCtrHours = topHoursByCtr(peakHours, 3);
 
   const section: ExplorerSection = {
     key: "time",
@@ -67,6 +88,48 @@ export default async function TimePerformancePage({
         </Link>
       }
     >
+      <section className="card analytics-panel" style={{ marginBottom: 18 }}>
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">Best times to send (UTC+3)</p>
+            <h3>High-activity hours over the last {days === 1 ? "day" : `${days} days`}</h3>
+          </div>
+        </div>
+        <div className="grid cards-2">
+          <article className="card" style={{ boxShadow: "none", background: "var(--surface-raised)" }}>
+            <h4 style={{ marginTop: 0 }}>Most new subscriptions</h4>
+            {bestSubscriptionHours.every((entry) => entry.newSubscribers === 0) ? (
+              <p className="subtle">No subscriptions recorded in this window yet.</p>
+            ) : (
+              <ol style={{ margin: 0, paddingLeft: 20 }}>
+                {bestSubscriptionHours.map((entry) => (
+                  <li key={entry.hour}>
+                    <strong>{formatHourOfDayLabel(entry.hour)}</strong> — {formatNumber(entry.newSubscribers)} new subscribers
+                  </li>
+                ))}
+              </ol>
+            )}
+          </article>
+          <article className="card" style={{ boxShadow: "none", background: "var(--surface-raised)" }}>
+            <h4 style={{ marginTop: 0 }}>Highest click-through rate</h4>
+            {bestCtrHours.length === 0 ? (
+              <p className="subtle">No delivered pushes recorded in this window yet.</p>
+            ) : (
+              <ol style={{ margin: 0, paddingLeft: 20 }}>
+                {bestCtrHours.map((entry) => (
+                  <li key={entry.hour}>
+                    <strong>{formatHourOfDayLabel(entry.hour)}</strong> — {formatPercent(entry.clickThroughRate)} CTR
+                  </li>
+                ))}
+              </ol>
+            )}
+          </article>
+        </div>
+        <p className="subtle" style={{ marginTop: 12, marginBottom: 0 }}>
+          Hour-of-day pattern across the whole range, in UTC+3 — schedule campaigns and automations around these windows for the best reach and engagement.
+        </p>
+      </section>
+
       <AnalyticsPerformanceExplorer
         sections={[section]}
         controls={

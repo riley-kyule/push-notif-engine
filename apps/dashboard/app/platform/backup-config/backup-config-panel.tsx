@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 
+import { formatDisplayDate, formatDisplayDateTime } from "../../_components/format-date";
 import { useToast } from "../../_components/toast";
 
 type BackupProvider = "dropbox" | "google_drive";
@@ -188,7 +189,7 @@ export function BackupConfigPanel({
         </article>
         <article className="card backup-summary-card">
           <p className="subtle">Latest successful backup</p>
-          <p className="stat">{latestSuccessfulRun ? new Date(latestSuccessfulRun.startedAt).toLocaleDateString() : "—"}</p>
+          <p className="stat">{latestSuccessfulRun ? formatDisplayDate(latestSuccessfulRun.startedAt) : "—"}</p>
         </article>
       </section>
 
@@ -260,7 +261,7 @@ export function BackupConfigPanel({
 
                     {provider.nextBackupDueAt ? (
                       <p className="subtle" style={{ marginTop: 8 }}>
-                        Next automatic backup: {new Date(provider.nextBackupDueAt).toLocaleString()}
+                        Next automatic backup: {formatDisplayDateTime(provider.nextBackupDueAt)}
                       </p>
                     ) : null}
                   </div>
@@ -292,7 +293,7 @@ export function BackupConfigPanel({
                 <span className="subtle">{run.trigger}</span>
                 <span className="mono subtle">{run.errorMessage ?? run.fileName ?? "—"}</span>
                 <span className="subtle">{formatBytes(run.sizeBytes)}</span>
-                <span className="subtle">{new Date(run.startedAt).toLocaleString()}</span>
+                <span className="subtle">{formatDisplayDateTime(run.startedAt)}</span>
               </div>
             ))}
           </div>

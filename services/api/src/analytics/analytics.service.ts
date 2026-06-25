@@ -48,6 +48,10 @@ export class AnalyticsService {
     return this.analyticsRepository.getTimePerformance(days, siteId);
   }
 
+  async getPeakHours(days = 30, siteId?: string) {
+    return this.analyticsRepository.getPeakHours(days, siteId);
+  }
+
   async getContentPerformance(days = 30, siteId?: string) {
     return this.analyticsRepository.getContentPerformance(days, siteId);
   }
