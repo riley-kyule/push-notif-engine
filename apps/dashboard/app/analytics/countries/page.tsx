@@ -2,10 +2,11 @@ import Link from "next/link";
 
 import { DashboardShell } from "../../_components/dashboard-shell";
 import { FilterSelect } from "../../_components/list-controls";
-import { getCountryPerformancePage, normalizeDays } from "../../_data/analytics";
+import { getCountryPerformancePage, resolveAnalyticsRange, type CountryPerformanceSummary } from "../../_data/analytics";
 import { getSiteChoices } from "../../_data/sites";
-import { AnalyticsDaysFilter } from "../analytics-days-filter";
+import { AnalyticsComparisonCard } from "../analytics-comparison-card";
 import { AnalyticsPerformanceExplorer, type ExplorerSection } from "../analytics-performance-explorer";
+import { AnalyticsRangePicker } from "../analytics-range-picker";
 
 function formatNumber(value: number): string {
   return new Intl.NumberFormat("en-US").format(value);
@@ -15,20 +16,42 @@ function formatPercent(value: number): string {
   return `${value}%`;
 }
 
+function aggregate(rows: CountryPerformanceSummary[]) {
+  const totalSubscribers = rows.reduce((sum, row) => sum + row.totalSubscribers, 0);
+  const totalDelivered = rows.reduce((sum, row) => sum + row.totalDelivered, 0);
+  const totalSent = rows.reduce((sum, row) => sum + row.totalSent, 0);
+  const totalClicked = rows.reduce((sum, row) => sum + row.totalClicked, 0);
+  const successfullyHandedOff = totalSent + totalDelivered;
+  return {
+    totalSubscribers,
+    totalDelivered,
+    clickThroughRate: successfullyHandedOff > 0 ? Math.round((totalClicked / successfullyHandedOff) * 10000) / 100 : 0,
+  };
+}
+
 export default async function CountryPerformancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ days?: string; siteId?: string }>;
+  searchParams: Promise<{
+    days?: string;
+    siteId?: string;
+    preset?: string;
+    startDate?: string;
+    endDate?: string;
+    compareMode?: string;
+    compareStartDate?: string;
+    compareEndDate?: string;
+  }>;
 }) {
   const query = await searchParams;
-  const days = normalizeDays(query.days);
-  const [countryPerformance, sites] = await Promise.all([
-    getCountryPerformancePage(days, query.siteId),
+  const { selectedPreset, range, compareMode, comparisonRange } = resolveAnalyticsRange(query);
+
+  const [countryPerformance, comparisonCountryPerformance, sites] = await Promise.all([
+    getCountryPerformancePage(range, query.siteId),
+    comparisonRange ? getCountryPerformancePage(comparisonRange, query.siteId) : Promise.resolve(null),
     getSiteChoices(),
   ]);
   const realSites = sites.filter((site) => site.id !== "site-3");
-
-  const currentParams = { days: String(days), siteId: query.siteId };
 
   const section: ExplorerSection = {
     key: "country",
@@ -53,6 +76,9 @@ export default async function CountryPerformancePage({
     })),
   };
 
+  const currentTotals = aggregate(countryPerformance);
+  const comparisonTotals = comparisonCountryPerformance ? aggregate(comparisonCountryPerformance) : null;
+
   return (
     <DashboardShell
       eyebrow="Analytics"
@@ -64,21 +90,46 @@ export default async function CountryPerformancePage({
         </Link>
       }
     >
-      <AnalyticsPerformanceExplorer
-        sections={[section]}
-        controls={
-          <>
-            <AnalyticsDaysFilter basePath="/analytics/countries" currentParams={currentParams} days={days} />
-            <FilterSelect
-              basePath="/analytics/countries"
-              currentParams={currentParams}
-              paramKey="siteId"
-              allLabel="All sites"
-              options={realSites.map((site) => ({ value: site.id, label: site.name }))}
-            />
-          </>
-        }
-      />
+      <section className="card analytics-panel" style={{ marginBottom: 18 }}>
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">Reporting window</p>
+            <h3>{range.label}</h3>
+          </div>
+          <FilterSelect
+            basePath="/analytics/countries"
+            currentParams={{ days: String(range.days), siteId: query.siteId }}
+            paramKey="siteId"
+            allLabel="All sites"
+            options={realSites.map((site) => ({ value: site.id, label: site.name }))}
+          />
+        </div>
+        <AnalyticsRangePicker
+          selectedPreset={selectedPreset}
+          compareMode={compareMode}
+          range={range}
+          comparisonRange={comparisonRange}
+          siteId={query.siteId ?? ""}
+          campaignId={null}
+          compact
+        />
+      </section>
+
+      {comparisonTotals ? (
+        <div style={{ marginBottom: 18 }}>
+          <AnalyticsComparisonCard
+            currentLabel={range.label}
+            comparisonLabel={comparisonRange?.label ?? "Comparison period"}
+            metrics={[
+              { label: "Subscribers", current: formatNumber(currentTotals.totalSubscribers), comparison: formatNumber(comparisonTotals.totalSubscribers) },
+              { label: "Delivered", current: formatNumber(currentTotals.totalDelivered), comparison: formatNumber(comparisonTotals.totalDelivered) },
+              { label: "CTR", current: formatPercent(currentTotals.clickThroughRate), comparison: formatPercent(comparisonTotals.clickThroughRate) },
+            ]}
+          />
+        </div>
+      ) : null}
+
+      <AnalyticsPerformanceExplorer sections={[section]} />
     </DashboardShell>
   );
 }

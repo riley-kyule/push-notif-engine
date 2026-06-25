@@ -242,3 +242,45 @@ test("getPeakHours treats an hour with no activity for a site as zero, not a mis
   const hour9 = result.find((entry) => entry.hour === 9);
   assert.equal(hour9?.newSubscribers, 25);
 });
+
+test("getOverview uses an explicit start/end date range instead of the trailing-days window when given", async () => {
+  const { pool, calls } = createRowReturningFakePool([[], [], [], [], []]);
+  const repository = new AnalyticsRepository(pool as never);
+
+  await repository.getOverview(30, "site-1", { startDate: "2026-01-01", endDate: "2026-01-07" });
+
+  const deliveryCall = calls[3];
+  assert.ok(deliveryCall);
+  assert.doesNotMatch(deliveryCall.sql, /NOW\(\) - \(\$1/);
+  assert.match(deliveryCall.sql, /created_at >= \$3::timestamptz AND created_at < \$4::timestamptz/);
+  // 2026-01-01 in UTC+3 starts at 2025-12-31T21:00:00Z; the exclusive upper
+  // bound is the start of the day *after* endDate, also in UTC+3. siteId
+  // stays $2 -- the date params are appended after it, not inserted before.
+  assert.deepEqual(deliveryCall.params, [30, "site-1", "2025-12-31T21:00:00.000Z", "2026-01-07T21:00:00.000Z"]);
+});
+
+test("getCountryPerformance falls back to the trailing-days window when no explicit dates are given", async () => {
+  const { pool, calls } = createRowReturningFakePool([[]]);
+  const repository = new AnalyticsRepository(pool as never);
+
+  await repository.getCountryPerformance(7);
+
+  assert.match(calls[0]?.sql ?? "", /NOW\(\) - \(\$1 \|\| ' days'\)::interval/);
+  assert.deepEqual(calls[0]?.params, [7]);
+});
+
+test("getSitePerformance keeps the siteId placeholder stable when a date range is also provided", async () => {
+  const { pool, calls } = createRowReturningFakePool([[]]);
+  const repository = new AnalyticsRepository(pool as never);
+
+  await repository.getSitePerformance(30, "site-1", { startDate: "2026-02-01", endDate: "2026-02-02" });
+
+  const call = calls[0];
+  assert.ok(call);
+  // siteId must stay $2 in every fragment that already referenced it,
+  // regardless of the date params appended after it.
+  assert.match(call.sql, /WHERE site_id = \$2/);
+  assert.match(call.sql, /AND site_id = \$2/);
+  assert.match(call.sql, /WHERE s\.id = \$2/);
+  assert.deepEqual(call.params, [30, "site-1", "2026-01-31T21:00:00.000Z", "2026-02-02T21:00:00.000Z"]);
+});

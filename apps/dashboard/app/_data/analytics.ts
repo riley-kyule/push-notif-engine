@@ -396,7 +396,18 @@ function createAllSitesFallback(): SiteSummary {
   };
 }
 
-export async function getAnalyticsDashboardData(input: {
+// Shared by every analytics page that uses AnalyticsRangePicker -- resolves
+// the raw query-string params into a concrete current range and (if
+// requested) comparison range, the same way the overview page always has.
+export interface ResolvedAnalyticsRange {
+  days: AnalyticsDays;
+  selectedPreset: AnalyticsPreset;
+  range: AnalyticsDateRange;
+  compareMode: AnalyticsCompareMode;
+  comparisonRange: AnalyticsDateRange | null;
+}
+
+export function resolveAnalyticsRange(input: {
   days?: string;
   preset?: string;
   startDate?: string;
@@ -404,9 +415,7 @@ export async function getAnalyticsDashboardData(input: {
   compareMode?: string;
   compareStartDate?: string;
   compareEndDate?: string;
-  siteId?: string;
-  campaignId?: string;
-}): Promise<AnalyticsDashboardData> {
+}): ResolvedAnalyticsRange {
   const days = normalizeDays(input.days);
   const selectedPreset = resolvePreset({
     days,
@@ -435,6 +444,22 @@ export async function getAnalyticsDashboardData(input: {
             "Comparison period",
           )
         : null;
+
+  return { days, selectedPreset, range, compareMode, comparisonRange };
+}
+
+export async function getAnalyticsDashboardData(input: {
+  days?: string;
+  preset?: string;
+  startDate?: string;
+  endDate?: string;
+  compareMode?: string;
+  compareStartDate?: string;
+  compareEndDate?: string;
+  siteId?: string;
+  campaignId?: string;
+}): Promise<AnalyticsDashboardData> {
+  const { days, selectedPreset, range, compareMode, comparisonRange } = resolveAnalyticsRange(input);
   const [sitesPayload, campaignsPayload] = await Promise.all([
     getSiteList({ limit: ALL_SITES_FETCH_LIMIT, offset: 0 }),
     getCampaignList(),
@@ -517,42 +542,57 @@ async function getAnalyticsApiList<T>(path: string, fallback: T[]): Promise<T[]>
 // Single-report fetchers for the dedicated /analytics/* pages -- each pulls
 // only what that page needs instead of the full getAnalyticsDashboardData
 // bundle (sites, campaigns, overview, every performance breakdown at once).
+// Each takes the *resolved* range (always concrete startDate/endDate, even
+// for presets) rather than just a day count, so a custom range actually
+// filters by the calendar dates the admin picked instead of "the last N
+// days from right now."
 
-export async function getSitePerformancePage(days: AnalyticsDays, siteId?: string): Promise<SitePerformanceSummary[]> {
+function rangeQueryParams(range: AnalyticsDateRange, siteId?: string): string {
+  const search = new URLSearchParams();
+  search.set("days", String(range.days));
+  search.set("startDate", range.startDate);
+  search.set("endDate", range.endDate);
+  if (siteId) {
+    search.set("siteId", siteId);
+  }
+  return search.toString();
+}
+
+export async function getSitePerformancePage(range: AnalyticsDateRange, siteId?: string): Promise<SitePerformanceSummary[]> {
   const sitesPayload = await getSiteList({ limit: ALL_SITES_FETCH_LIMIT, offset: 0 });
   const sites = sitesPayload.items.length > 0 ? sitesPayload.items : [createAllSitesFallback()];
   return getAnalyticsApiList<SitePerformanceSummary>(
-    `/analytics/sites-performance?days=${days}${siteId ? `&siteId=${encodeURIComponent(siteId)}` : ""}`,
+    `/analytics/sites-performance?${rangeQueryParams(range, siteId)}`,
     fallbackSitePerformance(sites),
   );
 }
 
-export async function getCountryPerformancePage(days: AnalyticsDays, siteId?: string): Promise<CountryPerformanceSummary[]> {
+export async function getCountryPerformancePage(range: AnalyticsDateRange, siteId?: string): Promise<CountryPerformanceSummary[]> {
   const sitesPayload = await getSiteList({ limit: ALL_SITES_FETCH_LIMIT, offset: 0 });
   const sites = sitesPayload.items.length > 0 ? sitesPayload.items : [createAllSitesFallback()];
   return getAnalyticsApiList<CountryPerformanceSummary>(
-    `/analytics/countries?days=${days}${siteId ? `&siteId=${encodeURIComponent(siteId)}` : ""}`,
+    `/analytics/countries?${rangeQueryParams(range, siteId)}`,
     fallbackCountryPerformance(sites),
   );
 }
 
-export async function getContentPerformancePage(days: AnalyticsDays, siteId?: string): Promise<ContentPerformanceSummary[]> {
+export async function getContentPerformancePage(range: AnalyticsDateRange, siteId?: string): Promise<ContentPerformanceSummary[]> {
   return getAnalyticsApiList<ContentPerformanceSummary>(
-    `/analytics/content-performance?days=${days}${siteId ? `&siteId=${encodeURIComponent(siteId)}` : ""}`,
+    `/analytics/content-performance?${rangeQueryParams(range, siteId)}`,
     fallbackContentPerformance(),
   );
 }
 
-export async function getTimePerformancePage(days: AnalyticsDays, siteId?: string): Promise<TimePerformanceSummary[]> {
+export async function getTimePerformancePage(range: AnalyticsDateRange, siteId?: string): Promise<TimePerformanceSummary[]> {
   return getAnalyticsApiList<TimePerformanceSummary>(
-    `/analytics/time-performance?days=${days}${siteId ? `&siteId=${encodeURIComponent(siteId)}` : ""}`,
-    fallbackTimePerformance(days),
+    `/analytics/time-performance?${rangeQueryParams(range, siteId)}`,
+    fallbackTimePerformance(range.days),
   );
 }
 
-export async function getPeakHoursPage(days: AnalyticsDays, siteId?: string): Promise<PeakHourSummary[]> {
+export async function getPeakHoursPage(range: AnalyticsDateRange, siteId?: string): Promise<PeakHourSummary[]> {
   return getAnalyticsApiList<PeakHourSummary>(
-    `/analytics/peak-hours?days=${days}${siteId ? `&siteId=${encodeURIComponent(siteId)}` : ""}`,
+    `/analytics/peak-hours?${rangeQueryParams(range, siteId)}`,
     fallbackPeakHours(),
   );
 }
