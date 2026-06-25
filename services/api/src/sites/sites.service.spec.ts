@@ -265,6 +265,54 @@ test("sites service updates branding fields", async () => {
   assert.equal(updated.themeColor, "#222222");
 });
 
+test("sites service rejects changing the VAPID public key alone once a site has a key pair", async () => {
+  const repository = new InMemorySitesRepository();
+  const service = new SitesService(repository, createFakeAuditService());
+
+  const site = await service.createSite({
+    name: "Exotic News",
+    url: "https://news.example.com",
+    country: "US",
+    language: "en",
+    platform: "WordPress",
+    logoUrl: null,
+    appName: "Exotic News",
+    iconUrl: null,
+    themeColor: "#1c1917",
+    optInPromptType: "lightbox-1",
+    optInPromptAnimation: "slide-in",
+    optInPromptBackgroundColor: "#ffffff",
+    optInPromptHeadline: "Stay in the loop",
+    optInPromptHeadlineTextColor: "#111111",
+    optInPromptText: "Get important updates delivered to your browser.",
+    optInPromptTextColor: "#444444",
+    optInPromptIconUrl: null,
+    optInPromptCancelButtonLabel: "Not now",
+    optInPromptCancelButtonTextColor: "#ffffff",
+    optInPromptCancelButtonBackgroundColor: "#111111",
+    optInPromptApproveButtonLabel: "Enable",
+    optInPromptApproveButtonTextColor: "#ffffff",
+    optInPromptApproveButtonBackgroundColor: "#ea580c",
+    optInPromptRepromptDelayDays: 30,
+    vapidSubject: "mailto:push@news.example.com",
+    vapidPublicKey: "original-public-key",
+    vapidPrivateKey: "original-private-key",
+    status: "active",
+  });
+
+  await assert.rejects(
+    () => service.updateSite(site.id, { vapidPublicKey: "someone-pasted-a-different-key" }),
+    /VAPID public key/,
+  );
+
+  // Replacing both together (what the regenerate-VAPID-keys endpoint does) is fine.
+  const updated = await service.updateSite(site.id, {
+    vapidPublicKey: "new-public-key",
+    vapidPrivateKey: "new-private-key",
+  });
+  assert.equal(updated.vapidPublicKey, "new-public-key");
+});
+
 test("sites service generates rest api credentials", async () => {
   const repository = new InMemorySitesRepository();
   const service = new SitesService(repository, createFakeAuditService());

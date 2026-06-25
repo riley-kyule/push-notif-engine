@@ -159,7 +159,7 @@ A "site" is one Exotic-owned website. Each site has its own VAPID key pair — g
 - `POST /api/sites` — create. `platform` is one of `WordPress | Magento | Node.js | Laravel | Other`.
 - `POST /api/sites/:id/generate-vapid` — generates a new VAPID key pair via the `web-push` library and stores it on the site. Required before that site can register subscribers or receive pushes.
 - `POST /api/sites/:id/rest-api-credentials` — generates the site-scoped REST API key id and auth token for CRM integrations.
-- `GET/PATCH /api/sites/:id`, `GET /api/sites`.
+- `GET/PATCH /api/sites/:id`, `GET /api/sites`. Once a site has a key pair, `PATCH` rejects a `vapidPublicKey` change unless `vapidPrivateKey` is sent in the same request (`SitesService.updateSite`) — the push service validates them as a pair, so changing one alone desyncs it from the other and breaks every existing subscriber's delivery with an unexplained 403, the same failure pattern as a real key rotation but with no warning. The dashboard's site edit form locks the public key field entirely once a site has one configured; `generate-vapid` (above) is the only supported way to change it, since it replaces both keys together and warns about the consequence first.
 - `DELETE /api/sites/:id` — super-admin only. The site must already be `inactive` (rejects with 400 otherwise) since campaigns and subscribers reference it by foreign key. Audit-logged. The dashboard exposes this as a "Delete Site" button on the site detail page.
 
 ### REST API credentials

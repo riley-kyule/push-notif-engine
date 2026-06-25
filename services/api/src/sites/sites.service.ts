@@ -42,6 +42,26 @@ export class SitesService {
       await this.assertNoDuplicate(dto.url ?? existing.url, dto.name ?? existing.name, id);
     }
 
+    // The VAPID public/private keys are a pair the push service validates
+    // together -- changing one without the other desyncs them, and every
+    // existing subscriber's push starts failing with an unexplained 403
+    // (the push service rejecting the new public key's signature against
+    // a subscription created under the old one). Only allow changing the
+    // public key here if the private key isn't set yet (initial/manual
+    // onboarding) or both are being replaced together; otherwise the
+    // dedicated generate-vapid endpoint is the only path, which replaces
+    // both keys atomically.
+    if (
+      dto.vapidPublicKey !== undefined &&
+      dto.vapidPublicKey !== existing.vapidPublicKey &&
+      dto.vapidPrivateKey === undefined &&
+      existing.vapidPrivateKey
+    ) {
+      throw new BadRequestException(
+        "VAPID public key can't be changed on its own once a site has a key pair -- it would desync from the private key and break every existing subscriber's push delivery. Use the regenerate VAPID keys action instead, which replaces both keys together.",
+      );
+    }
+
     const updated = await this.sitesRepository.update(id, {
       name: dto.name ?? existing.name,
       url: dto.url ?? existing.url,
