@@ -171,3 +171,74 @@ test("listFailureReasons groups and counts distinct failure reasons", async () =
     { reason: "Unknown failure", count: 3 },
   ]);
 });
+
+test("getPeakHours returns one site's raw totals as-is when siteId is given", async () => {
+  const subscriberRows = [{ site_id: "site-1", hour_of_day: "18", new_subscribers: "40" }];
+  const eventRows = [{ site_id: "site-1", hour_of_day: "18", total_delivered: "90", total_sent: "100", total_clicked: "20" }];
+  const { pool, calls } = createRowReturningFakePool([subscriberRows, eventRows]);
+  const repository = new AnalyticsRepository(pool as never);
+
+  const result = await repository.getPeakHours(30, "site-1");
+
+  assert.match(calls[0]?.sql ?? "", /AND site_id = \$2/);
+  assert.match(calls[1]?.sql ?? "", /AND site_id = \$2/);
+
+  const hour18 = result.find((entry) => entry.hour === 18);
+  assert.deepEqual(hour18, {
+    hour: 18,
+    newSubscribers: 40,
+    totalDelivered: 90,
+    totalSent: 100,
+    totalClicked: 20,
+    clickThroughRate: 10.53,
+  });
+});
+
+test("getPeakHours averages across sites instead of summing when no siteId is given", async () => {
+  // site-1 is a big site (200 new subscribers at hour 18), site-2 is small
+  // (20) -- the average per site should be 110, not the 220 a plain sum
+  // across sites would give, so one large site doesn't dominate the
+  // cross-site "all sites" pattern.
+  const subscriberRows = [
+    { site_id: "site-1", hour_of_day: "18", new_subscribers: "200" },
+    { site_id: "site-2", hour_of_day: "18", new_subscribers: "20" },
+  ];
+  const eventRows = [
+    { site_id: "site-1", hour_of_day: "18", total_delivered: "180", total_sent: "200", total_clicked: "36" },
+    { site_id: "site-2", hour_of_day: "18", total_delivered: "18", total_sent: "20", total_clicked: "2" },
+  ];
+  const { pool, calls } = createRowReturningFakePool([subscriberRows, eventRows]);
+  const repository = new AnalyticsRepository(pool as never);
+
+  const result = await repository.getPeakHours(30);
+
+  assert.doesNotMatch(calls[0]?.sql ?? "", /AND site_id/);
+  assert.doesNotMatch(calls[1]?.sql ?? "", /AND site_id/);
+
+  const hour18 = result.find((entry) => entry.hour === 18);
+  assert.equal(hour18?.newSubscribers, 110);
+  assert.equal(hour18?.totalDelivered, 99);
+  assert.equal(hour18?.totalSent, 110);
+  assert.equal(hour18?.totalClicked, 19);
+
+  // CTR stays computed from the combined totals (38 clicks over 418
+  // sent+delivered), not averaged per-site, since it's already a ratio.
+  assert.equal(hour18?.clickThroughRate, 9.09);
+});
+
+test("getPeakHours treats an hour with no activity for a site as zero, not a missing data point", async () => {
+  // site-1 has activity at hour 9, site-2 only at hour 18 -- the average at
+  // hour 9 must divide by both sites (counting site-2 as 0), not just the
+  // one site that happened to have a row for that hour.
+  const subscriberRows = [
+    { site_id: "site-1", hour_of_day: "9", new_subscribers: "50" },
+    { site_id: "site-2", hour_of_day: "18", new_subscribers: "10" },
+  ];
+  const { pool } = createRowReturningFakePool([subscriberRows, []]);
+  const repository = new AnalyticsRepository(pool as never);
+
+  const result = await repository.getPeakHours(30);
+
+  const hour9 = result.find((entry) => entry.hour === 9);
+  assert.equal(hour9?.newSubscribers, 25);
+});

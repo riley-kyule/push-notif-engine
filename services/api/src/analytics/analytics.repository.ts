@@ -571,6 +571,12 @@ export class AnalyticsRepository {
   // the same 24 buckets. This is what answers "when do people subscribe and
   // engage," which a day-by-day or single-day-hourly bucket (getTimePerformance)
   // can't: that one shows a trend over time, this shows a recurring pattern.
+  //
+  // With a siteId, this is that one site's actual totals per hour. Without
+  // one, summing raw totals across every site would just describe whichever
+  // site happens to be biggest -- so instead every site's hourly numbers are
+  // computed independently first and then averaged together, giving each
+  // site an equal vote in what "all sites" looks like.
   async getPeakHours(days: number, siteId?: string): Promise<
     Array<{
       hour: number;
@@ -584,15 +590,16 @@ export class AnalyticsRepository {
     const subscriberParams: Array<string | number> = siteId ? [days, siteId] : [days];
     const subscriberSiteFilter = siteId ? "AND site_id = $2" : "";
 
-    const { rows: subscriberRows } = await this.pool.query<{ hour_of_day: string; new_subscribers: string }>(
+    const { rows: subscriberRows } = await this.pool.query<{ site_id: string; hour_of_day: string; new_subscribers: string }>(
       `
       SELECT
+        site_id,
         EXTRACT(HOUR FROM created_at AT TIME ZONE 'Etc/GMT-3') AS hour_of_day,
         COUNT(*) AS new_subscribers
       FROM subscribers
       WHERE created_at >= NOW() - ($1 || ' days')::interval
       ${subscriberSiteFilter}
-      GROUP BY hour_of_day
+      GROUP BY site_id, hour_of_day
       `,
       subscriberParams,
     );
@@ -601,6 +608,7 @@ export class AnalyticsRepository {
     const eventSiteFilter = siteId ? "AND site_id = $2" : "";
 
     const { rows: eventRows } = await this.pool.query<{
+      site_id: string;
       hour_of_day: string;
       total_delivered: string;
       total_sent: string;
@@ -608,6 +616,7 @@ export class AnalyticsRepository {
     }>(
       `
       SELECT
+        site_id,
         EXTRACT(HOUR FROM created_at AT TIME ZONE 'Etc/GMT-3') AS hour_of_day,
         COUNT(*) FILTER (WHERE status = 'delivered') AS total_delivered,
         COUNT(*) FILTER (WHERE status = 'sent') AS total_sent,
@@ -615,36 +624,67 @@ export class AnalyticsRepository {
       FROM push_delivery_events
       WHERE created_at >= NOW() - ($1 || ' days')::interval
       ${eventSiteFilter}
-      GROUP BY hour_of_day
+      GROUP BY site_id, hour_of_day
       `,
       eventParams,
     );
 
-    const subscribersByHour = new Map<number, number>();
+    // siteId -> hour -> value. When siteId is given, every row already
+    // belongs to that one site, so this map ends up with a single key.
+    const subscribersBySiteAndHour = new Map<string, Map<number, number>>();
     for (const row of subscriberRows) {
-      subscribersByHour.set(Math.trunc(Number(row.hour_of_day)), parseInt(row.new_subscribers ?? "0", 10));
+      const hour = Math.trunc(Number(row.hour_of_day));
+      const bySite = subscribersBySiteAndHour.get(row.site_id) ?? new Map<number, number>();
+      bySite.set(hour, parseInt(row.new_subscribers ?? "0", 10));
+      subscribersBySiteAndHour.set(row.site_id, bySite);
     }
 
-    const eventsByHour = new Map<number, { totalDelivered: number; totalSent: number; totalClicked: number }>();
+    const eventsBySiteAndHour = new Map<string, Map<number, { totalDelivered: number; totalSent: number; totalClicked: number }>>();
     for (const row of eventRows) {
-      eventsByHour.set(Math.trunc(Number(row.hour_of_day)), {
+      const hour = Math.trunc(Number(row.hour_of_day));
+      const bySite = eventsBySiteAndHour.get(row.site_id) ?? new Map<number, { totalDelivered: number; totalSent: number; totalClicked: number }>();
+      bySite.set(hour, {
         totalDelivered: parseInt(row.total_delivered ?? "0", 10),
         totalSent: parseInt(row.total_sent ?? "0", 10),
         totalClicked: parseInt(row.total_clicked ?? "0", 10),
       });
+      eventsBySiteAndHour.set(row.site_id, bySite);
     }
 
+    // The full set of sites that had any activity at all in range -- the
+    // denominator for the average. A site with zero subscribers/events at a
+    // given hour still counts as a 0 for that hour, the same as it would for
+    // a single-site report.
+    const siteIds = siteId ? [siteId] : Array.from(new Set([...subscribersBySiteAndHour.keys(), ...eventsBySiteAndHour.keys()]));
+    const siteCount = siteIds.length || 1;
+
     return Array.from({ length: 24 }, (_, hour) => {
-      const events = eventsByHour.get(hour) ?? { totalDelivered: 0, totalSent: 0, totalClicked: 0 };
-      const successfullyHandedOff = events.totalSent + events.totalDelivered;
+      let newSubscribersSum = 0;
+      let totalDeliveredSum = 0;
+      let totalSentSum = 0;
+      let totalClickedSum = 0;
+
+      for (const id of siteIds) {
+        newSubscribersSum += subscribersBySiteAndHour.get(id)?.get(hour) ?? 0;
+        const events = eventsBySiteAndHour.get(id)?.get(hour);
+        totalDeliveredSum += events?.totalDelivered ?? 0;
+        totalSentSum += events?.totalSent ?? 0;
+        totalClickedSum += events?.totalClicked ?? 0;
+      }
+
+      const newSubscribers = Math.round(newSubscribersSum / siteCount);
+      const totalDelivered = Math.round(totalDeliveredSum / siteCount);
+      const totalSent = Math.round(totalSentSum / siteCount);
+      const totalClicked = Math.round(totalClickedSum / siteCount);
+      const successfullyHandedOff = totalSentSum + totalDeliveredSum;
 
       return {
         hour,
-        newSubscribers: subscribersByHour.get(hour) ?? 0,
-        totalDelivered: events.totalDelivered,
-        totalSent: events.totalSent,
-        totalClicked: events.totalClicked,
-        clickThroughRate: successfullyHandedOff > 0 ? Math.round((events.totalClicked / successfullyHandedOff) * 10000) / 100 : 0,
+        newSubscribers,
+        totalDelivered,
+        totalSent,
+        totalClicked,
+        clickThroughRate: successfullyHandedOff > 0 ? Math.round((totalClickedSum / successfullyHandedOff) * 10000) / 100 : 0,
       };
     });
   }

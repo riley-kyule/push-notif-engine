@@ -4,6 +4,7 @@ import { DashboardShell } from "../../_components/dashboard-shell";
 import { FilterSelect } from "../../_components/list-controls";
 import {
   formatHourOfDayLabel,
+  formatHourOfDayLabelInZone,
   formatTimeBucketLabel,
   getPeakHoursPage,
   getTimePerformancePage,
@@ -46,10 +47,24 @@ export default async function TimePerformancePage({
     getSiteChoices(),
   ]);
   const realSites = sites.filter((site) => site.id !== "site-3");
+  const selectedSite = query.siteId ? realSites.find((site) => site.id === query.siteId) ?? null : null;
 
   const currentParams = { days: String(days), siteId: query.siteId };
   const bestSubscriptionHours = topHoursBySubscribers(peakHours, 3);
   const bestCtrHours = topHoursByCtr(peakHours, 3);
+
+  function renderHourLabel(hour: number) {
+    if (!selectedSite?.timezone) {
+      return formatHourOfDayLabel(hour);
+    }
+    const localLabel = formatHourOfDayLabelInZone(hour, selectedSite.timezone);
+    return (
+      <>
+        {formatHourOfDayLabel(hour)} <span className="subtle">(UTC+3)</span> · {localLabel}{" "}
+        <span className="subtle">({selectedSite.name} local)</span>
+      </>
+    );
+  }
 
   const section: ExplorerSection = {
     key: "time",
@@ -91,8 +106,11 @@ export default async function TimePerformancePage({
       <section className="card analytics-panel" style={{ marginBottom: 18 }}>
         <div className="panel-heading">
           <div>
-            <p className="eyebrow">Best times to send (UTC+3)</p>
-            <h3>High-activity hours over the last {days === 1 ? "day" : `${days} days`}</h3>
+            <p className="eyebrow">Best times to send</p>
+            <h3>
+              High-activity hours over the last {days === 1 ? "day" : `${days} days`}
+              {selectedSite ? ` for ${selectedSite.name}` : " — averaged across all sites"}
+            </h3>
           </div>
         </div>
         <div className="grid cards-2">
@@ -104,7 +122,8 @@ export default async function TimePerformancePage({
               <ol style={{ margin: 0, paddingLeft: 20 }}>
                 {bestSubscriptionHours.map((entry) => (
                   <li key={entry.hour}>
-                    <strong>{formatHourOfDayLabel(entry.hour)}</strong> — {formatNumber(entry.newSubscribers)} new subscribers
+                    <strong>{renderHourLabel(entry.hour)}</strong> — {formatNumber(entry.newSubscribers)} new subscribers
+                    {selectedSite ? "" : " (average per site)"}
                   </li>
                 ))}
               </ol>
@@ -118,7 +137,7 @@ export default async function TimePerformancePage({
               <ol style={{ margin: 0, paddingLeft: 20 }}>
                 {bestCtrHours.map((entry) => (
                   <li key={entry.hour}>
-                    <strong>{formatHourOfDayLabel(entry.hour)}</strong> — {formatPercent(entry.clickThroughRate)} CTR
+                    <strong>{renderHourLabel(entry.hour)}</strong> — {formatPercent(entry.clickThroughRate)} CTR
                   </li>
                 ))}
               </ol>
@@ -126,7 +145,9 @@ export default async function TimePerformancePage({
           </article>
         </div>
         <p className="subtle" style={{ marginTop: 12, marginBottom: 0 }}>
-          Hour-of-day pattern across the whole range, in UTC+3 — schedule campaigns and automations around these windows for the best reach and engagement.
+          {selectedSite
+            ? `Hour-of-day pattern across the whole range, shown in UTC+3 and in ${selectedSite.name}'s own local time — schedule this site's campaigns and automations around these windows.`
+            : "Hour-of-day pattern across the whole range, in UTC+3, averaged evenly across every site so no single large site dominates the pattern. Pick a site above for its own local-time breakdown."}
         </p>
       </section>
 

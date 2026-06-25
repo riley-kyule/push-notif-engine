@@ -4,6 +4,7 @@ export interface CampaignSummary {
   id: string;
   name: string;
   site: string;
+  siteId: string | null;
   type: "instant" | "scheduled" | "recurring";
   contentType: string;
   status: "draft" | "scheduled" | "sending" | "sent" | "failed" | "expired";
@@ -46,17 +47,19 @@ export const campaignSummaries: CampaignSummary[] = [
     id: "launch-week",
     name: "Launch Week",
     site: "example.com",
+    siteId: "site-1",
     type: "scheduled",
     contentType: "promotion",
     status: "scheduled",
     sent: "0",
     ctr: "0%",
-    scheduledAt: "2026-06-18 09:00",
+    scheduledAt: "2026-06-18T09:00:00.000Z",
   },
   {
     id: "weekend-sale",
     name: "Weekend Sale",
     site: "example.org",
+    siteId: "site-2",
     type: "instant",
     contentType: "announcement",
     status: "sent",
@@ -68,6 +71,7 @@ export const campaignSummaries: CampaignSummary[] = [
     id: "weekly-roundup",
     name: "Weekly Roundup",
     site: "all sites",
+    siteId: null,
     type: "recurring",
     contentType: "digest",
     status: "draft",
@@ -82,6 +86,7 @@ export const campaignDetails: Record<string, CampaignDetail> = {
     id: "launch-week",
     name: "Launch Week",
     site: "example.com",
+    siteId: "site-1",
     type: "scheduled",
     contentType: "promotion",
     status: "scheduled",
@@ -111,6 +116,7 @@ export const campaignDetails: Record<string, CampaignDetail> = {
     id: "weekend-sale",
     name: "Weekend Sale",
     site: "example.org",
+    siteId: "site-2",
     type: "instant",
     contentType: "announcement",
     status: "sent",
@@ -140,6 +146,7 @@ export const campaignDetails: Record<string, CampaignDetail> = {
     id: "weekly-roundup",
     name: "Weekly Roundup",
     site: "all sites",
+    siteId: null,
     type: "recurring",
     contentType: "digest",
     status: "draft",
@@ -184,6 +191,7 @@ function toCampaignSummary(record: {
     id: record.id,
     name: record.name,
     site: record.site ?? record.siteId ?? "all sites",
+    siteId: record.siteId ?? null,
     type: record.type,
     contentType: record.contentType ?? "announcement",
     status: record.status,
