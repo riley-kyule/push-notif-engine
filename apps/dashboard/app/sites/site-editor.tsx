@@ -225,6 +225,15 @@ export function SiteEditor({
   const [isUploadingIcon, setIsUploadingIcon] = useState(false);
   const [isUploadingPromptIcon, setIsUploadingPromptIcon] = useState(false);
 
+  // Once a site already has a VAPID key pair, the public key field becomes
+  // read-only here -- it used to be freely editable independent of the
+  // private key (which isn't exposed in this form at all), so saving this
+  // field with any other value silently desynced the pair and broke every
+  // existing subscriber's push delivery with an unexplained 403, with no
+  // warning anywhere. "Regenerate VAPID keys" in the Browser Push panel
+  // below replaces both keys together and warns about the consequence.
+  const vapidPublicKeyLocked = mode === "edit" && Boolean(initialValues.vapidPublicKey.trim());
+
   function updateField<K extends keyof SiteFormValues>(key: K, value: SiteFormValues[K]) {
     setValues((current) => ({ ...current, [key]: value }));
   }
@@ -351,7 +360,15 @@ export function SiteEditor({
             value={values.vapidPublicKey}
             onChange={(e) => updateField("vapidPublicKey", e.target.value)}
             placeholder="Optional for local onboarding"
+            disabled={vapidPublicKeyLocked}
           />
+          {vapidPublicKeyLocked ? (
+            <p className="subtle" style={{ marginTop: 8 }}>
+              Locked once a site has VAPID keys -- editing this alone (without the matching private key, which isn't
+              shown here) breaks every existing subscriber's push delivery with no warning. Use "Regenerate VAPID
+              keys" in the Browser Push panel below to replace both keys together.
+            </p>
+          ) : null}
         </div>
       </div>
       <div className="grid cards-3">
