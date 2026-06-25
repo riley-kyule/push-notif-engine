@@ -57,21 +57,21 @@ test("analytics controller returns overview data with default day window", async
 
   assert.equal(result.success, true);
   assert.deepEqual(result.data, { totalSites: 1 });
-  assert.deepEqual(calls, [{ method: "getOverview", args: [30, undefined] }]);
+  assert.deepEqual(calls, [{ method: "getOverview", args: [30, undefined, undefined] }]);
 });
 
 test("analytics controller parses a custom days query for overview", async () => {
   const { controller, calls } = createController();
   await controller.getOverview("7");
 
-  assert.deepEqual(calls, [{ method: "getOverview", args: [7, undefined] }]);
+  assert.deepEqual(calls, [{ method: "getOverview", args: [7, undefined, undefined] }]);
 });
 
 test("analytics controller passes siteId through to scope the overview", async () => {
   const { controller, calls } = createController();
   await controller.getOverview("7", "site-1");
 
-  assert.deepEqual(calls, [{ method: "getOverview", args: [7, "site-1"] }]);
+  assert.deepEqual(calls, [{ method: "getOverview", args: [7, "site-1", undefined] }]);
 });
 
 test("analytics controller returns campaign stats", async () => {
@@ -108,9 +108,9 @@ test("analytics controller returns country, site, and time reports", async () =>
   assert.equal(sites.success, true);
   assert.equal(time.success, true);
   assert.deepEqual(calls, [
-    { method: "getCountryPerformance", args: [21, undefined] },
-    { method: "getSitePerformance", args: [30, undefined] },
-    { method: "getTimePerformance", args: [7, undefined] },
+    { method: "getCountryPerformance", args: [21, undefined, undefined] },
+    { method: "getSitePerformance", args: [30, undefined, undefined] },
+    { method: "getTimePerformance", args: [7, undefined, undefined] },
   ]);
 });
 
@@ -120,7 +120,7 @@ test("analytics controller returns content performance", async () => {
   const content = await controller.getContentPerformance("14");
 
   assert.equal(content.success, true);
-  assert.deepEqual(calls, [{ method: "getContentPerformance", args: [14, undefined] }]);
+  assert.deepEqual(calls, [{ method: "getContentPerformance", args: [14, undefined, undefined] }]);
 });
 
 test("analytics controller returns peak-hours data", async () => {
@@ -129,7 +129,7 @@ test("analytics controller returns peak-hours data", async () => {
   const result = await controller.getPeakHours("14", "site-1");
 
   assert.equal(result.success, true);
-  assert.deepEqual(calls, [{ method: "getPeakHours", args: [14, "site-1"] }]);
+  assert.deepEqual(calls, [{ method: "getPeakHours", args: [14, "site-1", undefined] }]);
 });
 
 test("analytics controller exports csv reports", async () => {

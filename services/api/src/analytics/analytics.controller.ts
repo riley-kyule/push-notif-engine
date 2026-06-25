@@ -25,6 +25,31 @@ function encodeState(nonce: string, payload: GoogleSheetsExportStatePayload): st
   return `${nonce}.${Buffer.from(JSON.stringify(payload)).toString("base64url")}`;
 }
 
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+// Both query params are user-suppliable free text -- validate the shape here,
+// at the boundary, rather than letting a malformed value reach the
+// repository's `new Date(...)` calls (an invalid date there throws a
+// RangeError on .toISOString(), a 500 instead of a clear 400).
+function parseDateRangeQuery(startDate?: string, endDate?: string): { startDate?: string; endDate?: string } | undefined {
+  if (!startDate && !endDate) {
+    return undefined;
+  }
+
+  if (startDate && !DATE_ONLY_PATTERN.test(startDate)) {
+    throw new BadRequestException("startDate must be in YYYY-MM-DD format");
+  }
+
+  if (endDate && !DATE_ONLY_PATTERN.test(endDate)) {
+    throw new BadRequestException("endDate must be in YYYY-MM-DD format");
+  }
+
+  return {
+    ...(startDate ? { startDate } : {}),
+    ...(endDate ? { endDate } : {}),
+  };
+}
+
 function decodeState(state: string): { nonce: string; payload: GoogleSheetsExportStatePayload } {
   const separatorIndex = state.indexOf(".");
   if (separatorIndex === -1) {
@@ -50,8 +75,13 @@ export class AnalyticsController {
   ) {}
 
   @Get("overview")
-  async getOverview(@Query("days") days?: string, @Query("siteId") siteId?: string): Promise<{ success: true; data: unknown }> {
-    const overview = await this.analyticsService.getOverview(days ? parseInt(days, 10) : 30, siteId);
+  async getOverview(
+    @Query("days") days?: string,
+    @Query("siteId") siteId?: string,
+    @Query("startDate") startDate?: string,
+    @Query("endDate") endDate?: string,
+  ): Promise<{ success: true; data: unknown }> {
+    const overview = await this.analyticsService.getOverview(days ? parseInt(days, 10) : 30, siteId, parseDateRangeQuery(startDate, endDate));
     return { success: true, data: overview };
   }
 
@@ -82,32 +112,57 @@ export class AnalyticsController {
   }
 
   @Get("countries")
-  async getCountryPerformance(@Query("days") days?: string, @Query("siteId") siteId?: string): Promise<{ success: true; data: unknown }> {
-    const performance = await this.analyticsService.getCountryPerformance(days ? parseInt(days, 10) : 30, siteId);
+  async getCountryPerformance(
+    @Query("days") days?: string,
+    @Query("siteId") siteId?: string,
+    @Query("startDate") startDate?: string,
+    @Query("endDate") endDate?: string,
+  ): Promise<{ success: true; data: unknown }> {
+    const performance = await this.analyticsService.getCountryPerformance(days ? parseInt(days, 10) : 30, siteId, parseDateRangeQuery(startDate, endDate));
     return { success: true, data: performance };
   }
 
   @Get("sites-performance")
-  async getSitePerformance(@Query("days") days?: string, @Query("siteId") siteId?: string): Promise<{ success: true; data: unknown }> {
-    const performance = await this.analyticsService.getSitePerformance(days ? parseInt(days, 10) : 30, siteId);
+  async getSitePerformance(
+    @Query("days") days?: string,
+    @Query("siteId") siteId?: string,
+    @Query("startDate") startDate?: string,
+    @Query("endDate") endDate?: string,
+  ): Promise<{ success: true; data: unknown }> {
+    const performance = await this.analyticsService.getSitePerformance(days ? parseInt(days, 10) : 30, siteId, parseDateRangeQuery(startDate, endDate));
     return { success: true, data: performance };
   }
 
   @Get("time-performance")
-  async getTimePerformance(@Query("days") days?: string, @Query("siteId") siteId?: string): Promise<{ success: true; data: unknown }> {
-    const performance = await this.analyticsService.getTimePerformance(days ? parseInt(days, 10) : 30, siteId);
+  async getTimePerformance(
+    @Query("days") days?: string,
+    @Query("siteId") siteId?: string,
+    @Query("startDate") startDate?: string,
+    @Query("endDate") endDate?: string,
+  ): Promise<{ success: true; data: unknown }> {
+    const performance = await this.analyticsService.getTimePerformance(days ? parseInt(days, 10) : 30, siteId, parseDateRangeQuery(startDate, endDate));
     return { success: true, data: performance };
   }
 
   @Get("peak-hours")
-  async getPeakHours(@Query("days") days?: string, @Query("siteId") siteId?: string): Promise<{ success: true; data: unknown }> {
-    const performance = await this.analyticsService.getPeakHours(days ? parseInt(days, 10) : 30, siteId);
+  async getPeakHours(
+    @Query("days") days?: string,
+    @Query("siteId") siteId?: string,
+    @Query("startDate") startDate?: string,
+    @Query("endDate") endDate?: string,
+  ): Promise<{ success: true; data: unknown }> {
+    const performance = await this.analyticsService.getPeakHours(days ? parseInt(days, 10) : 30, siteId, parseDateRangeQuery(startDate, endDate));
     return { success: true, data: performance };
   }
 
   @Get("content-performance")
-  async getContentPerformance(@Query("days") days?: string, @Query("siteId") siteId?: string): Promise<{ success: true; data: unknown }> {
-    const performance = await this.analyticsService.getContentPerformance(days ? parseInt(days, 10) : 30, siteId);
+  async getContentPerformance(
+    @Query("days") days?: string,
+    @Query("siteId") siteId?: string,
+    @Query("startDate") startDate?: string,
+    @Query("endDate") endDate?: string,
+  ): Promise<{ success: true; data: unknown }> {
+    const performance = await this.analyticsService.getContentPerformance(days ? parseInt(days, 10) : 30, siteId, parseDateRangeQuery(startDate, endDate));
     return { success: true, data: performance };
   }
 

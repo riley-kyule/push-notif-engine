@@ -32,28 +32,28 @@ export class AnalyticsService {
     return this.analyticsRepository.getSubscriberGrowth(siteId, days);
   }
 
-  async getOverview(days = 30, siteId?: string) {
-    return this.analyticsRepository.getOverview(days, siteId);
+  async getOverview(days = 30, siteId?: string, dateRange?: { startDate?: string; endDate?: string }) {
+    return this.analyticsRepository.getOverview(days, siteId, dateRange);
   }
 
-  async getCountryPerformance(days = 30, siteId?: string) {
-    return this.analyticsRepository.getCountryPerformance(days, siteId);
+  async getCountryPerformance(days = 30, siteId?: string, dateRange?: { startDate?: string; endDate?: string }) {
+    return this.analyticsRepository.getCountryPerformance(days, siteId, dateRange);
   }
 
-  async getSitePerformance(days = 30, siteId?: string) {
-    return this.analyticsRepository.getSitePerformance(days, siteId);
+  async getSitePerformance(days = 30, siteId?: string, dateRange?: { startDate?: string; endDate?: string }) {
+    return this.analyticsRepository.getSitePerformance(days, siteId, dateRange);
   }
 
-  async getTimePerformance(days = 30, siteId?: string) {
-    return this.analyticsRepository.getTimePerformance(days, siteId);
+  async getTimePerformance(days = 30, siteId?: string, dateRange?: { startDate?: string; endDate?: string }) {
+    return this.analyticsRepository.getTimePerformance(days, siteId, dateRange);
   }
 
-  async getPeakHours(days = 30, siteId?: string) {
-    return this.analyticsRepository.getPeakHours(days, siteId);
+  async getPeakHours(days = 30, siteId?: string, dateRange?: { startDate?: string; endDate?: string }) {
+    return this.analyticsRepository.getPeakHours(days, siteId, dateRange);
   }
 
-  async getContentPerformance(days = 30, siteId?: string) {
-    return this.analyticsRepository.getContentPerformance(days, siteId);
+  async getContentPerformance(days = 30, siteId?: string, dateRange?: { startDate?: string; endDate?: string }) {
+    return this.analyticsRepository.getContentPerformance(days, siteId, dateRange);
   }
 
   async listFailedDeliveries(filters: FailedDeliveryFilters) {

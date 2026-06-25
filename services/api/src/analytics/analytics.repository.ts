@@ -125,9 +125,47 @@ interface ContentPerformanceRow {
   total_clicked: string;
 }
 
+// "YYYY-MM-DD" from the date-range picker means a calendar day in UTC+3 (the
+// timezone the dashboard now standardizes all admin-facing timestamps to,
+// and the one the team actually operates in) -- not UTC. Converting it to a
+// precise instant here, instead of casting it inside SQL, sidesteps Postgres
+// interpreting a bare ::date cast in the *session's* timezone, which would
+// silently shift custom-range boundaries by a few hours depending on server
+// configuration.
+function startOfDayUtcPlus3(dateInput: string): string {
+  return new Date(`${dateInput}T00:00:00+03:00`).toISOString();
+}
+
+function endOfDayUtcPlus3Exclusive(dateInput: string): string {
+  const start = new Date(`${dateInput}T00:00:00+03:00`);
+  start.setUTCDate(start.getUTCDate() + 1);
+  return start.toISOString();
+}
+
 @Injectable()
 export class AnalyticsRepository {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool) {}
+
+  // Builds the WHERE-clause fragment used by every report that bounds rows by
+  // a date range. `params` is mutated (the two date-bound values are pushed
+  // on) so the returned $N placeholders line up; days-only callers are
+  // unaffected since nothing is pushed in that branch.
+  private dateBoundsClause(
+    params: Array<string | number>,
+    days: number,
+    columnExpr: string,
+    startDate?: string,
+    endDate?: string,
+  ): string {
+    if (startDate) {
+      params.push(startOfDayUtcPlus3(startDate), endOfDayUtcPlus3Exclusive(endDate || startDate));
+      const endIdx = params.length;
+      const startIdx = endIdx - 1;
+      return `${columnExpr} >= $${startIdx}::timestamptz AND ${columnExpr} < $${endIdx}::timestamptz`;
+    }
+
+    return `${columnExpr} >= NOW() - ($1 || ' days')::interval`;
+  }
 
   async getCampaignStats(campaignId: string): Promise<{
     pending: number;
@@ -265,7 +303,11 @@ export class AnalyticsRepository {
     };
   }
 
-  async getOverview(days: number, siteId?: string): Promise<{
+  async getOverview(
+    days: number,
+    siteId?: string,
+    dateRange?: { startDate?: string; endDate?: string },
+  ): Promise<{
     totalSites: number;
     totalSubscribers: number;
     activeSubscribers: number;
@@ -281,6 +323,12 @@ export class AnalyticsRepository {
     failedDeliveryReason: string | null;
     failedDeliveryReasonCount: number;
   }> {
+    const deliveryParams: Array<string | number> = siteId ? [days, siteId] : [days];
+    const deliveryClause = this.dateBoundsClause(deliveryParams, days, "created_at", dateRange?.startDate, dateRange?.endDate);
+
+    const failureParams: Array<string | number> = siteId ? [days, siteId] : [days];
+    const failureClause = this.dateBoundsClause(failureParams, days, "created_at", dateRange?.startDate, dateRange?.endDate);
+
     const [sitesResult, subscribersResult, campaignsResult, deliveryResult, failureReasonResult] = await Promise.all([
       siteId
         ? this.pool.query<SiteCountRow>(`SELECT COUNT(*)::text AS total_sites FROM sites WHERE id = $1`, [siteId])
@@ -316,10 +364,10 @@ export class AnalyticsRepository {
           COUNT(*) FILTER (WHERE clicked_at IS NOT NULL) AS clicked,
           COUNT(*)                                        AS total
         FROM push_delivery_events
-        WHERE created_at >= NOW() - ($1 || ' days')::interval
+        WHERE ${deliveryClause}
           ${siteId ? "AND site_id = $2" : ""}
         `,
-        siteId ? [days, siteId] : [days],
+        deliveryParams,
       ),
       this.pool.query<FailedDeliveryReasonRow>(
         `
@@ -333,7 +381,7 @@ export class AnalyticsRepository {
             END AS failure_reason
           FROM push_delivery_events
           WHERE status = 'failed'
-            AND created_at >= NOW() - ($1 || ' days')::interval
+            AND ${failureClause}
             ${siteId ? "AND site_id = $2" : ""}
         )
         SELECT failure_reason, COUNT(*)::text AS failure_count
@@ -342,7 +390,7 @@ export class AnalyticsRepository {
         ORDER BY COUNT(*) DESC, failure_reason ASC
         LIMIT 1
         `,
-        siteId ? [days, siteId] : [days],
+        failureParams,
       ),
     ]);
 
@@ -377,7 +425,11 @@ export class AnalyticsRepository {
     };
   }
 
-  async getCountryPerformance(days: number, siteId?: string): Promise<
+  async getCountryPerformance(
+    days: number,
+    siteId?: string,
+    dateRange?: { startDate?: string; endDate?: string },
+  ): Promise<
     Array<{
       country: string;
       totalSubscribers: number;
@@ -390,6 +442,9 @@ export class AnalyticsRepository {
       clickThroughRate: number;
     }>
   > {
+    const params: Array<string | number> = siteId ? [days, siteId] : [days];
+    const dateClause = this.dateBoundsClause(params, days, "pde.created_at", dateRange?.startDate, dateRange?.endDate);
+
     const { rows } = await this.pool.query<CountryPerformanceRow>(
       `
       SELECT
@@ -403,12 +458,12 @@ export class AnalyticsRepository {
       FROM subscribers s
       LEFT JOIN push_delivery_events pde
         ON pde.subscriber_id = s.id
-       AND pde.created_at >= NOW() - ($1 || ' days')::interval
+       AND ${dateClause}
       ${siteId ? "WHERE s.site_id = $2" : ""}
       GROUP BY COALESCE(NULLIF(s.country, ''), 'Unknown')
       ORDER BY total_delivered DESC, total_subscribers DESC
       `,
-      siteId ? [days, siteId] : [days],
+      params,
     );
 
     return rows.map((row) => {
@@ -432,7 +487,11 @@ export class AnalyticsRepository {
     });
   }
 
-  async getSitePerformance(days: number, siteId?: string): Promise<
+  async getSitePerformance(
+    days: number,
+    siteId?: string,
+    dateRange?: { startDate?: string; endDate?: string },
+  ): Promise<
     Array<{
       siteId: string;
       siteName: string;
@@ -446,6 +505,9 @@ export class AnalyticsRepository {
       clickThroughRate: number;
     }>
   > {
+    const params: Array<string | number> = siteId ? [days, siteId] : [days];
+    const dateClause = this.dateBoundsClause(params, days, "created_at", dateRange?.startDate, dateRange?.endDate);
+
     const { rows } = await this.pool.query<SitePerformanceRow>(
       `
       WITH subscriber_totals AS (
@@ -463,7 +525,7 @@ export class AnalyticsRepository {
           COUNT(*) FILTER (WHERE status = 'expired') AS total_expired,
           COUNT(*) FILTER (WHERE clicked_at IS NOT NULL) AS total_clicked
         FROM push_delivery_events
-        WHERE created_at >= NOW() - ($1 || ' days')::interval
+        WHERE ${dateClause}
         ${siteId ? "AND site_id = $2" : ""}
         GROUP BY site_id
       )
@@ -482,7 +544,7 @@ export class AnalyticsRepository {
       ${siteId ? "WHERE s.id = $2" : ""}
       ORDER BY total_delivered DESC, total_subscribers DESC
       `,
-      siteId ? [days, siteId] : [days],
+      params,
     );
 
     return rows.map((row) => {
@@ -509,7 +571,11 @@ export class AnalyticsRepository {
     });
   }
 
-  async getTimePerformance(days: number, siteId?: string): Promise<
+  async getTimePerformance(
+    days: number,
+    siteId?: string,
+    dateRange?: { startDate?: string; endDate?: string },
+  ): Promise<
     Array<{
       bucket: string;
       totalDelivered: number;
@@ -528,6 +594,7 @@ export class AnalyticsRepository {
     const params: Array<string | number> = siteId ? [days, siteId, granularity] : [days, granularity];
     const siteParamIndex = siteId ? 2 : null;
     const granularityParamIndex = siteId ? 3 : 2;
+    const dateClause = this.dateBoundsClause(params, days, "created_at", dateRange?.startDate, dateRange?.endDate);
 
     const { rows } = await this.pool.query<HourPerformanceRow>(
       `
@@ -538,7 +605,7 @@ export class AnalyticsRepository {
         COUNT(*) FILTER (WHERE status = 'failed') AS total_failed,
         COUNT(*) FILTER (WHERE clicked_at IS NOT NULL) AS total_clicked
       FROM push_delivery_events
-      WHERE created_at >= NOW() - ($1 || ' days')::interval
+      WHERE ${dateClause}
       ${siteParamIndex ? `AND site_id = $${siteParamIndex}` : ""}
       GROUP BY bucket
       ORDER BY bucket ASC
@@ -577,7 +644,11 @@ export class AnalyticsRepository {
   // site happens to be biggest -- so instead every site's hourly numbers are
   // computed independently first and then averaged together, giving each
   // site an equal vote in what "all sites" looks like.
-  async getPeakHours(days: number, siteId?: string): Promise<
+  async getPeakHours(
+    days: number,
+    siteId?: string,
+    dateRange?: { startDate?: string; endDate?: string },
+  ): Promise<
     Array<{
       hour: number;
       newSubscribers: number;
@@ -589,6 +660,7 @@ export class AnalyticsRepository {
   > {
     const subscriberParams: Array<string | number> = siteId ? [days, siteId] : [days];
     const subscriberSiteFilter = siteId ? "AND site_id = $2" : "";
+    const subscriberDateClause = this.dateBoundsClause(subscriberParams, days, "created_at", dateRange?.startDate, dateRange?.endDate);
 
     const { rows: subscriberRows } = await this.pool.query<{ site_id: string; hour_of_day: string; new_subscribers: string }>(
       `
@@ -597,7 +669,7 @@ export class AnalyticsRepository {
         EXTRACT(HOUR FROM created_at AT TIME ZONE 'Etc/GMT-3') AS hour_of_day,
         COUNT(*) AS new_subscribers
       FROM subscribers
-      WHERE created_at >= NOW() - ($1 || ' days')::interval
+      WHERE ${subscriberDateClause}
       ${subscriberSiteFilter}
       GROUP BY site_id, hour_of_day
       `,
@@ -606,6 +678,7 @@ export class AnalyticsRepository {
 
     const eventParams: Array<string | number> = siteId ? [days, siteId] : [days];
     const eventSiteFilter = siteId ? "AND site_id = $2" : "";
+    const eventDateClause = this.dateBoundsClause(eventParams, days, "created_at", dateRange?.startDate, dateRange?.endDate);
 
     const { rows: eventRows } = await this.pool.query<{
       site_id: string;
@@ -622,7 +695,7 @@ export class AnalyticsRepository {
         COUNT(*) FILTER (WHERE status = 'sent') AS total_sent,
         COUNT(*) FILTER (WHERE clicked_at IS NOT NULL) AS total_clicked
       FROM push_delivery_events
-      WHERE created_at >= NOW() - ($1 || ' days')::interval
+      WHERE ${eventDateClause}
       ${eventSiteFilter}
       GROUP BY site_id, hour_of_day
       `,
@@ -689,7 +762,11 @@ export class AnalyticsRepository {
     });
   }
 
-  async getContentPerformance(days: number, siteId?: string): Promise<
+  async getContentPerformance(
+    days: number,
+    siteId?: string,
+    dateRange?: { startDate?: string; endDate?: string },
+  ): Promise<
     Array<{
       contentType: string;
       totalCampaigns: number;
@@ -702,6 +779,9 @@ export class AnalyticsRepository {
       clickThroughRate: number;
     }>
   > {
+    const params: Array<string | number> = siteId ? [days, siteId] : [days];
+    const dateClause = this.dateBoundsClause(params, days, "pde.created_at", dateRange?.startDate, dateRange?.endDate);
+
     const { rows } = await this.pool.query<ContentPerformanceRow>(
       `
       SELECT
@@ -715,12 +795,12 @@ export class AnalyticsRepository {
       FROM campaigns c
       LEFT JOIN push_delivery_events pde
         ON pde.campaign_id = c.id
-       AND pde.created_at >= NOW() - ($1 || ' days')::interval
+       AND ${dateClause}
       ${siteId ? "WHERE c.site_id = $2" : ""}
       GROUP BY COALESCE(NULLIF(c.content_type, ''), 'announcement')
       ORDER BY total_delivered DESC, total_campaigns DESC
       `,
-      siteId ? [days, siteId] : [days],
+      params,
     );
 
     return rows.map((row) => {

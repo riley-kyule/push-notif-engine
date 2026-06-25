@@ -74,10 +74,10 @@ test("analytics service proxies overview and reporting data", async () => {
     "getOverview",
   ]);
 
-  assert.deepEqual(calls[1]?.args, [7, "site-1"]);
-  assert.deepEqual(calls[2]?.args, [7, "site-1"]);
-  assert.deepEqual(calls[3]?.args, [7, "site-1"]);
-  assert.deepEqual(calls[4]?.args, [7, "site-1"]);
+  assert.deepEqual(calls[1]?.args, [7, "site-1", undefined]);
+  assert.deepEqual(calls[2]?.args, [7, "site-1", undefined]);
+  assert.deepEqual(calls[3]?.args, [7, "site-1", undefined]);
+  assert.deepEqual(calls[4]?.args, [7, "site-1", undefined]);
 });
 
 test("analytics service proxies peak-hours data", async () => {
@@ -85,7 +85,7 @@ test("analytics service proxies peak-hours data", async () => {
 
   const result = await service.getPeakHours(7, "site-1");
 
-  assert.deepEqual(calls[0]?.args, [7, "site-1"]);
+  assert.deepEqual(calls[0]?.args, [7, "site-1", undefined]);
   assert.deepEqual(result, [{ hour: 18, newSubscribers: 12 }]);
 });
 
