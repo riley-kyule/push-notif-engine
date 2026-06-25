@@ -18,6 +18,7 @@ export interface BrowserPushDispatchInput {
   icon?: string | null;
   image?: string | null;
   campaignId?: string | null;
+  automationId?: string | null;
   segmentId?: string | null;
   subscriberId?: string | null;
 }
@@ -43,6 +44,7 @@ export class BrowserPushService {
     const payload: BrowserPushJobPayload = {
       siteId: site.id,
       campaignId: dto.campaignId ?? null,
+      automationId: dto.automationId ?? null,
       segmentId: dto.segmentId ?? null,
       subscriberId: dto.subscriberId ?? null,
       notification: {

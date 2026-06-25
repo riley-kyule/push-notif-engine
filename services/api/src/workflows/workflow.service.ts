@@ -316,6 +316,7 @@ export class WorkflowService {
         icon: action.iconUrl,
         image: action.imageUrl,
         campaignId: context.campaignId ?? null,
+        automationId: automation.id,
       });
       return;
     }

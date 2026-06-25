@@ -74,7 +74,7 @@ test("workflow service records events and executes notification and tag actions"
 test("an All Sites automation's {{site_name}}/{{site_url}} tokens resolve to the real site a subscriber belongs to", async () => {
   const { workflowService, automationsService, dispatchCalls } = createService();
 
-  await automationsService.createAutomation({
+  const automation = await automationsService.createAutomation({
     siteId: null,
     name: "Welcome push",
     triggerEvent: "subscriber_registered",
@@ -100,6 +100,7 @@ test("an All Sites automation's {{site_name}}/{{site_url}} tokens resolve to the
     icon: null,
     image: null,
     campaignId: null,
+    automationId: automation.id,
   });
 });
 

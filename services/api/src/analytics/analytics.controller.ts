@@ -6,6 +6,7 @@ import { Roles } from "../auth/decorators/roles.decorator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { AnalyticsService } from "./analytics.service";
+import { ListFailedDeliveriesQueryDto } from "./dto/list-failed-deliveries-query.dto";
 import { GoogleSheetsClient } from "./google-sheets.client";
 import { isGoogleSheetsExportConfigured } from "./google-sheets.config";
 
@@ -102,6 +103,23 @@ export class AnalyticsController {
   async getContentPerformance(@Query("days") days?: string, @Query("siteId") siteId?: string): Promise<{ success: true; data: unknown }> {
     const performance = await this.analyticsService.getContentPerformance(days ? parseInt(days, 10) : 30, siteId);
     return { success: true, data: performance };
+  }
+
+  @Get("failed-deliveries")
+  async listFailedDeliveries(@Query() query: ListFailedDeliveriesQueryDto): Promise<{ success: true; data: unknown }> {
+    const result = await this.analyticsService.listFailedDeliveries({
+      ...(query.siteId ? { siteId: query.siteId } : {}),
+      ...(query.pushType ? { pushType: query.pushType } : {}),
+      ...(query.reason ? { reason: query.reason } : {}),
+      limit: query.limit ?? 25,
+      offset: query.offset ?? 0,
+    });
+    return { success: true, data: result };
+  }
+
+  @Get("failed-deliveries/reasons")
+  async listFailureReasons(): Promise<{ success: true; data: unknown }> {
+    return { success: true, data: await this.analyticsService.listFailureReasons() };
   }
 
   @Get("export")

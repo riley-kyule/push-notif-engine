@@ -343,7 +343,7 @@ export default async function AnalyticsPage({
                 <p className="analytics-summary-label">{item.label}</p>
                 <p className="analytics-summary-value">{item.value}</p>
                 <p className="analytics-summary-detail">{item.detail}</p>
-                <span className="overview-summary-cta">Open failures view</span>
+                <span className="overview-summary-cta">View details →</span>
               </Link>
             ) : (
               <article key={item.label} className="card analytics-summary-card">

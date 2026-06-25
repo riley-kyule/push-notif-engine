@@ -67,6 +67,7 @@ export class BrowserPushProcessor {
     const deliveryIdsBySubscriber = await this.repository.createPendingDeliveryEvents({
       siteId: job.siteId,
       campaignId: job.campaignId ?? null,
+      automationId: job.automationId ?? null,
       jobId: jobId ?? null,
       payload: { ...job.notification, deliveryId: null, ackUrl: null, clickUrl: null },
       subscribers: subscribers.map((subscriber) => ({

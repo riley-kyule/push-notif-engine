@@ -32,7 +32,7 @@ test("dashboard home summary cards link to report pages", () => {
       "/analytics?section=content&days=30&preset=30d&siteId=site-3",
       "/analytics?section=time&days=30&preset=30d&siteId=site-3",
       "/analytics?section=time&days=30&preset=30d&siteId=site-3",
-      "/analytics?section=time&days=30&preset=30d&siteId=site-3",
+      "/analytics/failures",
     ],
   );
 });
