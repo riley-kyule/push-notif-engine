@@ -109,6 +109,7 @@ export class BrowserPushRepository {
   async createPendingDeliveryEvents(input: {
     siteId: string;
     campaignId?: string | null;
+    automationId?: string | null;
     jobId?: string | null;
     payload: BrowserPushNotificationPayload;
     subscribers: Array<{ subscriberId: string; endpoint: string }>;
@@ -120,15 +121,16 @@ export class BrowserPushRepository {
     const { rows } = await this.pool.query<{ id: string; subscriber_id: string }>(
       `
       INSERT INTO push_delivery_events (
-        site_id, campaign_id, subscriber_id, endpoint, status, payload, job_id, created_at, updated_at
+        site_id, campaign_id, automation_id, subscriber_id, endpoint, status, payload, job_id, created_at, updated_at
       )
-      SELECT $1::uuid, $2::uuid, sub_id, ep, 'pending', $3::jsonb, $4::text, NOW(), NOW()
-      FROM unnest($5::uuid[], $6::text[]) AS t(sub_id, ep)
+      SELECT $1::uuid, $2::uuid, $3::uuid, sub_id, ep, 'pending', $4::jsonb, $5::text, NOW(), NOW()
+      FROM unnest($6::uuid[], $7::text[]) AS t(sub_id, ep)
       RETURNING id, subscriber_id
       `,
       [
         input.siteId,
         input.campaignId ?? null,
+        input.automationId ?? null,
         JSON.stringify(input.payload),
         input.jobId ?? null,
         input.subscribers.map((subscriber) => subscriber.subscriberId),

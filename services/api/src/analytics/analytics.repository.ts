@@ -28,6 +28,54 @@ interface FailedDeliveryReasonRow {
   failure_count: string;
 }
 
+interface FailedDeliveryRow {
+  id: string;
+  site_id: string;
+  site_name: string | null;
+  campaign_id: string | null;
+  campaign_name: string | null;
+  automation_id: string | null;
+  automation_name: string | null;
+  error_code: string | null;
+  error_message: string | null;
+  subscriber_id: string | null;
+  created_at: string;
+}
+
+export type PushType = "campaign" | "automation" | "manual";
+
+export interface FailedDeliveryFilters {
+  siteId?: string;
+  pushType?: PushType;
+  reason?: string;
+  limit: number;
+  offset: number;
+}
+
+export interface FailedDeliveryRecord {
+  id: string;
+  siteId: string;
+  siteName: string;
+  pushType: PushType;
+  pushName: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  reason: string;
+  subscriberId: string | null;
+  createdAt: string;
+}
+
+// Shared with getOverview's single most-common-reason query so both always
+// agree on what counts as the same failure reason.
+const FAILURE_REASON_EXPRESSION = `
+  CASE
+    WHEN error_code IS NOT NULL AND error_message IS NOT NULL THEN error_code || ' ' || error_message
+    WHEN error_code IS NOT NULL THEN error_code
+    WHEN error_message IS NOT NULL THEN error_message
+    ELSE 'Unknown failure'
+  END
+`;
+
 interface SiteCountRow {
   total_sites: string;
 }
@@ -572,5 +620,107 @@ export class AnalyticsRepository {
         clickThroughRate: successfullyHandedOff > 0 ? Math.round((totalClicked / successfullyHandedOff) * 10000) / 100 : 0,
       };
     });
+  }
+
+  async listFailedDeliveries(filters: FailedDeliveryFilters): Promise<{ items: FailedDeliveryRecord[]; total: number }> {
+    const where: string[] = [`pde.status = 'failed'`];
+    const params: Array<string | number> = [];
+
+    if (filters.siteId) {
+      params.push(filters.siteId);
+      where.push(`pde.site_id = $${params.length}`);
+    }
+    if (filters.pushType === "campaign") {
+      where.push(`pde.campaign_id IS NOT NULL`);
+    } else if (filters.pushType === "automation") {
+      where.push(`pde.automation_id IS NOT NULL`);
+    } else if (filters.pushType === "manual") {
+      where.push(`pde.campaign_id IS NULL AND pde.automation_id IS NULL`);
+    }
+    if (filters.reason) {
+      params.push(filters.reason);
+      where.push(
+        `(
+          CASE
+            WHEN pde.error_code IS NOT NULL AND pde.error_message IS NOT NULL THEN pde.error_code || ' ' || pde.error_message
+            WHEN pde.error_code IS NOT NULL THEN pde.error_code
+            WHEN pde.error_message IS NOT NULL THEN pde.error_message
+            ELSE 'Unknown failure'
+          END
+        ) = $${params.length}`,
+      );
+    }
+
+    const whereClause = `WHERE ${where.join(" AND ")}`;
+    const listParams = [...params, filters.limit, filters.offset];
+
+    const [itemsResult, countResult] = await Promise.all([
+      this.pool.query<FailedDeliveryRow>(
+        `
+        SELECT
+          pde.id,
+          pde.site_id,
+          s.name AS site_name,
+          pde.campaign_id,
+          c.name AS campaign_name,
+          pde.automation_id,
+          a.name AS automation_name,
+          pde.error_code,
+          pde.error_message,
+          pde.subscriber_id,
+          pde.created_at
+        FROM push_delivery_events pde
+        LEFT JOIN sites s ON s.id = pde.site_id
+        LEFT JOIN campaigns c ON c.id = pde.campaign_id
+        LEFT JOIN automations a ON a.id = pde.automation_id
+        ${whereClause}
+        ORDER BY pde.created_at DESC
+        LIMIT $${listParams.length - 1} OFFSET $${listParams.length}
+        `,
+        listParams,
+      ),
+      this.pool.query<{ total: string }>(
+        `SELECT COUNT(*)::text AS total FROM push_delivery_events pde ${whereClause}`,
+        params,
+      ),
+    ]);
+
+    const items: FailedDeliveryRecord[] = itemsResult.rows.map((row) => {
+      const pushType: PushType = row.campaign_id ? "campaign" : row.automation_id ? "automation" : "manual";
+      const pushName = row.campaign_id ? row.campaign_name : row.automation_id ? row.automation_name : null;
+      const reason =
+        row.error_code && row.error_message
+          ? `${row.error_code} ${row.error_message}`
+          : row.error_code ?? row.error_message ?? "Unknown failure";
+
+      return {
+        id: row.id,
+        siteId: row.site_id,
+        siteName: row.site_name ?? row.site_id,
+        pushType,
+        pushName,
+        errorCode: row.error_code,
+        errorMessage: row.error_message,
+        reason,
+        subscriberId: row.subscriber_id,
+        createdAt: row.created_at,
+      };
+    });
+
+    return { items, total: parseInt(countResult.rows[0]?.total ?? "0", 10) };
+  }
+
+  async listFailureReasons(): Promise<Array<{ reason: string; count: number }>> {
+    const { rows } = await this.pool.query<{ reason: string; count: string }>(
+      `
+      SELECT ${FAILURE_REASON_EXPRESSION} AS reason, COUNT(*)::text AS count
+      FROM push_delivery_events
+      WHERE status = 'failed'
+      GROUP BY reason
+      ORDER BY COUNT(*) DESC, reason ASC
+      `,
+    );
+
+    return rows.map((row) => ({ reason: row.reason, count: parseInt(row.count, 10) }));
   }
 }

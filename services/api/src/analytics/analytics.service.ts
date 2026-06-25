@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import ExcelJS from "exceljs";
 import PDFDocument from "pdfkit";
 
-import { AnalyticsRepository } from "./analytics.repository";
+import { AnalyticsRepository, type FailedDeliveryFilters } from "./analytics.repository";
 
 @Injectable()
 export class AnalyticsService {
@@ -50,6 +50,14 @@ export class AnalyticsService {
 
   async getContentPerformance(days = 30, siteId?: string) {
     return this.analyticsRepository.getContentPerformance(days, siteId);
+  }
+
+  async listFailedDeliveries(filters: FailedDeliveryFilters) {
+    return this.analyticsRepository.listFailedDeliveries(filters);
+  }
+
+  async listFailureReasons() {
+    return this.analyticsRepository.listFailureReasons();
   }
 
   async exportReport(input: {

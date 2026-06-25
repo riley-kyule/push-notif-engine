@@ -13,6 +13,7 @@ export interface BrowserPushDispatchRequest {
   siteId: string;
   notification: BrowserPushNotificationPayload;
   campaignId?: string | null;
+  automationId?: string | null;
   segmentId?: string | null;
   /** Send to exactly this one subscriber instead of the site's full eligible audience. */
   subscriberId?: string | null;

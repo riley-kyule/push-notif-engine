@@ -30,6 +30,10 @@ export class CreateBrowserPushDispatchDto {
 
   @IsOptional()
   @IsUUID()
+  automationId?: string | null;
+
+  @IsOptional()
+  @IsUUID()
   segmentId?: string | null;
 
   @IsOptional()
