@@ -1,12 +1,27 @@
 import Link from "next/link";
 
+import { formatDisplayDateTimeInZone } from "../_components/format-date";
 import { DashboardShell } from "../_components/dashboard-shell";
 import { getCampaignList } from "../_data/campaigns";
+import { getSiteChoices } from "../_data/sites";
 
 const tabs = ["All", "Instant", "Scheduled", "Recurring", "Drafts"] as const;
 
+// `campaign.scheduledAt` is either a real ISO timestamp (scheduled/recurring
+// campaigns) or a literal label like "Draft"/"Sent today" when there's no
+// concrete time to show -- only the former should go through the timezone
+// formatter.
+function formatScheduledAt(value: string, timeZone: string | null): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return formatDisplayDateTimeInZone(parsed, timeZone);
+}
+
 export default async function CampaignsPage() {
-  const campaigns = await getCampaignList();
+  const [campaigns, sites] = await Promise.all([getCampaignList(), getSiteChoices()]);
+  const timezoneBySiteId = new Map(sites.map((site) => [site.id, site.timezone]));
 
   return (
     <DashboardShell
@@ -38,7 +53,7 @@ export default async function CampaignsPage() {
                 <th>Sent</th>
                 <th>CTR</th>
                 <th>Status</th>
-                <th>Scheduled At</th>
+                <th>Scheduled At (site local time)</th>
               </tr>
             </thead>
             <tbody>
@@ -56,7 +71,9 @@ export default async function CampaignsPage() {
                   <td>
                     <span className={`badge ${campaign.status}`}>{campaign.status}</span>
                   </td>
-                  <td className="subtle">{campaign.scheduledAt}</td>
+                  <td className="subtle">
+                    {formatScheduledAt(campaign.scheduledAt, campaign.siteId ? timezoneBySiteId.get(campaign.siteId) ?? null : null)}
+                  </td>
                 </tr>
               ))}
             </tbody>

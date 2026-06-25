@@ -70,6 +70,24 @@ export function formatHourOfDayLabel(hour: number): string {
   return `${start}:00-${end}:00`;
 }
 
+// `hour` is a 0-23 hour-of-day already expressed in UTC+3 (how getPeakHours
+// buckets everything server-side). To show the same instant in a site's own
+// timezone, anchor it to an arbitrary reference date, convert to the UTC
+// instant that hour represents, then re-render that instant in the site's
+// zone. Hour-of-day granularity makes the specific reference date and DST
+// edge cases immaterial -- this is for "roughly when," not exact scheduling.
+export function formatHourOfDayLabelInZone(hour: number, timeZone: string | null | undefined): string {
+  if (!timeZone) return formatHourOfDayLabel(hour);
+
+  const utcInstant = new Date(Date.UTC(2024, 0, 1, hour - 3, 0, 0));
+  // Some ICU implementations render midnight as "24" rather than "00" under
+  // hour12: false -- normalize so the label never reads "24:00-01:00".
+  const zoneHour = Number(new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", hour12: false }).format(utcInstant)) % 24;
+  const start = String(zoneHour).padStart(2, "0");
+  const end = String((zoneHour + 1) % 24).padStart(2, "0");
+  return `${start}:00-${end}:00`;
+}
+
 // Hourly buckets (single-day range) -> "HH:00". Within a week -> weekday
 // name. Longer ranges -> day-of-month with month, matching how far apart
 // the buckets actually are.

@@ -1,9 +1,9 @@
 const DISPLAY_TIME_ZONE = "Etc/GMT-3"; // UTC+3, the operating timezone for all EPE-managed sites.
 
-function getParts(value: string | number | Date): Record<string, string> {
+function getParts(value: string | number | Date, timeZone: string): Record<string, string> {
   const date = value instanceof Date ? value : new Date(value);
   const formatter = new Intl.DateTimeFormat("en-GB", {
-    timeZone: DISPLAY_TIME_ZONE,
+    timeZone,
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -21,18 +21,28 @@ function getParts(value: string | number | Date): Record<string, string> {
 
 /** dd/mm/yyyy-hh:mm:ss, displayed in UTC+3 regardless of server/browser locale. */
 export function formatDisplayDateTime(value: string | number | Date | null | undefined): string {
-  if (value === null || value === undefined || value === "") return "—";
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  const parts = getParts(date);
-  return `${parts.day}/${parts.month}/${parts.year}-${parts.hour}:${parts.minute}:${parts.second}`;
+  return formatDisplayDateTimeInZone(value, DISPLAY_TIME_ZONE);
 }
 
 /** dd/mm/yyyy only, displayed in UTC+3. */
 export function formatDisplayDate(value: string | number | Date | null | undefined): string {
+  return formatDisplayDateInZone(value, DISPLAY_TIME_ZONE);
+}
+
+/** dd/mm/yyyy-hh:mm:ss in an arbitrary IANA timezone -- e.g. a campaign's target site's own local time. */
+export function formatDisplayDateTimeInZone(value: string | number | Date | null | undefined, timeZone: string | null | undefined): string {
   if (value === null || value === undefined || value === "") return "—";
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
-  const parts = getParts(date);
+  const parts = getParts(date, timeZone || DISPLAY_TIME_ZONE);
+  return `${parts.day}/${parts.month}/${parts.year}-${parts.hour}:${parts.minute}:${parts.second}`;
+}
+
+/** dd/mm/yyyy in an arbitrary IANA timezone. */
+export function formatDisplayDateInZone(value: string | number | Date | null | undefined, timeZone: string | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "—";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  const parts = getParts(date, timeZone || DISPLAY_TIME_ZONE);
   return `${parts.day}/${parts.month}/${parts.year}`;
 }
