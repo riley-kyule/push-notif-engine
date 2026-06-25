@@ -1,9 +1,10 @@
 import Link from "next/link";
 
 import { DashboardShell } from "../_components/dashboard-shell";
-import { getAnalyticsDashboardData } from "../_data/analytics";
+import { formatTimeBucketLabel, getAnalyticsDashboardData } from "../_data/analytics";
 import { AnalyticsRangePicker } from "./analytics-range-picker";
 import { buildAnalyticsOverviewCards } from "./analytics-overview";
+import { AnalyticsPerformanceExplorer, type ExplorerSection } from "./analytics-performance-explorer";
 
 function buildQuery(params: {
   preset: string;
@@ -60,6 +61,44 @@ export default async function AnalyticsPage({
   // lives on /analytics/sites, so this never passes a siteId through.
   const dashboard = await getAnalyticsDashboardData(query);
   const overviewCards = buildAnalyticsOverviewCards(dashboard.overview, { failureHref: "/analytics/failures" });
+
+  const trendSection: ExplorerSection = {
+    key: "overview-trend",
+    label: "Trend",
+    eyebrow: "Delivery trend",
+    title: dashboard.days <= 1 ? "Delivery volume by hour" : "Delivery volume over the selected range",
+    badge: "UTC",
+    metrics: [
+      {
+        key: "delivered",
+        label: "Delivered",
+        color: "#ea580c",
+        format: "number",
+        points: dashboard.timePerformance.map((item) => ({ label: formatTimeBucketLabel(item.bucket, dashboard.days), value: item.totalDelivered })),
+      },
+      {
+        key: "sent",
+        label: "Sent",
+        color: "#0ea5e9",
+        format: "number",
+        points: dashboard.timePerformance.map((item) => ({ label: formatTimeBucketLabel(item.bucket, dashboard.days), value: item.totalSent })),
+      },
+      {
+        key: "clicked",
+        label: "Clicked",
+        color: "#16a34a",
+        format: "number",
+        points: dashboard.timePerformance.map((item) => ({ label: formatTimeBucketLabel(item.bucket, dashboard.days), value: item.totalClicked })),
+      },
+      {
+        key: "ctr",
+        label: "CTR",
+        color: "#0ea5e9",
+        format: "percent",
+        points: dashboard.timePerformance.map((item) => ({ label: formatTimeBucketLabel(item.bucket, dashboard.days), value: item.clickThroughRate })),
+      },
+    ],
+  };
 
   const currentFilters = {
     preset: dashboard.selectedPreset,
@@ -124,6 +163,8 @@ export default async function AnalyticsPage({
             campaignId={null}
           />
         </section>
+
+        <AnalyticsPerformanceExplorer sections={[trendSection]} />
 
         {dashboard.comparisonOverview && dashboard.comparisonRange ? (
           <section className="card analytics-comparison-card">

@@ -101,6 +101,11 @@ export class MobilePushRepository {
     }));
   }
 
+  // ON CONFLICT keeps this idempotent under the (job_id, mobile_device_id)
+  // unique index from migration 030: a BullMQ-retried job re-records the
+  // outcome for a device it already attempted under this same job (e.g. one
+  // that failed transiently last time) by updating that row in place rather
+  // than violating the constraint with a duplicate insert.
   async recordDeliveryEvent(input: MobilePushDeliveryEventInput): Promise<void> {
     await this.pool.query(
       `
@@ -109,6 +114,15 @@ export class MobilePushRepository {
         job_id, last_attempted_at
       )
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+      ON CONFLICT (job_id, mobile_device_id) WHERE job_id IS NOT NULL AND mobile_device_id IS NOT NULL
+      DO UPDATE SET
+        status = EXCLUDED.status,
+        provider_message_id = EXCLUDED.provider_message_id,
+        error_code = EXCLUDED.error_code,
+        error_message = EXCLUDED.error_message,
+        payload = EXCLUDED.payload,
+        last_attempted_at = NOW(),
+        updated_at = NOW()
       `,
       [
         input.siteId,

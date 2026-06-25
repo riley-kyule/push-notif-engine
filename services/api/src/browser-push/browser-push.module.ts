@@ -26,6 +26,13 @@ function createBrowserPushQueue(): Queue {
     defaultJobOptions: {
       attempts: 3,
       backoff: { type: "exponential", delay: 2_000 },
+      // Without a cap, every completed/failed job's data and result stay in
+      // Redis forever -- harmless per job, but at sustained campaign/automation
+      // volume this is unbounded memory growth on the one thing the whole queue
+      // depends on. Keeping a generous recent window is still enough for the
+      // platform-health/debugging use cases that ever look at job history.
+      removeOnComplete: { count: 2_000 },
+      removeOnFail: { count: 5_000 },
     },
   });
 }

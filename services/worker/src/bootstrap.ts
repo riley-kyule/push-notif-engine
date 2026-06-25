@@ -111,13 +111,22 @@ export async function bootstrapBrowserPushWorker(): Promise<{
   const worker = new Worker<BrowserPushJobPayload>(
     BROWSER_PUSH_QUEUE_NAME,
     async (job) => processor.process(job.data, job.id),
-    { connection: connection as never, concurrency: browserPushConfig.queueConcurrency },
+    {
+      connection: connection as never,
+      concurrency: browserPushConfig.queueConcurrency,
+      // BullMQ's default lockDuration (30s) is auto-renewed every half-interval
+      // while a job is processing, which already tolerates a job that takes a
+      // long time -- this raises the ceiling further so a brief Redis hiccup
+      // delaying one renewal doesn't immediately flag a multi-hundred-thousand-
+      // recipient job as stalled and hand it to a second concurrent attempt.
+      lockDuration: 10 * 60 * 1000,
+    },
   );
 
   const mobileWorker = new Worker<MobilePushJobPayload>(
     MOBILE_PUSH_QUEUE_NAME,
     async (job) => mobileProcessor.process(job.data, job.id),
-    { connection: connection as never, concurrency: mobilePushConfig.queueConcurrency },
+    { connection: connection as never, concurrency: mobilePushConfig.queueConcurrency, lockDuration: 10 * 60 * 1000 },
   );
 
   // Without these, a Redis blip or a processor throwing outside the per-job

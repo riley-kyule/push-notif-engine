@@ -30,6 +30,32 @@ export interface DeploymentActionResult {
   exitCode: number | null;
 }
 
+export interface Pm2ProcessStatus {
+  name: string;
+  pmId: number;
+  pid: number | null;
+  status: string;
+  uptimeMs: number | null;
+  restarts: number;
+  cpu: number | null;
+  memoryBytes: number | null;
+}
+
+interface Pm2JlistEntry {
+  name?: string;
+  pm_id?: number;
+  pid?: number;
+  pm2_env?: {
+    status?: string;
+    pm_uptime?: number;
+    restart_time?: number;
+  };
+  monit?: {
+    cpu?: number;
+    memory?: number;
+  };
+}
+
 function rootDirFromScript(): string {
   return path.resolve(__dirname, "../../../../");
 }
@@ -126,6 +152,36 @@ export class DeploymentOperationsService {
       aheadBy,
       behindBy,
     };
+  }
+
+  // `pm2 jlist` gives the same data `pm2 status` prints, as parseable JSON --
+  // used by the deployment panel to confirm epe-api/epe-worker/epe-dashboard
+  // actually came back up after the restart scripts/pm2-restart.sh schedules
+  // (deliberately delayed a few seconds past this request's own response, so
+  // pm2 status immediately after a deploy action can't reflect the *new*
+  // processes yet -- the caller is expected to poll this a few seconds later).
+  async getPm2Status(): Promise<Pm2ProcessStatus[]> {
+    this.assertEnabled();
+
+    const { stdout } = await execFileAsync("pm2", ["jlist"], {
+      cwd: this.rootDir,
+      env: { ...process.env, PATH: process.env.PATH ?? "" },
+      maxBuffer: 5 * 1024 * 1024,
+    });
+
+    const parsed = JSON.parse(stdout) as Pm2JlistEntry[];
+    const now = Date.now();
+
+    return parsed.map((entry) => ({
+      name: entry.name ?? "unknown",
+      pmId: typeof entry.pm_id === "number" ? entry.pm_id : -1,
+      pid: typeof entry.pid === "number" ? entry.pid : null,
+      status: entry.pm2_env?.status ?? "unknown",
+      uptimeMs: typeof entry.pm2_env?.pm_uptime === "number" ? Math.max(0, now - entry.pm2_env.pm_uptime) : null,
+      restarts: typeof entry.pm2_env?.restart_time === "number" ? entry.pm2_env.restart_time : 0,
+      cpu: typeof entry.monit?.cpu === "number" ? entry.monit.cpu : null,
+      memoryBytes: typeof entry.monit?.memory === "number" ? entry.monit.memory : null,
+    }));
   }
 
   async run(action: DeploymentAction): Promise<DeploymentActionResult> {

@@ -567,3 +567,71 @@ test("browser push processor sends with bounded concurrency, not sequentially", 
   assert.ok(maxInFlight > 1, "expected more than one send in flight at once");
   assert.ok(maxInFlight <= 10, `expected concurrency to stay at or below the configured limit, got ${maxInFlight}`);
 });
+
+test("browser push processor splits a large subscriber list into bounded batches instead of one giant insert", async () => {
+  const subscriberCount = 12_000; // spans 3 batches at the 5,000-per-batch size
+  const insertBatchSizes: number[] = [];
+  let deliveryCounter = 0;
+
+  const fakeRepository = {
+    async findSiteCredentials() {
+      return {
+        id: "site-1",
+        vapid_subject: "mailto:push@example.com",
+        vapid_public_key: "public-key",
+        vapid_private_key: "private-key",
+      };
+    },
+    async listEligibleSubscribers() {
+      return Array.from({ length: subscriberCount }, (_, index) => ({
+        id: `subscriber-${index}`,
+        subscription_endpoint: `https://push.example.com/${index}`,
+        p256dh_key: "p256dh",
+        auth_key: "auth",
+      }));
+    },
+    async createPendingDeliveryEvents(input: { subscribers: Array<{ subscriberId: string }> }) {
+      insertBatchSizes.push(input.subscribers.length);
+      const map = new Map<string, string>();
+      for (const subscriber of input.subscribers) {
+        deliveryCounter += 1;
+        map.set(subscriber.subscriberId, `delivery-${deliveryCounter}`);
+      }
+      return map;
+    },
+    async markDeliveryEventSent() {
+      return undefined;
+    },
+    async markDeliveryEventFailed() {
+      return undefined;
+    },
+    async markSubscriberExpired() {
+      return undefined;
+    },
+  };
+
+  const fakeSender = {
+    configure() {
+      return undefined;
+    },
+    async send() {
+      return { providerMessageId: "provider-1" };
+    },
+  };
+
+  const processor = new BrowserPushProcessor(fakeRepository as never, fakeSender as never);
+  const job: BrowserPushJobPayload = {
+    siteId: "site-1",
+    enqueuedAt: new Date().toISOString(),
+    notification: { title: "t", body: "b", url: "https://example.com", icon: null, image: null },
+  };
+
+  const result = await processor.process(job);
+
+  assert.equal(result.sent, subscriberCount);
+  assert.deepEqual(insertBatchSizes, [5_000, 5_000, 2_000]);
+  assert.ok(
+    insertBatchSizes.every((size) => size <= 5_000),
+    "no single batch should exceed the configured batch size",
+  );
+});

@@ -20,6 +20,7 @@ export function SitesTable({
       <table className="table">
         <thead>
           <tr>
+            <th>Icon</th>
             <SortableHeader basePath={basePath} currentParams={currentParams} field="name" label="Site" />
             <th>URL</th>
             <SortableHeader basePath={basePath} currentParams={currentParams} field="country" label="Country" />
@@ -37,6 +38,26 @@ export function SitesTable({
             const connection = getConnectionStatus(site.lastConnectedAt);
             return (
               <tr key={site.id}>
+                <td>
+                  {site.iconUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- icon URLs are arbitrary, admin-supplied site assets, not part of the Next.js-optimized image set.
+                    <img
+                      src={site.iconUrl}
+                      alt=""
+                      width={28}
+                      height={28}
+                      style={{ borderRadius: 6, objectFit: "cover", display: "block" }}
+                    />
+                  ) : (
+                    <span
+                      className="badge warn"
+                      title="No icon set for this site"
+                      style={{ display: "inline-flex", width: 28, height: 28, alignItems: "center", justifyContent: "center", padding: 0, fontSize: 11 }}
+                    >
+                      —
+                    </span>
+                  )}
+                </td>
                 <td>
                   <Link href={`/sites/${site.id}`}>
                     <strong>{site.name}</strong>
@@ -68,7 +89,7 @@ export function SitesTable({
           })}
           {sites.length === 0 ? (
             <tr>
-              <td colSpan={10} className="subtle">
+              <td colSpan={11} className="subtle">
                 No sites match your filters.
               </td>
             </tr>

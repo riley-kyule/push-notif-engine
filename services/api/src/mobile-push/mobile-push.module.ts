@@ -25,6 +25,9 @@ function createMobilePushQueue(): Queue {
     defaultJobOptions: {
       attempts: 3,
       backoff: { type: "exponential", delay: 2_000 },
+      // See browser-push.module.ts: bounds Redis memory growth from job history.
+      removeOnComplete: { count: 2_000 },
+      removeOnFail: { count: 5_000 },
     },
   });
 }
