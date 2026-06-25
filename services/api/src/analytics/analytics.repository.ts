@@ -216,7 +216,7 @@ export class AnalyticsRepository {
     };
   }
 
-  async getOverview(days: number): Promise<{
+  async getOverview(days: number, siteId?: string): Promise<{
     totalSites: number;
     totalSubscribers: number;
     activeSubscribers: number;
@@ -233,14 +233,18 @@ export class AnalyticsRepository {
     failedDeliveryReasonCount: number;
   }> {
     const [sitesResult, subscribersResult, campaignsResult, deliveryResult, failureReasonResult] = await Promise.all([
-      this.pool.query<SiteCountRow>(`SELECT COUNT(*)::text AS total_sites FROM sites`),
+      siteId
+        ? this.pool.query<SiteCountRow>(`SELECT COUNT(*)::text AS total_sites FROM sites WHERE id = $1`, [siteId])
+        : this.pool.query<SiteCountRow>(`SELECT COUNT(*)::text AS total_sites FROM sites`),
       this.pool.query<SiteOverviewRow>(
         `
         SELECT
           COUNT(*)                                   AS total_subscribers,
           COUNT(*) FILTER (WHERE status = 'active') AS active_subscribers
         FROM subscribers
+        ${siteId ? "WHERE site_id = $1" : ""}
         `,
+        siteId ? [siteId] : [],
       ),
       this.pool.query<CampaignCountRow>(
         `
@@ -248,7 +252,9 @@ export class AnalyticsRepository {
           COUNT(*) FILTER (WHERE status IN ('scheduled', 'sending')) AS active_campaigns,
           COUNT(*)                                                    AS total_campaigns
         FROM campaigns
+        ${siteId ? "WHERE site_id = $1" : ""}
         `,
+        siteId ? [siteId] : [],
       ),
       this.pool.query<CampaignStatsRow>(
         `
@@ -262,8 +268,9 @@ export class AnalyticsRepository {
           COUNT(*)                                        AS total
         FROM push_delivery_events
         WHERE created_at >= NOW() - ($1 || ' days')::interval
+          ${siteId ? "AND site_id = $2" : ""}
         `,
-        [days],
+        siteId ? [days, siteId] : [days],
       ),
       this.pool.query<FailedDeliveryReasonRow>(
         `
@@ -278,6 +285,7 @@ export class AnalyticsRepository {
           FROM push_delivery_events
           WHERE status = 'failed'
             AND created_at >= NOW() - ($1 || ' days')::interval
+            ${siteId ? "AND site_id = $2" : ""}
         )
         SELECT failure_reason, COUNT(*)::text AS failure_count
         FROM failure_reasons
@@ -285,7 +293,7 @@ export class AnalyticsRepository {
         ORDER BY COUNT(*) DESC, failure_reason ASC
         LIMIT 1
         `,
-        [days],
+        siteId ? [days, siteId] : [days],
       ),
     ]);
 

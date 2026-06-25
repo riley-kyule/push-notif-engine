@@ -49,8 +49,8 @@ export class AnalyticsController {
   ) {}
 
   @Get("overview")
-  async getOverview(@Query("days") days?: string): Promise<{ success: true; data: unknown }> {
-    const overview = await this.analyticsService.getOverview(days ? parseInt(days, 10) : 30);
+  async getOverview(@Query("days") days?: string, @Query("siteId") siteId?: string): Promise<{ success: true; data: unknown }> {
+    const overview = await this.analyticsService.getOverview(days ? parseInt(days, 10) : 30, siteId);
     return { success: true, data: overview };
   }
 

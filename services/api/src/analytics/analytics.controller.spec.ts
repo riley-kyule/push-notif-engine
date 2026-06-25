@@ -53,14 +53,21 @@ test("analytics controller returns overview data with default day window", async
 
   assert.equal(result.success, true);
   assert.deepEqual(result.data, { totalSites: 1 });
-  assert.deepEqual(calls, [{ method: "getOverview", args: [30] }]);
+  assert.deepEqual(calls, [{ method: "getOverview", args: [30, undefined] }]);
 });
 
 test("analytics controller parses a custom days query for overview", async () => {
   const { controller, calls } = createController();
   await controller.getOverview("7");
 
-  assert.deepEqual(calls, [{ method: "getOverview", args: [7] }]);
+  assert.deepEqual(calls, [{ method: "getOverview", args: [7, undefined] }]);
+});
+
+test("analytics controller passes siteId through to scope the overview", async () => {
+  const { controller, calls } = createController();
+  await controller.getOverview("7", "site-1");
+
+  assert.deepEqual(calls, [{ method: "getOverview", args: [7, "site-1"] }]);
 });
 
 test("analytics controller returns campaign stats", async () => {

@@ -375,12 +375,10 @@ export async function getAnalyticsDashboardData(input: {
             "Comparison period",
           )
         : null;
-  const [overview, sitesPayload, campaignsPayload] = await Promise.all([
-    getDashboardOverview(range.days),
+  const [sitesPayload, campaignsPayload] = await Promise.all([
     getSiteList({ limit: ALL_SITES_FETCH_LIMIT, offset: 0 }),
     getCampaignList(),
   ]);
-  const comparisonOverview = comparisonRange ? await getDashboardOverview(comparisonRange.days) : null;
 
   const sites = sitesPayload.items.length > 0 ? sitesPayload.items : [createAllSitesFallback()];
   // "site-3" is the All Sites sentinel -- it isn't a real site, so it must
@@ -392,6 +390,15 @@ export async function getAnalyticsDashboardData(input: {
       ? createAllSitesFallback()
       : (input.siteId ? await getSiteById(input.siteId) : null) ?? sites[0] ?? createAllSitesFallback();
   const siteScopeId = selectedSite.id === "site-3" ? undefined : selectedSite.id;
+
+  // Overview (the home/analytics "Failures," "Subscribers," etc. summary
+  // cards) must be fetched after siteScopeId is known -- otherwise it
+  // always returns the cross-site aggregate regardless of which site is
+  // selected, which is exactly the bug this fixes.
+  const [overview, comparisonOverview] = await Promise.all([
+    getDashboardOverview(range.days, siteScopeId),
+    comparisonRange ? getDashboardOverview(comparisonRange.days, siteScopeId) : Promise.resolve(null),
+  ]);
 
   const selectedCampaign =
     (input.campaignId ? await getCampaignById(input.campaignId) : null) ??
