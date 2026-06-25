@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -29,6 +30,11 @@ export interface DashboardNavItem {
   description?: string;
   status?: "live" | "planned";
   icon: DashboardNavIcon;
+  // A parent with children renders as an expandable group instead of a
+  // link -- its own href (if any) becomes the first child, e.g. an
+  // "Overview" row, rather than overloading one click target to mean
+  // both "navigate" and "expand."
+  children?: DashboardNavItem[];
 }
 
 export interface DashboardNavSection {
@@ -188,6 +194,109 @@ export function SidebarIcon({ name }: { name: DashboardNavIcon }) {
   }
 }
 
+function isPathActive(pathname: string, href: string | undefined): boolean {
+  if (!href) return false;
+  const itemPath = href.split("#")[0];
+  if (!itemPath) return false;
+  return pathname === itemPath || (itemPath !== "/" && pathname.startsWith(`${itemPath}/`));
+}
+
+function NavLeaf({ item, sectionLabel, pathname }: { item: DashboardNavItem; sectionLabel: string; pathname: string }) {
+  const isActive = isPathActive(pathname, item.href);
+  const status = item.status ?? (item.href ? "live" : "planned");
+  const itemKey = `${sectionLabel}-${item.href ?? "planned"}-${item.label}`;
+
+  if (!item.href) {
+    return (
+      <div
+        key={itemKey}
+        className={`nav-item nav-item--${status}`}
+        aria-disabled="true"
+        title={item.description ? `${item.label} - ${item.description}` : item.label}
+      >
+        <span className="nav-icon">
+          <SidebarIcon name={item.icon} />
+        </span>
+        <div className="nav-item-copy">
+          <span className="nav-item-label">{item.label}</span>
+          {item.description ? <span className="nav-item-description">{item.description}</span> : null}
+        </div>
+        {status === "planned" ? <span className="nav-pill nav-pill--planned">Coming soon</span> : null}
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      key={itemKey}
+      href={item.href}
+      className={`nav-item nav-item--${status}`}
+      aria-current={isActive ? "page" : undefined}
+      title={item.description ? `${item.label} - ${item.description}` : item.label}
+    >
+      <span className="nav-icon">
+        <SidebarIcon name={item.icon} />
+      </span>
+      <div className="nav-item-copy">
+        <span className="nav-item-label">{item.label}</span>
+        {item.description ? <span className="nav-item-description">{item.description}</span> : null}
+      </div>
+    </Link>
+  );
+}
+
+function NavGroup({ item, sectionLabel, pathname }: { item: DashboardNavItem; sectionLabel: string; pathname: string }) {
+  const children = item.children ?? [];
+  // The parent's own href (if it has one) becomes the first child row --
+  // e.g. an "Overview" link -- instead of overloading the group header to
+  // mean both "navigate" and "expand."
+  const allChildren = item.href ? [{ href: item.href, label: "Overview", icon: item.icon }, ...children] : children;
+  const groupIsActive = isPathActive(pathname, item.href) || children.some((child) => isPathActive(pathname, child.href));
+  const [expanded, setExpanded] = useState(groupIsActive);
+
+  useEffect(() => {
+    if (groupIsActive) {
+      setExpanded(true);
+    }
+    // Only auto-expand on navigation into the group -- never auto-collapse
+    // it just because the user navigated away, in case they're about to
+    // click another item in the same group.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupIsActive]);
+
+  const itemKey = `${sectionLabel}-group-${item.label}`;
+
+  return (
+    <div key={itemKey} className="nav-item-group">
+      <button
+        type="button"
+        className={`nav-item nav-item--live nav-item--group ${groupIsActive ? "nav-item--group-active" : ""}`}
+        onClick={() => setExpanded((current) => !current)}
+        aria-expanded={expanded}
+        title={item.description ? `${item.label} - ${item.description}` : item.label}
+      >
+        <span className="nav-icon">
+          <SidebarIcon name={item.icon} />
+        </span>
+        <div className="nav-item-copy">
+          <span className="nav-item-label">{item.label}</span>
+          {item.description ? <span className="nav-item-description">{item.description}</span> : null}
+        </div>
+        <span className={`nav-group-chevron ${expanded ? "nav-group-chevron--open" : ""}`} aria-hidden="true">
+          ▾
+        </span>
+      </button>
+      {expanded ? (
+        <div className="nav-subitems">
+          {allChildren.map((child) => (
+            <NavLeaf key={`${itemKey}-${child.href ?? child.label}`} item={child} sectionLabel={sectionLabel} pathname={pathname} />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function DashboardNav({ sections, collapsed }: { sections: DashboardNavSection[]; collapsed: boolean }) {
   const pathname = usePathname();
 
@@ -196,51 +305,13 @@ export function DashboardNav({ sections, collapsed }: { sections: DashboardNavSe
       <div key={section.label} className="nav-group">
         <p className="nav-heading">{section.label}</p>
         <div className="nav-items">
-          {section.items.map((item) => {
-            const itemPath = item.href?.split("#")[0];
-            const isActive = itemPath ? pathname === itemPath || (itemPath !== "/" && pathname.startsWith(`${itemPath}/`)) : false;
-            const status = item.status ?? (item.href ? "live" : "planned");
-
-            const itemKey = `${section.label}-${item.href ?? "planned"}-${item.label}`;
-
-            if (!item.href) {
-              return (
-                <div
-                  key={itemKey}
-                  className={`nav-item nav-item--${status}`}
-                  aria-disabled="true"
-                  title={item.description ? `${item.label} - ${item.description}` : item.label}
-                >
-                  <span className="nav-icon">
-                    <SidebarIcon name={item.icon} />
-                  </span>
-                  <div className="nav-item-copy">
-                    <span className="nav-item-label">{item.label}</span>
-                    {item.description ? <span className="nav-item-description">{item.description}</span> : null}
-                  </div>
-                  {status === "planned" ? <span className="nav-pill nav-pill--planned">Coming soon</span> : null}
-                </div>
-              );
-            }
-
-            return (
-              <Link
-                key={itemKey}
-                href={item.href}
-                className={`nav-item nav-item--${status}`}
-                aria-current={isActive ? "page" : undefined}
-                title={item.description ? `${item.label} - ${item.description}` : item.label}
-              >
-                <span className="nav-icon">
-                  <SidebarIcon name={item.icon} />
-                </span>
-                <div className="nav-item-copy">
-                  <span className="nav-item-label">{item.label}</span>
-                  {item.description ? <span className="nav-item-description">{item.description}</span> : null}
-                </div>
-              </Link>
-            );
-          })}
+          {section.items.map((item) =>
+            item.children && item.children.length > 0 ? (
+              <NavGroup key={`${section.label}-group-${item.label}`} item={item} sectionLabel={section.label} pathname={pathname} />
+            ) : (
+              <NavLeaf key={`${section.label}-${item.href ?? "planned"}-${item.label}`} item={item} sectionLabel={section.label} pathname={pathname} />
+            ),
+          )}
         </div>
       </div>
     ))}

@@ -106,7 +106,7 @@ const rangeLabels: Record<AnalyticsDays, string> = {
   365: "Last 1 year",
 };
 
-function normalizeDays(value?: string): AnalyticsDays {
+export function normalizeDays(value?: string): AnalyticsDays {
   const parsed = Number.parseInt(value ?? "30", 10);
   if (parsed === 1 || parsed === 7 || parsed === 30 || parsed === 90 || parsed === 365) {
     return parsed;
@@ -452,4 +452,40 @@ async function getAnalyticsApiList<T>(path: string, fallback: T[]): Promise<T[]>
   }
 
   return response.data;
+}
+
+// Single-report fetchers for the dedicated /analytics/* pages -- each pulls
+// only what that page needs instead of the full getAnalyticsDashboardData
+// bundle (sites, campaigns, overview, every performance breakdown at once).
+
+export async function getSitePerformancePage(days: AnalyticsDays, siteId?: string): Promise<SitePerformanceSummary[]> {
+  const sitesPayload = await getSiteList({ limit: ALL_SITES_FETCH_LIMIT, offset: 0 });
+  const sites = sitesPayload.items.length > 0 ? sitesPayload.items : [createAllSitesFallback()];
+  return getAnalyticsApiList<SitePerformanceSummary>(
+    `/analytics/sites-performance?days=${days}${siteId ? `&siteId=${encodeURIComponent(siteId)}` : ""}`,
+    fallbackSitePerformance(sites),
+  );
+}
+
+export async function getCountryPerformancePage(days: AnalyticsDays, siteId?: string): Promise<CountryPerformanceSummary[]> {
+  const sitesPayload = await getSiteList({ limit: ALL_SITES_FETCH_LIMIT, offset: 0 });
+  const sites = sitesPayload.items.length > 0 ? sitesPayload.items : [createAllSitesFallback()];
+  return getAnalyticsApiList<CountryPerformanceSummary>(
+    `/analytics/countries?days=${days}${siteId ? `&siteId=${encodeURIComponent(siteId)}` : ""}`,
+    fallbackCountryPerformance(sites),
+  );
+}
+
+export async function getContentPerformancePage(days: AnalyticsDays, siteId?: string): Promise<ContentPerformanceSummary[]> {
+  return getAnalyticsApiList<ContentPerformanceSummary>(
+    `/analytics/content-performance?days=${days}${siteId ? `&siteId=${encodeURIComponent(siteId)}` : ""}`,
+    fallbackContentPerformance(),
+  );
+}
+
+export async function getTimePerformancePage(days: AnalyticsDays, siteId?: string): Promise<TimePerformanceSummary[]> {
+  return getAnalyticsApiList<TimePerformanceSummary>(
+    `/analytics/time-performance?days=${days}${siteId ? `&siteId=${encodeURIComponent(siteId)}` : ""}`,
+    fallbackTimePerformance(days),
+  );
 }
