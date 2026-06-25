@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 
+import { AuditService } from "../audit/audit.service";
 import { SUBSCRIBERS_REPOSITORY } from "./subscribers.constants";
 import type { SubscribersRepository } from "./subscribers.repository";
 import type { SubscriberListFilters, SubscriberListResult, SubscriberRecord } from "./subscribers.types";
@@ -7,6 +8,7 @@ import { RegisterSubscriberDto } from "./dto/register-subscriber.dto";
 import { ListSubscribersQueryDto } from "./dto/list-subscribers-query.dto";
 import { UpdateSubscriberStatusDto } from "./dto/update-subscriber-status.dto";
 import { UnsubscribeSubscriberDto } from "./dto/unsubscribe-subscriber.dto";
+import { ClearInactiveSubscribersDto } from "./dto/clear-inactive-subscribers.dto";
 import { WorkflowService } from "../workflows/workflow.service";
 
 @Injectable()
@@ -16,6 +18,7 @@ export class SubscribersService {
   constructor(
     @Inject(SUBSCRIBERS_REPOSITORY) private readonly subscribersRepository: SubscribersRepository,
     private readonly workflowService: WorkflowService,
+    private readonly auditService: AuditService,
   ) {}
 
   async registerSubscriber(dto: RegisterSubscriberDto, detectedCountry?: string): Promise<SubscriberRecord> {
@@ -107,5 +110,20 @@ export class SubscribersService {
     }
 
     return updated;
+  }
+
+  async clearInactiveSubscribers(dto: ClearInactiveSubscribersDto, actorUserId?: string): Promise<number> {
+    const siteIds = dto.siteIds && dto.siteIds.length > 0 ? dto.siteIds : null;
+    const cleared = await this.subscribersRepository.markInactiveSince(siteIds, dto.inactiveSinceDays);
+
+    await this.auditService.log({
+      actorUserId: actorUserId ?? null,
+      action: "subscribers.marked_inactive",
+      targetType: "subscriber",
+      targetId: null,
+      metadata: { siteIds, inactiveSinceDays: dto.inactiveSinceDays, cleared },
+    });
+
+    return cleared;
   }
 }

@@ -126,6 +126,20 @@ export class PostgresSubscribersRepository implements SubscribersRepository {
     return row ? this.mapRow(row) : null;
   }
 
+  async markInactiveSince(siteIds: string[] | null, inactiveSinceDays: number): Promise<number> {
+    const result = await this.pool.query(
+      `
+      UPDATE subscribers
+      SET status = 'inactive', updated_at = NOW()
+      WHERE status = 'active'
+        AND (last_seen_at IS NULL OR last_seen_at < NOW() - ($1 || ' days')::interval)
+        ${siteIds ? "AND site_id = ANY($2::uuid[])" : ""}
+      `,
+      siteIds ? [inactiveSinceDays, siteIds] : [inactiveSinceDays],
+    );
+    return result.rowCount ?? 0;
+  }
+
   async list(filters: SubscriberListFilters): Promise<SubscriberListResult> {
     const queryParts: string[] = [
       `SELECT id, site_id, browser, device_type, country, language, subscription_endpoint, p256dh_key, auth_key, status, last_seen_at, created_at, updated_at`,

@@ -29,4 +29,9 @@ export interface SubscribersRepository {
   findBySiteAndEndpoint(siteId: string, subscriptionEndpoint: string): Promise<SubscriberRecord | null>;
   updateStatus(id: string, input: UpdateSubscriberStatusInput): Promise<SubscriberRecord | null>;
   list(filters: SubscriberListFilters): Promise<SubscriberListResult>;
+  // Marks every currently-active subscriber whose last_seen_at is older than
+  // the cutoff as inactive. siteIds === null means every site; an empty
+  // array would match nothing, so callers should treat that as "no sites
+  // selected" rather than translating it to null.
+  markInactiveSince(siteIds: string[] | null, inactiveSinceDays: number): Promise<number>;
 }

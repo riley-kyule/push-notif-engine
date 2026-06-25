@@ -2,6 +2,7 @@ import { forwardRef, Module } from "@nestjs/common";
 import { Queue } from "bullmq";
 import IORedis from "ioredis";
 
+import { AuditModule } from "../audit/audit.module";
 import { DatabaseModule } from "../database/database.module";
 import { SitesModule } from "../sites/sites.module";
 import { WorkflowModule } from "../workflows/workflow.module";
@@ -30,7 +31,7 @@ function createBrowserPushQueue(): Queue {
 }
 
 @Module({
-  imports: [SitesModule, DatabaseModule, forwardRef(() => WorkflowModule)],
+  imports: [SitesModule, DatabaseModule, AuditModule, forwardRef(() => WorkflowModule)],
   controllers: [BrowserPushController, BrowserPushDeliveryController],
   providers: [
     BrowserPushService,

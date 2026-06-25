@@ -72,6 +72,21 @@ export class InMemorySubscribersRepository implements SubscribersRepository {
     return updated;
   }
 
+  async markInactiveSince(siteIds: string[] | null, inactiveSinceDays: number): Promise<number> {
+    const cutoff = Date.now() - inactiveSinceDays * 24 * 60 * 60 * 1000;
+    let count = 0;
+    for (const [id, subscriber] of this.subscribers) {
+      if (subscriber.status !== "active") continue;
+      if (siteIds && !siteIds.includes(subscriber.siteId)) continue;
+      const lastSeenMs = subscriber.lastSeenAt?.getTime();
+      if (lastSeenMs !== undefined && lastSeenMs >= cutoff) continue;
+
+      this.subscribers.set(id, { ...subscriber, status: "inactive", updatedAt: new Date() });
+      count += 1;
+    }
+    return count;
+  }
+
   async list(filters: SubscriberListFilters): Promise<SubscriberListResult> {
     const all = Array.from(this.subscribers.values()).filter((subscriber) => {
       if (filters.siteId && subscriber.siteId !== filters.siteId) return false;

@@ -1,12 +1,15 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
 
+import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
+import type { AuthenticatedUser } from "../auth/auth.types";
 import { ListSubscribersQueryDto } from "./dto/list-subscribers-query.dto";
 import { RegisterSubscriberDto } from "./dto/register-subscriber.dto";
 import { UpdateSubscriberStatusDto } from "./dto/update-subscriber-status.dto";
 import { UnsubscribeSubscriberDto } from "./dto/unsubscribe-subscriber.dto";
+import { ClearInactiveSubscribersDto } from "./dto/clear-inactive-subscribers.dto";
 import { SubscribersService } from "./subscribers.service";
 import { resolveCountryFromHeaders } from "./geo-ip.util";
 
@@ -58,5 +61,16 @@ export class SubscribersController {
   ): Promise<{ success: true; data: unknown }> {
     const subscriber = await this.subscribersService.updateStatus(id, dto);
     return { success: true, data: subscriber };
+  }
+
+  @Post("clear-inactive")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("super-admin")
+  async clearInactive(
+    @Body() dto: ClearInactiveSubscribersDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ success: true; data: { cleared: number } }> {
+    const cleared = await this.subscribersService.clearInactiveSubscribers(dto, user.id);
+    return { success: true, data: { cleared } };
   }
 }
