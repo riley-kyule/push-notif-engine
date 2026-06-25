@@ -63,6 +63,8 @@ Use the helper script rather than manually starting each service:
 pm2 status
 ```
 
+The dashboard's Platform Health page also exposes this as a "Minor Update" (git pull + restart) / "Core Update" (the full install/build/migrate/restart flow above) button pair for super admins, with a real-time PM2 status confirmation after the restart -- useful for routine updates, but this manual runbook is still the one to follow for first-boot bootstrap, troubleshooting, and anything the buttons can't do unattended.
+
 If this is the first boot on a fresh VM, bootstrap PM2 once:
 
 ```bash

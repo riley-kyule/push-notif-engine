@@ -13,7 +13,7 @@ This is the WordPress integration scaffold for Exotic Push Engine.
   - Site key
 - Reads branding and opt-in prompt settings from the EPE site record so app name, icon, theme color, and custom prompt copy are managed centrally in EPE
 - Renders the custom EPE opt-in prompt before falling back to the browser permission dialog
-- Shows a subscriber bell at the bottom-left once push is enabled, with recent notifications and an unsubscribe action
+- Shows a small, low-opacity subscriber bell (an inline SVG icon, not an emoji) at the bottom-left once push is enabled, with recent notifications and an unsubscribe action — its position-avoidance logic only reacts to elements actually flush against the bottom edge, so it doesn't get pushed off-screen by an unrelated tall fixed/sticky element elsewhere on the page
 - Uses the site-level recent-notification limit configured in EPE for the tray
 - Works in multisite by using normal WordPress option storage per site
 
