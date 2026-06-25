@@ -105,7 +105,18 @@ export class BrowserPushProcessor {
       } catch (error) {
         const statusCode = isResponseError(error) ? error.statusCode : undefined;
         const message = isResponseError(error) ? error.message : "Unknown push failure";
-        const shouldExpire = statusCode === 404 || statusCode === 410;
+        // A 403 here means the push service rejected this specific
+        // subscription's auth -- permanent for that subscription (the
+        // browser revoked permission, cleared site data, or the
+        // registration was otherwise invalidated), the same as 404/410.
+        // Confirmed scattered thinly across most sites with small per-site
+        // counts rather than concentrated on one site's whole subscriber
+        // base, which rules out a site-wide VAPID misconfiguration and
+        // points at ordinary dead subscriptions piling up because nothing
+        // expired them. Already retried up to 3x with backoff in
+        // sendWithRetry before reaching here, so this isn't a transient
+        // rate-limit blip either.
+        const shouldExpire = statusCode === 403 || statusCode === 404 || statusCode === 410;
         const attempts = isAttemptedError(error) ? error.attempts : 1;
 
         await this.repository.markDeliveryEventFailed(deliveryId, {
