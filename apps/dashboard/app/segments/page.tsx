@@ -1,13 +1,12 @@
 import Link from "next/link";
 
 import { DashboardShell } from "../_components/dashboard-shell";
+import { formatDisplayDate } from "../_components/format-date";
 import { fallbackSiteChoices, getSiteChoices } from "../_data/sites";
 import { getFallbackSegmentSummaries, getSegmentSummaries } from "../_data/segments-dashboard";
 
 function formatDate(value: string): string {
-  return new Intl.DateTimeFormat("en-GB", {
-    dateStyle: "medium",
-  }).format(new Date(value));
+  return formatDisplayDate(value);
 }
 
 export default async function SegmentsPage() {

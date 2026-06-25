@@ -42,6 +42,10 @@ function createService(overrides: Partial<Record<string, (...args: never[]) => u
       calls.push({ method: "getContentPerformance", args });
       return overrides.getContentPerformance ? overrides.getContentPerformance(...args) : [{ contentType: "promotion" }];
     },
+    async getPeakHours(...args: never[]) {
+      calls.push({ method: "getPeakHours", args });
+      return overrides.getPeakHours ? overrides.getPeakHours(...args) : [{ hour: 18, newSubscribers: 12 }];
+    },
     async exportReport(...args: never[]) {
       calls.push({ method: "exportReport", args });
       return overrides.exportReport ? overrides.exportReport(...args) : { filename: "analytics-overview-7d.csv", contentType: "text/csv; charset=utf-8", body: "metric,value" };
@@ -74,6 +78,15 @@ test("analytics service proxies overview and reporting data", async () => {
   assert.deepEqual(calls[2]?.args, [7, "site-1"]);
   assert.deepEqual(calls[3]?.args, [7, "site-1"]);
   assert.deepEqual(calls[4]?.args, [7, "site-1"]);
+});
+
+test("analytics service proxies peak-hours data", async () => {
+  const { service, calls } = createService();
+
+  const result = await service.getPeakHours(7, "site-1");
+
+  assert.deepEqual(calls[0]?.args, [7, "site-1"]);
+  assert.deepEqual(result, [{ hour: 18, newSubscribers: 12 }]);
 });
 
 test("analytics service exports csv reports", async () => {

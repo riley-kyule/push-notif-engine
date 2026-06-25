@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { formatDisplayDate } from "../_components/format-date";
 import { SortableHeader } from "../_components/list-controls";
 import { countryCodeToFlagEmoji, getCountryName } from "../_data/countries";
 import { getConnectionStatus } from "./connection-status";
@@ -56,7 +57,7 @@ export function SitesTable({
                   <span className={`badge ${connection.badgeClass}`}>{connection.label}</span>
                 </td>
                 <td>{site.subscribers.toLocaleString()}</td>
-                <td className="subtle">{new Date(site.createdAt).toLocaleDateString()}</td>
+                <td className="subtle">{formatDisplayDate(site.createdAt)}</td>
                 <td>
                   <Link className="subtle" href={`/sites/${site.id}`}>
                     View

@@ -38,6 +38,10 @@ function createController(overrides: Partial<Record<string, (...args: never[]) =
       calls.push({ method: "getContentPerformance", args });
       return overrides.getContentPerformance ? overrides.getContentPerformance(...args) : [];
     },
+    async getPeakHours(...args: never[]) {
+      calls.push({ method: "getPeakHours", args });
+      return overrides.getPeakHours ? overrides.getPeakHours(...args) : [];
+    },
     async exportReport(...args: never[]) {
       calls.push({ method: "exportReport", args });
       return overrides.exportReport ? overrides.exportReport(...args) : { filename: "analytics-overview-30d.csv", contentType: "text/csv; charset=utf-8", body: "metric,value" };
@@ -117,6 +121,15 @@ test("analytics controller returns content performance", async () => {
 
   assert.equal(content.success, true);
   assert.deepEqual(calls, [{ method: "getContentPerformance", args: [14, undefined] }]);
+});
+
+test("analytics controller returns peak-hours data", async () => {
+  const { controller, calls } = createController();
+
+  const result = await controller.getPeakHours("14", "site-1");
+
+  assert.equal(result.success, true);
+  assert.deepEqual(calls, [{ method: "getPeakHours", args: [14, "site-1"] }]);
 });
 
 test("analytics controller exports csv reports", async () => {

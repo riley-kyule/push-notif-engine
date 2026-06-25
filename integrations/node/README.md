@@ -11,7 +11,7 @@ import { mountEpePush } from "@epe/node-starter/express";
 import { buildBootstrapSnippet } from "@epe/node-starter";
 
 const config = {
-  apiUrl: "https://push.example.com/api",
+  apiUrl: "https://push.example.com",
   siteKey: process.env.EPE_SITE_KEY!,
   appName: "Exotic News",
   iconUrl: "/icons/icon-192.png",

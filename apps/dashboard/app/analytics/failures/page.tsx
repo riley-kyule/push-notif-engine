@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { DashboardShell } from "../../_components/dashboard-shell";
+import { formatDisplayDateTime } from "../../_components/format-date";
 import { FilterSelect, PageSizeSelect, Pagination } from "../../_components/list-controls";
 import { getFailedDeliveriesPage, getFailureReasons, getPushTypeLabel, type PushType } from "../../_data/failed-deliveries";
 import { getSiteChoices } from "../../_data/sites";
@@ -8,7 +9,7 @@ import { getSiteChoices } from "../../_data/sites";
 const PUSH_TYPES: PushType[] = ["campaign", "automation", "manual"];
 
 function formatTimestamp(value: string): string {
-  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return formatDisplayDateTime(value);
 }
 
 export default async function FailedDeliveriesPage({

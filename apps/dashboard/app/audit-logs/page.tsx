@@ -1,4 +1,5 @@
 import { DashboardShell } from "../_components/dashboard-shell";
+import { formatDisplayDate, formatDisplayDateTime } from "../_components/format-date";
 import { FilterSelect, PageSizeSelect, Pagination } from "../_components/list-controls";
 import {
   describeAction,
@@ -25,11 +26,11 @@ const GROUP_BY_OPTIONS = [
 ] as const;
 
 function formatTimestamp(value: string): string {
-  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return formatDisplayDateTime(value);
 }
 
 function formatDateOnly(value: string): string {
-  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(new Date(value));
+  return formatDisplayDate(value);
 }
 
 function groupKeyFor(row: AuditLogRow, groupBy: string): string {

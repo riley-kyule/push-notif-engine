@@ -17,7 +17,7 @@ export interface SubscriberSummary {
   country: string;
   language: string;
   status: "active" | "inactive" | "unsubscribed" | "expired";
-  lastSeenAt: string;
+  lastSeenAt: string | null;
   createdAt: string;
   historyCount: number;
 }
@@ -128,7 +128,7 @@ function toApiSummary(record: ApiSubscriberRecord): SubscriberSummary {
     country: record.country,
     language: record.language,
     status: record.status,
-    lastSeenAt: record.lastSeenAt ?? "Never",
+    lastSeenAt: record.lastSeenAt,
     createdAt: record.createdAt,
     historyCount: 0,
   };
