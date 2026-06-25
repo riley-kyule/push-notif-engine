@@ -17,6 +17,7 @@ fi
 
 npm install
 npm run build --workspace @epe/api
+npm run build --workspace @epe/worker
 npm run build --workspace @epe/dashboard
 npm run migrate --workspace @epe/api
 "$ROOT_DIR/scripts/pm2-restart.sh"
