@@ -1,3 +1,4 @@
+import { Type } from "class-transformer";
 import { IsIn, IsInt, IsOptional, IsString, Max, Min } from "class-validator";
 import type { AutomationStatus, AutomationTriggerEvent } from "../automations.types";
 
@@ -18,12 +19,14 @@ export class ListAutomationsQueryDto {
   status?: AutomationStatus;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(100)
   limit?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(0)
   offset?: number;
