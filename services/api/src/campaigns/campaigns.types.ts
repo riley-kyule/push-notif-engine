@@ -40,11 +40,16 @@ export interface CampaignRecord {
   updatedAt: Date;
 }
 
+export type CampaignSortField = "name" | "type" | "status" | "scheduledAt" | "sentAt" | "createdAt";
+export type SortDirection = "asc" | "desc";
+
 export interface CampaignListFilters {
   siteId?: string;
   type?: CampaignType;
   status?: CampaignStatus;
   contentType?: CampaignContentType;
+  sortBy?: CampaignSortField;
+  sortDir?: SortDirection;
   limit: number;
   offset: number;
 }

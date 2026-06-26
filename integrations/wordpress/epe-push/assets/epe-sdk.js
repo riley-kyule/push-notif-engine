@@ -396,28 +396,32 @@
         gap: 10px;
       }
       .epe-notification-card {
-        display: grid;
-        gap: 6px;
-        padding: 14px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
         border-radius: 18px;
         background: rgba(15, 23, 42, 0.04);
         border: 1px solid rgba(15, 23, 42, 0.07);
+        text-decoration: none;
+        color: inherit;
+        cursor: pointer;
+        transition: background 0.15s ease;
+      }
+      .epe-notification-card:hover {
+        background: rgba(15, 23, 42, 0.08);
+      }
+      .epe-notification-card__icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        object-fit: cover;
+        flex-shrink: 0;
       }
       .epe-notification-card__title {
         margin: 0;
         font-size: 0.95rem;
         font-weight: 700;
-      }
-      .epe-notification-card__message {
-        margin: 0;
-        font-size: 0.88rem;
-        line-height: 1.45;
-        color: rgba(15, 23, 42, 0.82);
-      }
-      .epe-notification-card__meta {
-        margin: 0;
-        font-size: 0.78rem;
-        color: rgba(15, 23, 42, 0.58);
       }
       .epe-notification-empty {
         padding: 20px;
@@ -804,26 +808,27 @@
       }
 
       notifications.forEach(function (notification) {
-        var card = document.createElement("article");
+        var card = document.createElement(notification.url ? "a" : "article");
         card.className = "epe-notification-card";
+
+        if (notification.url) {
+          card.href = notification.url;
+          card.target = "_blank";
+          card.rel = "noopener noreferrer";
+        }
+
+        if (notification.iconUrl) {
+          var icon = document.createElement("img");
+          icon.className = "epe-notification-card__icon";
+          icon.src = notification.iconUrl;
+          icon.alt = "";
+          card.appendChild(icon);
+        }
 
         var title = document.createElement("h3");
         title.className = "epe-notification-card__title";
         title.textContent = notification.title || "Notification";
-
-        var message = document.createElement("p");
-        message.className = "epe-notification-card__message";
-        message.textContent = notification.message || "";
-
         card.appendChild(title);
-        card.appendChild(message);
-
-        if (notification.url) {
-          var meta = document.createElement("p");
-          meta.className = "epe-notification-card__meta";
-          meta.textContent = notification.url;
-          card.appendChild(meta);
-        }
 
         list.appendChild(card);
       });

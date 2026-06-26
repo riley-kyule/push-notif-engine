@@ -100,20 +100,35 @@ export class InMemoryCampaignsRepository implements CampaignsRepository {
   }
 
   async list(filters: CampaignListFilters): Promise<CampaignListResult> {
-    const items = this.campaigns
-      .filter((campaign) => !filters.siteId || campaign.siteId === filters.siteId)
-      .filter((campaign) => !filters.type || campaign.type === filters.type)
-      .filter((campaign) => !filters.status || campaign.status === filters.status)
-      .filter((campaign) => !filters.contentType || campaign.contentType === filters.contentType)
-      .slice(filters.offset, filters.offset + filters.limit)
-      .map((campaign) => cloneCampaign(campaign));
+    const matches = (campaign: CampaignRecord): boolean =>
+      (!filters.siteId || campaign.siteId === filters.siteId) &&
+      (!filters.type || campaign.type === filters.type) &&
+      (!filters.status || campaign.status === filters.status) &&
+      (!filters.contentType || campaign.contentType === filters.contentType);
 
-    const total = this.campaigns.filter((campaign) => !filters.siteId || campaign.siteId === filters.siteId)
-      .filter((campaign) => !filters.type || campaign.type === filters.type)
-      .filter((campaign) => !filters.status || campaign.status === filters.status)
-      .filter((campaign) => !filters.contentType || campaign.contentType === filters.contentType).length;
+    const sortAccessors: Record<NonNullable<CampaignListFilters["sortBy"]>, (campaign: CampaignRecord) => string | number> = {
+      name: (campaign) => campaign.name,
+      type: (campaign) => campaign.type,
+      status: (campaign) => campaign.status,
+      scheduledAt: (campaign) => campaign.scheduledAt?.getTime() ?? -Infinity,
+      sentAt: (campaign) => campaign.sentAt?.getTime() ?? -Infinity,
+      createdAt: (campaign) => campaign.createdAt.getTime(),
+    };
+    const sortAccessor = sortAccessors[filters.sortBy ?? "createdAt"];
+    const sortDir = filters.sortDir === "asc" ? 1 : -1;
 
-    return { items, total };
+    const filtered = this.campaigns.filter(matches);
+    const sorted = [...filtered].sort((left, right) => {
+      const leftValue = sortAccessor(left);
+      const rightValue = sortAccessor(right);
+      if (leftValue < rightValue) return -1 * sortDir;
+      if (leftValue > rightValue) return 1 * sortDir;
+      return 0;
+    });
+
+    const items = sorted.slice(filters.offset, filters.offset + filters.limit).map((campaign) => cloneCampaign(campaign));
+
+    return { items, total: filtered.length };
   }
 
   async listDueScheduledCampaigns(asOf: Date): Promise<CampaignRecord[]> {
