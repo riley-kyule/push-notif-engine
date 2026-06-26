@@ -1,3 +1,4 @@
+import { Type } from "class-transformer";
 import { IsIn, IsOptional, IsString, IsInt, Max, Min } from "class-validator";
 import type { CampaignContentType, CampaignStatus, CampaignType } from "../campaigns.types";
 
@@ -33,12 +34,14 @@ export class ListCampaignsQueryDto {
   sortDir?: (typeof SORT_DIRECTIONS)[number];
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(100)
   limit?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(0)
   offset?: number;
