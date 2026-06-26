@@ -70,6 +70,7 @@ export function DashboardShell({
 }) {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [isLoggingOut, startLogout] = useTransition();
 
   const shellStyle: CSSProperties & { [key: `--${string}`]: string } = {
@@ -88,7 +89,11 @@ export function DashboardShell({
   }
 
   return (
-    <div className={`dashboard-shell ${collapsed ? "is-collapsed" : ""}`} style={shellStyle}>
+    <div className={`dashboard-shell ${collapsed ? "is-collapsed" : ""} ${mobileNavOpen ? "is-mobile-nav-open" : ""}`} style={shellStyle}>
+      {mobileNavOpen ? (
+        <div className="sidebar-backdrop" onClick={() => setMobileNavOpen(false)} aria-hidden="true" />
+      ) : null}
+
       <aside className="sidebar">
         <div className="sidebar-header">
           <div className="brand">
@@ -118,6 +123,16 @@ export function DashboardShell({
             </span>
             {!collapsed ? <span className="sidebar-toggle-label">Collapse</span> : null}
           </button>
+          <button
+            className="sidebar-mobile-close"
+            type="button"
+            aria-label="Close menu"
+            onClick={() => setMobileNavOpen(false)}
+          >
+            <svg viewBox="0 0 24 24" fill="none" role="img" aria-hidden="true">
+              <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          </button>
         </div>
 
         <DashboardNav sections={dashboardNavigationSections} collapsed={collapsed} />
@@ -136,6 +151,16 @@ export function DashboardShell({
 
       <main className="main">
         <div className="topbar">
+          <button
+            className="mobile-nav-toggle"
+            type="button"
+            aria-label="Open menu"
+            onClick={() => setMobileNavOpen(true)}
+          >
+            <svg viewBox="0 0 24 24" fill="none" role="img" aria-hidden="true">
+              <path d="M4 6.5h16M4 12h16M4 17.5h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          </button>
           <div>
             <div className="eyebrow">{eyebrow}</div>
             <h1 className="page-title">{title}</h1>
