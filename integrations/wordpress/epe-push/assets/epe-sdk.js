@@ -247,7 +247,7 @@
       }
       .epe-optin-panel {
         position: relative;
-        width: min(920px, 100%);
+        width: min(440px, 100%);
         border-radius: 28px;
         overflow: hidden;
         background: #ffffff;
@@ -256,7 +256,7 @@
         pointer-events: auto;
       }
       .epe-optin-panel[data-type="lightbox-2"] {
-        width: min(760px, 100%);
+        width: min(400px, 100%);
       }
       .epe-optin-panel[data-type="bell-icon"] {
         width: min(360px, 100%);
