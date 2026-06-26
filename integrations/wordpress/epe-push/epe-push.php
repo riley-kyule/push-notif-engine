@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Exotic Push Engine
  * Description: Browser push integration for Exotic WordPress sites.
- * Version: 1.0.7
+ * Version: 1.0.8
  * Author: Riley Kyule
  * Text Domain: exotic-push-engine
  */
