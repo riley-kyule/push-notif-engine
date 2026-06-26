@@ -124,6 +124,15 @@ textarea {
   color: #a8a29e;
 }
 
+.sidebar-backdrop {
+  display: none;
+}
+
+.sidebar-mobile-close,
+.mobile-nav-toggle {
+  display: none;
+}
+
 .sidebar-toggle {
   min-width: 84px;
   height: 34px;
@@ -2883,9 +2892,6 @@ button.nav-item--group:hover,
   justify-content: center;
 }
 
-@media (max-width: 1280px) {
-}
-
 @media (max-width: 1024px) {
   .cards-4,
   .cards-3,
@@ -2990,9 +2996,86 @@ button.nav-item--group:hover,
     grid-template-columns: 1fr;
   }
 
+  /* The "collapsed" (icons-only) desktop state is toggled by a button
+     that's hidden on mobile, but the state can still carry over if the
+     viewport shrinks below 768px without a reload -- force the drawer
+     back to its full, labelled layout regardless of that state. */
+  .dashboard-shell.is-collapsed .nav-item-copy,
+  .dashboard-shell.is-collapsed .nav-pill,
+  .dashboard-shell.is-collapsed .nav-item-description,
+  .dashboard-shell.is-collapsed .nav-group-chevron,
+  .dashboard-shell.is-collapsed .nav-subitems,
+  .dashboard-shell.is-collapsed .brand-copy {
+    display: revert;
+  }
+
+  .dashboard-shell.is-collapsed .nav-item {
+    justify-content: flex-start;
+    padding: 10px 12px;
+  }
+
   .sidebar {
-    position: static;
-    height: auto;
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: min(300px, 84vw);
+    height: 100vh;
+    z-index: 2100;
+    transform: translateX(-100%);
+    transition: transform 200ms ease;
+    box-shadow: 0 0 60px rgba(0, 0, 0, 0.35);
+  }
+
+  .dashboard-shell.is-mobile-nav-open .sidebar {
+    transform: translateX(0);
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 2050;
+    background: rgba(15, 13, 11, 0.55);
+  }
+
+  .sidebar-toggle {
+    display: none;
+  }
+
+  .sidebar-mobile-close {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--sidebar-text);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .sidebar-mobile-close svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .mobile-nav-toggle {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--text-primary);
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-bottom: 12px;
+  }
+
+  .mobile-nav-toggle svg {
+    width: 20px;
+    height: 20px;
   }
 
   .main {
