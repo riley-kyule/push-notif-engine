@@ -63,7 +63,9 @@ module.exports = {
     {
       name: "epe-dashboard",
       cwd: path.join(__dirname, "apps/dashboard"),
-      script: "node_modules/.bin/next",
+      script: require.resolve("next/dist/bin/next", {
+        paths: [path.join(__dirname, "apps/dashboard")],
+      }),
       args: "start",
       env: loadEnvFile("apps/dashboard/.env"),
       instances: 1,
