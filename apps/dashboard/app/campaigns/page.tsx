@@ -1,27 +1,69 @@
 import Link from "next/link";
 
-import { formatDisplayDateTimeInZone } from "../_components/format-date";
 import { DashboardShell } from "../_components/dashboard-shell";
-import { getCampaignList } from "../_data/campaigns";
-import { getSiteChoices } from "../_data/sites";
+import { FilterSelect, PageSizeSelect, Pagination } from "../_components/list-controls";
+import { getCampaignList, type CampaignSortField } from "../_data/campaigns";
+import { fallbackSiteChoices, getSiteChoices } from "../_data/sites";
+import { CampaignsTable } from "./campaigns-table";
 
-const tabs = ["All", "Instant", "Scheduled", "Recurring", "Drafts"] as const;
+const typeTabs = [
+  { value: undefined, label: "All" },
+  { value: "instant", label: "Instant" },
+  { value: "scheduled", label: "Scheduled" },
+  { value: "recurring", label: "Recurring" },
+  { value: "draft", label: "Drafts" },
+] as const;
 
-// `campaign.scheduledAt` is either a real ISO timestamp (scheduled/recurring
-// campaigns) or a literal label like "Draft"/"Sent today" when there's no
-// concrete time to show -- only the former should go through the timezone
-// formatter.
-function formatScheduledAt(value: string, timeZone: string | null): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-  return formatDisplayDateTimeInZone(parsed, timeZone);
-}
+const SORT_FIELDS = ["name", "type", "status", "scheduledAt", "sentAt", "createdAt"] as const;
 
-export default async function CampaignsPage() {
-  const [campaigns, sites] = await Promise.all([getCampaignList(), getSiteChoices()]);
+export default async function CampaignsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    type?: string;
+    siteId?: string;
+    page?: string;
+    pageSize?: string;
+    sortBy?: string;
+    sortDir?: string;
+  }>;
+}) {
+  const query = await searchParams;
+  const activeTab = typeTabs.find((tab) => tab.value === query.type) ?? typeTabs[0];
+  // "Drafts" is a status, not a campaign type -- the rest of the tabs map
+  // straight onto the type filter.
+  const type = activeTab.value && activeTab.value !== "draft" ? activeTab.value : undefined;
+  const status = activeTab.value === "draft" ? "draft" : undefined;
+  const page = Math.max(1, Number.parseInt(query.page ?? "1", 10) || 1);
+  const pageSize = Number.parseInt(query.pageSize ?? "25", 10) || 25;
+  const sortBy = (SORT_FIELDS as readonly string[]).includes(query.sortBy ?? "")
+    ? (query.sortBy as CampaignSortField)
+    : undefined;
+  const sortDir = query.sortDir === "asc" ? "asc" : query.sortDir === "desc" ? "desc" : undefined;
+
+  const [campaigns, sites] = await Promise.all([
+    getCampaignList({
+      siteId: query.siteId,
+      type,
+      status,
+      sortBy,
+      sortDir,
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+    }),
+    getSiteChoices().catch(() => fallbackSiteChoices),
+  ]);
+
+  const realSites = sites.filter((site) => site.id !== "site-3");
+  const siteNames = Object.fromEntries(sites.map((site) => [site.id, site.name]));
   const timezoneBySiteId = new Map(sites.map((site) => [site.id, site.timezone]));
+  const currentParams = {
+    type: query.type,
+    siteId: query.siteId,
+    sortBy: query.sortBy,
+    sortDir: query.sortDir,
+    pageSize: String(pageSize),
+  };
 
   return (
     <DashboardShell
@@ -35,50 +77,43 @@ export default async function CampaignsPage() {
       }
     >
       <div className="tabs" aria-label="Campaign filters">
-        {tabs.map((tab, index) => (
-          <span key={tab} className={`tab ${index === 0 ? "active" : ""}`}>
-            {tab}
-          </span>
+        {typeTabs.map((tab) => (
+          <Link
+            key={tab.label}
+            href={tab.value ? `/campaigns?type=${tab.value}` : "/campaigns"}
+            className={`tab ${activeTab.value === tab.value ? "active" : ""}`}
+          >
+            {tab.label}
+          </Link>
         ))}
       </div>
 
       <section className="card">
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Campaign</th>
-                <th>Type</th>
-                <th>Site</th>
-                <th>Sent</th>
-                <th>CTR</th>
-                <th>Status</th>
-                <th>Scheduled At (site local time)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {campaigns.items.map((campaign) => (
-                <tr key={campaign.id}>
-                  <td>
-                    <Link href={`/campaigns/${campaign.id}`}>
-                      <strong>{campaign.name}</strong>
-                    </Link>
-                  </td>
-                  <td className="subtle">{campaign.type}</td>
-                  <td>{campaign.site}</td>
-                  <td>{campaign.sent}</td>
-                  <td>{campaign.ctr}</td>
-                  <td>
-                    <span className={`badge ${campaign.status}`}>{campaign.status}</span>
-                  </td>
-                  <td className="subtle">
-                    {formatScheduledAt(campaign.scheduledAt, campaign.siteId ? timezoneBySiteId.get(campaign.siteId) ?? null : null)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="grid cards-3" style={{ marginBottom: 14 }}>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label htmlFor="site-filter" className="subtle">
+              Site
+            </label>
+            <FilterSelect
+              basePath="/campaigns"
+              currentParams={currentParams}
+              paramKey="siteId"
+              allLabel="All Sites"
+              options={realSites.map((site) => ({ value: site.id, label: site.name }))}
+            />
+          </div>
+          <PageSizeSelect basePath="/campaigns" currentParams={currentParams} pageSize={pageSize} />
         </div>
+
+        <CampaignsTable
+          campaigns={campaigns.items}
+          siteNames={siteNames}
+          timezoneBySiteId={timezoneBySiteId}
+          basePath="/campaigns"
+          currentParams={currentParams}
+        />
+
+        <Pagination basePath="/campaigns" currentParams={currentParams} page={page} pageSize={pageSize} total={campaigns.total} />
       </section>
     </DashboardShell>
   );

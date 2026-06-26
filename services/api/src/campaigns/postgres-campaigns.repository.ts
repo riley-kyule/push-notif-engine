@@ -217,7 +217,20 @@ export class PostgresCampaignsRepository implements CampaignsRepository {
       query.push(`WHERE ${where.join(" AND ")}`);
     }
 
-    query.push(`ORDER BY created_at DESC`);
+    // Mapped through an allowlist rather than interpolating filters.sortBy
+    // directly -- sortBy is already constrained by @IsIn in the DTO, but
+    // never build ORDER BY from a raw client-controlled string.
+    const sortColumns: Record<NonNullable<CampaignListFilters["sortBy"]>, string> = {
+      name: "name",
+      type: "type",
+      status: "status",
+      scheduledAt: "scheduled_at",
+      sentAt: "sent_at",
+      createdAt: "created_at",
+    };
+    const sortColumn = sortColumns[filters.sortBy ?? "createdAt"];
+    const sortDir = filters.sortDir === "asc" ? "ASC" : "DESC";
+    query.push(`ORDER BY ${sortColumn} ${sortDir} NULLS LAST, created_at DESC`);
     params.push(filters.limit, filters.offset);
     query.push(`LIMIT $${params.length - 1} OFFSET $${params.length}`);
 

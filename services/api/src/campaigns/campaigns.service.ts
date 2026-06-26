@@ -148,6 +148,12 @@ export class CampaignsService {
     if (filters.contentType) {
       normalized.contentType = filters.contentType;
     }
+    if (filters.sortBy) {
+      normalized.sortBy = filters.sortBy;
+    }
+    if (filters.sortDir) {
+      normalized.sortDir = filters.sortDir;
+    }
 
     return this.campaignsRepository.list(normalized);
   }

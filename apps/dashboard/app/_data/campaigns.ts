@@ -280,15 +280,39 @@ async function resolveCampaignMetrics(campaignId: string): Promise<CampaignDetai
   };
 }
 
-export async function getCampaignList(): Promise<CampaignListPayload> {
-  const response = await apiJson<CampaignApiResponse<{ items: Array<CampaignSummary & { siteId?: string }> }>>(
-    "/campaigns",
+export type CampaignSortField = "name" | "type" | "status" | "scheduledAt" | "sentAt" | "createdAt";
+
+export interface CampaignListFilters {
+  siteId?: string | undefined;
+  type?: CampaignSummary["type"] | undefined;
+  status?: CampaignSummary["status"] | undefined;
+  sortBy?: CampaignSortField | undefined;
+  sortDir?: "asc" | "desc" | undefined;
+  limit?: number | undefined;
+  offset?: number | undefined;
+}
+
+function buildCampaignListQuery(filters: CampaignListFilters): string {
+  const search = new URLSearchParams();
+  if (filters.siteId) search.set("siteId", filters.siteId);
+  if (filters.type) search.set("type", filters.type);
+  if (filters.status) search.set("status", filters.status);
+  if (filters.sortBy) search.set("sortBy", filters.sortBy);
+  if (filters.sortDir) search.set("sortDir", filters.sortDir);
+  search.set("limit", String(filters.limit ?? 25));
+  search.set("offset", String(filters.offset ?? 0));
+  return search.toString();
+}
+
+export async function getCampaignList(filters: CampaignListFilters = {}): Promise<CampaignListPayload> {
+  const response = await apiJson<CampaignApiResponse<{ items: Array<CampaignSummary & { siteId?: string }>; total: number }>>(
+    `/campaigns?${buildCampaignListQuery(filters)}`,
   );
 
   const items = response?.data?.items?.map((item) => toCampaignSummary(item)) ?? campaignSummaries;
   return {
     items,
-    total: items.length,
+    total: response?.data?.total ?? items.length,
   };
 }
 
