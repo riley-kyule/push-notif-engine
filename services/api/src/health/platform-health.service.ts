@@ -181,11 +181,13 @@ export class PlatformHealthService {
     try {
       const heartbeats = await this.redis.hgetall(PLATFORM_HEARTBEAT_HASH);
       const now = Date.now();
-      const entries: PlatformWorkerHeartbeat[] = [];
+      const entries: Array<PlatformWorkerHeartbeat & { lastSeenMs: number }> = [];
+      const malformedFields: string[] = [];
 
       for (const [key, value] of Object.entries(heartbeats)) {
         const parsed = safeParseHeartbeat(value);
         if (!parsed) {
+          malformedFields.push(key);
           continue;
         }
 
@@ -200,10 +202,42 @@ export class PlatformHealthService {
           uptimeMs: parsed.uptimeMs,
           redisLatencyMs: parsed.redisLatencyMs,
           status,
+          lastSeenMs: Number.isFinite(lastSeenMs) ? lastSeenMs : 0,
         });
       }
 
-      return entries;
+      // This deployment runs one worker process; every restart (a deploy, a
+      // crash, today's manual restarts) writes a heartbeat under a new PID
+      // without reliably clearing the old one if the process got killed
+      // before its shutdown hook ran. Those dead PIDs never expire on their
+      // own, so without this they'd accumulate as permanent "offline"
+      // entries -- which is exactly what produced "4 workers offline" today.
+      // Once a fresher (healthy/stale) entry exists, every offline entry is
+      // a confirmed ghost from a past process and gets pruned. If every
+      // entry is offline (the worker is genuinely down), keep only the most
+      // recent one so the real outage still surfaces as a single alert
+      // instead of N stale ghosts.
+      const offlineFields = entries.filter((entry) => entry.status === "offline").map((entry) => entry.key);
+      const hasLiveEntry = entries.some((entry) => entry.status !== "offline");
+      const fieldsToPrune = [...malformedFields];
+      let visible = entries;
+
+      if (offlineFields.length > 0) {
+        if (hasLiveEntry) {
+          fieldsToPrune.push(...offlineFields);
+          visible = entries.filter((entry) => entry.status !== "offline");
+        } else {
+          const mostRecent = [...entries].sort((left, right) => right.lastSeenMs - left.lastSeenMs)[0];
+          fieldsToPrune.push(...offlineFields.filter((key) => key !== mostRecent?.key));
+          visible = mostRecent ? [mostRecent] : [];
+        }
+      }
+
+      if (fieldsToPrune.length > 0) {
+        void this.redis.hdel(PLATFORM_HEARTBEAT_HASH, ...fieldsToPrune).catch(() => {});
+      }
+
+      return visible.map(({ lastSeenMs, ...entry }) => entry);
     } catch {
       return [];
     }

@@ -265,7 +265,7 @@ test("getCountryPerformance falls back to the trailing-days window when no expli
 
   await repository.getCountryPerformance(7);
 
-  assert.match(calls[0]?.sql ?? "", /NOW\(\) - \(\$1 \|\| ' days'\)::interval/);
+  assert.match(calls[0]?.sql ?? "", /NOW\(\) - \(\$1::text \|\| ' days'\)::interval/);
   assert.deepEqual(calls[0]?.params, [7]);
 });
 
