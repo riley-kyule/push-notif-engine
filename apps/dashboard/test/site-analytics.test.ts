@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { getSiteAnalytics } from "../lib/site-analytics";
 
-test("site analytics falls back when the API is unavailable", async () => {
+test("site analytics returns an honest empty state when the API is unavailable", async () => {
   const originalNodeEnv = process.env.NODE_ENV;
   const originalApiUrl = process.env.DASHBOARD_API_BASE_URL;
 
@@ -23,9 +23,13 @@ test("site analytics falls back when the API is unavailable", async () => {
       vapidPublicKey: "BExoticKey1",
     });
 
+    // The real subscriber count is already known from the site record, so
+    // it's preserved -- but everything that would require a successful API
+    // call must come back empty/zero, never invented.
     assert.equal(analytics.totalSubscribers, 2418400);
-    assert.ok(analytics.last30Days.subscriberGrowth.length > 0);
-    assert.ok(analytics.last30Days.totalDelivered > 0);
+    assert.equal(analytics.activeSubscribers, 0);
+    assert.deepEqual(analytics.last30Days.subscriberGrowth, []);
+    assert.equal(analytics.last30Days.totalDelivered, 0);
   } finally {
     process.env.NODE_ENV = originalNodeEnv;
     process.env.DASHBOARD_API_BASE_URL = originalApiUrl;
