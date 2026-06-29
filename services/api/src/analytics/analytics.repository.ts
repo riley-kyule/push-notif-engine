@@ -161,10 +161,15 @@ export class AnalyticsRepository {
       params.push(startOfDayUtcPlus3(startDate), endOfDayUtcPlus3Exclusive(endDate || startDate));
       const endIdx = params.length;
       const startIdx = endIdx - 1;
-      return `${columnExpr} >= $${startIdx}::timestamptz AND ${columnExpr} < $${endIdx}::timestamptz`;
+      // `days` ($1) stays bound at every call site so sibling placeholders
+      // (e.g. a siteId filter at $2) keep their index, but this branch never
+      // references it in the query text. Postgres can't infer a type for a
+      // bound-but-unreferenced parameter ("could not determine data type of
+      // parameter $1"), hence the no-op cast below.
+      return `$1::int = $1::int AND ${columnExpr} >= $${startIdx}::timestamptz AND ${columnExpr} < $${endIdx}::timestamptz`;
     }
 
-    return `${columnExpr} >= NOW() - ($1 || ' days')::interval`;
+    return `${columnExpr} >= NOW() - ($1::text || ' days')::interval`;
   }
 
   async getCampaignStats(campaignId: string): Promise<{
