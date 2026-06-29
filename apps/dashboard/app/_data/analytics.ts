@@ -243,120 +243,6 @@ function buildDateRange(input: { startDate?: string; endDate?: string; days?: An
   };
 }
 
-function fallbackCountryPerformance(site: SiteSummary[]): CountryPerformanceSummary[] {
-  const countries = Array.from(new Set(site.map((entry) => entry.country))).slice(0, 5);
-  return countries.map((country, index) => ({
-    country,
-    totalSubscribers: Math.max(42000 - index * 5100, 12000),
-    totalDelivered: Math.max(39000 - index * 4700, 11000),
-    totalSent: Math.max(40200 - index * 4800, 11500),
-    totalFailed: 600 + index * 80,
-    totalExpired: 320 + index * 45,
-    totalClicked: Math.max(3200 - index * 220, 900),
-    deliveryRate: Math.max(91 - index * 2, 78),
-    clickThroughRate: Math.max(8.4 - index * 0.6, 3.2),
-  }));
-}
-
-function fallbackSitePerformance(site: SiteSummary[]): SitePerformanceSummary[] {
-  return site.slice(0, 5).map((entry, index) => ({
-    siteId: entry.id,
-    siteName: entry.name,
-    totalSubscribers: entry.subscribers,
-    totalDelivered: Math.max(Math.floor(entry.subscribers * 0.92), 1),
-    totalSent: Math.max(Math.floor(entry.subscribers * 0.94), 1),
-    totalFailed: Math.max(Math.floor(entry.subscribers * 0.01), 0),
-    totalExpired: Math.max(Math.floor(entry.subscribers * 0.02), 0),
-    totalClicked: Math.max(Math.floor(entry.subscribers * (0.06 - index * 0.004)), 1),
-    deliveryRate: Math.max(92 - index * 1.1, 80),
-    clickThroughRate: Math.max(7.2 - index * 0.5, 2.4),
-  }));
-}
-
-function fallbackTimePerformance(days: number): TimePerformanceSummary[] {
-  const hourly = days <= 1;
-  const points = hourly ? 24 : Math.min(days, 90);
-  const now = Date.now();
-  const stepMs = hourly ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
-
-  return Array.from({ length: points }, (_, index) => {
-    const bucketDate = new Date(now - (points - 1 - index) * stepMs);
-    const cyclicalIndex = hourly ? bucketDate.getUTCHours() : index;
-    return {
-      bucket: bucketDate.toISOString(),
-      totalDelivered: cyclicalIndex % 4 === 0 ? 4000 + cyclicalIndex * 140 : 900 + cyclicalIndex * 45,
-      totalSent: cyclicalIndex % 4 === 0 ? 4200 + cyclicalIndex * 150 : 1100 + cyclicalIndex * 50,
-      totalFailed: cyclicalIndex % 6 === 0 ? 80 : 35,
-      totalClicked: cyclicalIndex % 3 === 0 ? 260 + cyclicalIndex * 12 : 60 + cyclicalIndex * 5,
-      deliveryRate: cyclicalIndex % 4 === 0 ? 93 : 84,
-      clickThroughRate: cyclicalIndex % 3 === 0 ? 6.2 : 2.8,
-    };
-  });
-}
-
-function fallbackPeakHours(): PeakHourSummary[] {
-  return Array.from({ length: 24 }, (_, hour) => {
-    // Loosely shaped like real-world engagement: a morning bump, a bigger
-    // evening peak, and a quiet overnight trough -- enough to demo the
-    // insight panel when the API is unreachable.
-    const eveningPeak = Math.exp(-((hour - 19) ** 2) / 18);
-    const morningPeak = Math.exp(-((hour - 8) ** 2) / 10);
-    const activity = Math.max(eveningPeak, morningPeak * 0.7);
-    const newSubscribers = Math.round(20 + activity * 180);
-    const totalSent = Math.round(400 + activity * 3200);
-    const totalDelivered = Math.round(totalSent * 0.94);
-    const totalClicked = Math.round(totalDelivered * (0.04 + activity * 0.05));
-    const successfullyHandedOff = totalSent + totalDelivered;
-    return {
-      hour,
-      newSubscribers,
-      totalDelivered,
-      totalSent,
-      totalClicked,
-      clickThroughRate: successfullyHandedOff > 0 ? Math.round((totalClicked / successfullyHandedOff) * 10000) / 100 : 0,
-    };
-  });
-}
-
-function fallbackContentPerformance(): ContentPerformanceSummary[] {
-  return [
-    { contentType: "promotion", totalCampaigns: 12, totalDelivered: 142000, totalSent: 151000, totalFailed: 2100, totalExpired: 600, totalClicked: 11800, deliveryRate: 92.1, clickThroughRate: 7.8 },
-    { contentType: "editorial", totalCampaigns: 8, totalDelivered: 92000, totalSent: 95500, totalFailed: 1100, totalExpired: 250, totalClicked: 7100, deliveryRate: 94.2, clickThroughRate: 7.2 },
-    { contentType: "digest", totalCampaigns: 6, totalDelivered: 62000, totalSent: 64500, totalFailed: 900, totalExpired: 180, totalClicked: 5300, deliveryRate: 94.4, clickThroughRate: 8.3 },
-    { contentType: "announcement", totalCampaigns: 4, totalDelivered: 38000, totalSent: 39600, totalFailed: 560, totalExpired: 140, totalClicked: 2900, deliveryRate: 94.8, clickThroughRate: 7.1 },
-    { contentType: "alert", totalCampaigns: 2, totalDelivered: 12000, totalSent: 12600, totalFailed: 220, totalExpired: 80, totalClicked: 900, deliveryRate: 93.7, clickThroughRate: 6.6 },
-  ];
-}
-
-function buildFallbackAnalytics(site: SiteSummary): SiteAnalyticsSummary {
-  const activeSubscribers = site.subscribers;
-  const totalDelivered = Math.max(Math.floor(site.subscribers * 0.94), 1);
-  const totalFailed = Math.max(Math.floor(site.subscribers * 0.01), 0);
-  const totalExpired = Math.max(Math.floor(site.subscribers * 0.02), 0);
-
-  const buildFallbackGrowth = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date();
-    date.setDate(date.getDate() - (6 - index));
-    return {
-      date: date.toISOString().slice(0, 10),
-      newSubscribers: Math.max(Math.floor(site.subscribers / 120), 120) + index * 18,
-    };
-  });
-
-  return {
-    totalSubscribers: site.subscribers,
-    activeSubscribers,
-    last30Days: {
-      totalPending: Math.max(Math.floor(site.subscribers * 0.003), 0),
-      totalSent: totalDelivered + totalFailed + totalExpired,
-      totalDelivered,
-      totalFailed,
-      totalExpired,
-      subscriberGrowth: buildFallbackGrowth,
-    },
-  };
-}
-
 function createAllSitesFallback(): SiteSummary {
   return {
     id: "site-3",
@@ -493,20 +379,16 @@ export async function getAnalyticsDashboardData(input: {
   const [countryPerformance, sitePerformance, timePerformance] = await Promise.all([
     getAnalyticsApiList<CountryPerformanceSummary>(
       `/analytics/countries?days=${days}${siteScopeId ? `&siteId=${encodeURIComponent(siteScopeId)}` : ""}`,
-      fallbackCountryPerformance(sites),
     ),
     getAnalyticsApiList<SitePerformanceSummary>(
       `/analytics/sites-performance?days=${days}${siteScopeId ? `&siteId=${encodeURIComponent(siteScopeId)}` : ""}`,
-      fallbackSitePerformance(sites),
     ),
     getAnalyticsApiList<TimePerformanceSummary>(
       `/analytics/time-performance?days=${days}${siteScopeId ? `&siteId=${encodeURIComponent(siteScopeId)}` : ""}`,
-      fallbackTimePerformance(days),
     ),
   ]);
   const contentPerformance = await getAnalyticsApiList<ContentPerformanceSummary>(
     `/analytics/content-performance?days=${days}${siteScopeId ? `&siteId=${encodeURIComponent(siteScopeId)}` : ""}`,
-    fallbackContentPerformance(),
   );
 
   return {
@@ -530,10 +412,15 @@ export async function getAnalyticsDashboardData(input: {
   };
 }
 
-async function getAnalyticsApiList<T>(path: string, fallback: T[]): Promise<T[]> {
+// Returns an empty list (never invented data) when the API call fails --
+// a prior version silently substituted realistic-looking hardcoded numbers
+// here, which made a real backend outage indistinguishable from genuine
+// analytics on every report page.
+async function getAnalyticsApiList<T>(path: string): Promise<T[]> {
   const response = await apiJson<{ success: true; data: T[] }>(path);
   if (!response?.data) {
-    return fallback;
+    console.error(`[analytics] failed to load ${path}`);
+    return [];
   }
 
   return response.data;
@@ -559,40 +446,21 @@ function rangeQueryParams(range: AnalyticsDateRange, siteId?: string): string {
 }
 
 export async function getSitePerformancePage(range: AnalyticsDateRange, siteId?: string): Promise<SitePerformanceSummary[]> {
-  const sitesPayload = await getSiteList({ limit: ALL_SITES_FETCH_LIMIT, offset: 0 });
-  const sites = sitesPayload.items.length > 0 ? sitesPayload.items : [createAllSitesFallback()];
-  return getAnalyticsApiList<SitePerformanceSummary>(
-    `/analytics/sites-performance?${rangeQueryParams(range, siteId)}`,
-    fallbackSitePerformance(sites),
-  );
+  return getAnalyticsApiList<SitePerformanceSummary>(`/analytics/sites-performance?${rangeQueryParams(range, siteId)}`);
 }
 
 export async function getCountryPerformancePage(range: AnalyticsDateRange, siteId?: string): Promise<CountryPerformanceSummary[]> {
-  const sitesPayload = await getSiteList({ limit: ALL_SITES_FETCH_LIMIT, offset: 0 });
-  const sites = sitesPayload.items.length > 0 ? sitesPayload.items : [createAllSitesFallback()];
-  return getAnalyticsApiList<CountryPerformanceSummary>(
-    `/analytics/countries?${rangeQueryParams(range, siteId)}`,
-    fallbackCountryPerformance(sites),
-  );
+  return getAnalyticsApiList<CountryPerformanceSummary>(`/analytics/countries?${rangeQueryParams(range, siteId)}`);
 }
 
 export async function getContentPerformancePage(range: AnalyticsDateRange, siteId?: string): Promise<ContentPerformanceSummary[]> {
-  return getAnalyticsApiList<ContentPerformanceSummary>(
-    `/analytics/content-performance?${rangeQueryParams(range, siteId)}`,
-    fallbackContentPerformance(),
-  );
+  return getAnalyticsApiList<ContentPerformanceSummary>(`/analytics/content-performance?${rangeQueryParams(range, siteId)}`);
 }
 
 export async function getTimePerformancePage(range: AnalyticsDateRange, siteId?: string): Promise<TimePerformanceSummary[]> {
-  return getAnalyticsApiList<TimePerformanceSummary>(
-    `/analytics/time-performance?${rangeQueryParams(range, siteId)}`,
-    fallbackTimePerformance(range.days),
-  );
+  return getAnalyticsApiList<TimePerformanceSummary>(`/analytics/time-performance?${rangeQueryParams(range, siteId)}`);
 }
 
 export async function getPeakHoursPage(range: AnalyticsDateRange, siteId?: string): Promise<PeakHourSummary[]> {
-  return getAnalyticsApiList<PeakHourSummary>(
-    `/analytics/peak-hours?${rangeQueryParams(range, siteId)}`,
-    fallbackPeakHours(),
-  );
+  return getAnalyticsApiList<PeakHourSummary>(`/analytics/peak-hours?${rangeQueryParams(range, siteId)}`);
 }

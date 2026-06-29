@@ -30,34 +30,20 @@ export interface SiteAnalyticsSummary {
   };
 }
 
-function buildFallbackGrowth(site: SiteSummary): Array<{ date: string; newSubscribers: number }> {
-  const baseline = Math.max(Math.floor(site.subscribers / 120), 120);
-  return Array.from({ length: 7 }, (_, index) => {
-    const date = new Date();
-    date.setDate(date.getDate() - (6 - index));
-    return {
-      date: date.toISOString().slice(0, 10),
-      newSubscribers: baseline + index * 18,
-    };
-  });
-}
-
-function buildFallbackAnalytics(site: SiteSummary): SiteAnalyticsSummary {
-  const activeSubscribers = site.subscribers;
-  const totalDelivered = Math.max(Math.floor(site.subscribers * 0.94), 1);
-  const totalFailed = Math.max(Math.floor(site.subscribers * 0.01), 0);
-  const totalExpired = Math.max(Math.floor(site.subscribers * 0.02), 0);
-
+// Never invent numbers here -- a prior version synthesized realistic-looking
+// fake analytics from the site's subscriber count on any API failure, which
+// made a real backend outage indistinguishable from genuine data.
+function emptyAnalytics(site: SiteSummary): SiteAnalyticsSummary {
   return {
     totalSubscribers: site.subscribers,
-    activeSubscribers,
+    activeSubscribers: 0,
     last30Days: {
-      totalPending: Math.max(Math.floor(site.subscribers * 0.003), 0),
-      totalSent: totalDelivered + totalFailed + totalExpired,
-      totalDelivered,
-      totalFailed,
-      totalExpired,
-      subscriberGrowth: buildFallbackGrowth(site),
+      totalPending: 0,
+      totalSent: 0,
+      totalDelivered: 0,
+      totalFailed: 0,
+      totalExpired: 0,
+      subscriberGrowth: [],
     },
   };
 }
@@ -68,6 +54,7 @@ export async function getSiteAnalytics(site: SiteSummary): Promise<SiteAnalytics
     return response.data;
   }
 
-  return buildFallbackAnalytics(site);
+  console.error(`[analytics] failed to load site analytics for ${site.id}`);
+  return emptyAnalytics(site);
 }
 

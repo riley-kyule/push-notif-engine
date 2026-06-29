@@ -58,10 +58,12 @@ test("analytics dashboard data resolves all sites as the global reporting scope"
 
   assert.equal(data.selectedSite.id, "site-3");
   assert.equal(data.selectedSite.name, "All Sites");
-  assert.ok(data.sitePerformance.length > 0);
-  assert.ok(data.countryPerformance.length > 0);
-  assert.ok(data.timePerformance.length > 0);
-  assert.ok(data.contentPerformance.length > 0);
+  // No backend is reachable in this test environment -- the report lists
+  // must come back empty rather than invented, never silently fabricated.
+  assert.deepEqual(data.sitePerformance, []);
+  assert.deepEqual(data.countryPerformance, []);
+  assert.deepEqual(data.timePerformance, []);
+  assert.deepEqual(data.contentPerformance, []);
 });
 
 test("analytics dashboard data falls back to all sites when no sites exist", async () => {
@@ -92,7 +94,9 @@ test("analytics dashboard data falls back to all sites when no sites exist", asy
     const data = await getAnalyticsDashboardData({ preset: "30d", days: "30" });
     assert.equal(data.selectedSite.id, "site-3");
     assert.equal(data.selectedSite.name, "All Sites");
-    assert.ok(data.sitePerformance.length > 0);
+    // The stubbed fetch returns `data: null` for the performance endpoints,
+    // so this must come back empty rather than invented.
+    assert.deepEqual(data.sitePerformance, []);
   } finally {
     globalThis.fetch = originalFetch;
   }
