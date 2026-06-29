@@ -92,3 +92,106 @@ test("platform health service degrades when a component is down", async () => {
   assert.equal(summary.status, "unhealthy");
   assert.equal(summary.components.some((component) => component.status === "unhealthy"), true);
 });
+
+test("platform health prunes offline worker ghosts once a live heartbeat exists", async () => {
+  const deletedFields: string[] = [];
+  const now = new Date().toISOString();
+  const longDead = new Date(Date.now() - 60 * 60 * 1000).toISOString(); // 1 hour ago
+
+  const service = new PlatformHealthService(
+    {
+      async query() {
+        return { rows: [] };
+      },
+    } as never,
+    {
+      async ping() {
+        return true;
+      },
+    } as never,
+    {
+      async ping() {
+        return "PONG";
+      },
+      async llen() {
+        return 0;
+      },
+      async zcard() {
+        return 0;
+      },
+      async hgetall() {
+        return {
+          "worker:1": JSON.stringify({ label: "worker-1", lastSeenAt: now, uptimeMs: 1000, redisLatencyMs: 1 }),
+          "worker:2": JSON.stringify({ label: "worker-2", lastSeenAt: longDead, uptimeMs: 1000, redisLatencyMs: 1 }),
+          "worker:3": JSON.stringify({ label: "worker-3", lastSeenAt: longDead, uptimeMs: 1000, redisLatencyMs: 1 }),
+        };
+      },
+      async hdel(_key: string, ...fields: string[]) {
+        deletedFields.push(...fields);
+        return fields.length;
+      },
+    } as never,
+    {
+      async getSitePerformance() {
+        return [];
+      },
+    } as never,
+  );
+
+  const summary = await service.getPlatformHealth();
+
+  assert.deepEqual(summary.workerHeartbeats.map((entry) => entry.key), ["worker:1"]);
+  assert.deepEqual(deletedFields.sort(), ["worker:2", "worker:3"]);
+  assert.equal(summary.alerts.some((alert) => alert.key === "workers:stale"), false);
+});
+
+test("platform health keeps the single most recent ghost when every worker is offline", async () => {
+  const deletedFields: string[] = [];
+  const olderDead = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+  const mostRecentDead = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+  const service = new PlatformHealthService(
+    {
+      async query() {
+        return { rows: [] };
+      },
+    } as never,
+    {
+      async ping() {
+        return true;
+      },
+    } as never,
+    {
+      async ping() {
+        return "PONG";
+      },
+      async llen() {
+        return 0;
+      },
+      async zcard() {
+        return 0;
+      },
+      async hgetall() {
+        return {
+          "worker:1": JSON.stringify({ label: "worker-1", lastSeenAt: olderDead, uptimeMs: 1000, redisLatencyMs: 1 }),
+          "worker:2": JSON.stringify({ label: "worker-2", lastSeenAt: mostRecentDead, uptimeMs: 1000, redisLatencyMs: 1 }),
+        };
+      },
+      async hdel(_key: string, ...fields: string[]) {
+        deletedFields.push(...fields);
+        return fields.length;
+      },
+    } as never,
+    {
+      async getSitePerformance() {
+        return [];
+      },
+    } as never,
+  );
+
+  const summary = await service.getPlatformHealth();
+
+  assert.deepEqual(summary.workerHeartbeats.map((entry) => entry.key), ["worker:2"]);
+  assert.deepEqual(deletedFields, ["worker:1"]);
+  assert.equal(summary.alerts.some((alert) => alert.key === "workers:stale"), true);
+});
