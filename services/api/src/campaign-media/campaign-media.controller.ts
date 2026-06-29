@@ -55,6 +55,9 @@ export class CampaignMediaController {
     res.statusCode = 200;
     res.setHeader("content-type", asset.mimeType);
     res.setHeader("cache-control", "public, max-age=86400");
+    // Helmet defaults to a same-origin CORP, but these files are embedded
+    // cross-origin in opt-in prompts on every customer WordPress site.
+    res.setHeader("cross-origin-resource-policy", "cross-origin");
     stream.pipe(res);
   }
 }
