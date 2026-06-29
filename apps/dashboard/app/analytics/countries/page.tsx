@@ -16,6 +16,24 @@ function formatPercent(value: number): string {
   return `${value}%`;
 }
 
+const countryDisplayNames = new Intl.DisplayNames(["en"], { type: "region" });
+
+// Subscriber country is stored as an ISO 3166-1 alpha-2 code (from the
+// browser SDK / cf-ipcountry geo-IP fallback), plus the literal "Unknown"
+// when neither is available -- DisplayNames throws on that, so it's passed
+// through as-is rather than rendered as a fake country name.
+function formatCountryName(code: string): string {
+  if (code === "Unknown") {
+    return code;
+  }
+
+  try {
+    return countryDisplayNames.of(code) ?? code;
+  } catch {
+    return code;
+  }
+}
+
 function aggregate(rows: CountryPerformanceSummary[]) {
   const totalSubscribers = rows.reduce((sum, row) => sum + row.totalSubscribers, 0);
   const totalDelivered = rows.reduce((sum, row) => sum + row.totalDelivered, 0);
@@ -60,13 +78,13 @@ export default async function CountryPerformancePage({
     title: "Top regions by delivery volume",
     badge: "Live",
     metrics: [
-      { key: "subscribers", label: "Subscribers", color: "#ea580c", format: "number", points: countryPerformance.map((item) => ({ label: item.country, value: item.totalSubscribers })) },
-      { key: "delivery", label: "Delivery rate", color: "#16a34a", format: "percent", points: countryPerformance.map((item) => ({ label: item.country, value: item.deliveryRate })) },
-      { key: "ctr", label: "CTR", color: "#0ea5e9", format: "percent", points: countryPerformance.map((item) => ({ label: item.country, value: item.clickThroughRate })) },
+      { key: "subscribers", label: "Subscribers", color: "#ea580c", format: "number", points: countryPerformance.map((item) => ({ label: formatCountryName(item.country), value: item.totalSubscribers })) },
+      { key: "delivery", label: "Delivery rate", color: "#16a34a", format: "percent", points: countryPerformance.map((item) => ({ label: formatCountryName(item.country), value: item.deliveryRate })) },
+      { key: "ctr", label: "CTR", color: "#0ea5e9", format: "percent", points: countryPerformance.map((item) => ({ label: formatCountryName(item.country), value: item.clickThroughRate })) },
     ],
     rowColumns: ["Country", "Subscribers", "Delivery rate", "CTR"],
     rows: countryPerformance.map((item) => ({
-      primary: item.country,
+      primary: formatCountryName(item.country),
       secondary: `${formatNumber(item.totalSubscribers)} subscribers`,
       metrics: [
         { label: "Subscribers", value: formatNumber(item.totalSubscribers) },
