@@ -159,7 +159,7 @@ export class PostgresCampaignMediaRepository implements CampaignMediaRepository 
       FROM campaign_media_assets a
       INNER JOIN campaigns c ON c.id = a.campaign_id
       INNER JOIN latest_delivery d ON d.campaign_id = c.id
-      WHERE d.delivered_at <= $1 - INTERVAL '3 days'
+      WHERE d.delivered_at <= $1::timestamptz - INTERVAL '3 days'
       ORDER BY d.delivered_at ASC, a.created_at ASC
       `,
       [asOf],
