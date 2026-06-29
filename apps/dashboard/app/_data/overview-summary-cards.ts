@@ -47,6 +47,15 @@ export function buildOverviewCards(overview: DashboardOverview): OverviewCard[] 
       href: buildAnalyticsHref({ section: "site", siteId: "site-3" }),
     },
     {
+      label: "Active subscribers",
+      value: overview.activeSubscribers.toLocaleString(),
+      detail:
+        overview.totalSubscribers > 0
+          ? `${Math.round((overview.activeSubscribers / overview.totalSubscribers) * 100)}% of total subscribers`
+          : "No subscribers yet",
+      href: buildAnalyticsHref({ section: "site", siteId: "site-3" }),
+    },
+    {
       label: "Active campaigns",
       value: String(overview.activeCampaigns),
       detail: `${overview.totalCampaigns} total campaigns`,

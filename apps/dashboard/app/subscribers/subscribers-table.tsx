@@ -3,6 +3,7 @@ import Link from "next/link";
 import { formatDisplayDateTime } from "../_components/format-date";
 import { SortableHeader } from "../_components/list-controls";
 import type { SubscriberSummary } from "../_data/subscribers";
+import { formatCountryName } from "../../lib/country-names";
 
 export function SubscribersTable({
   subscribers,
@@ -41,7 +42,7 @@ export function SubscribersTable({
               <td className="subtle">{siteNames[subscriber.siteId] ?? subscriber.siteId}</td>
               <td>{subscriber.browser}</td>
               <td>{subscriber.deviceType}</td>
-              <td>{subscriber.country}</td>
+              <td>{formatCountryName(subscriber.country)}</td>
               <td>{subscriber.language}</td>
               <td className="subtle">{subscriber.lastSeenAt ? formatDisplayDateTime(subscriber.lastSeenAt) : "Never"}</td>
               <td>

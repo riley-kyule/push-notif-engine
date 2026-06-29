@@ -28,6 +28,7 @@ test("dashboard home summary cards link to report pages", () => {
     cards.map((card) => card.href),
     [
       "/analytics?section=site&days=30&preset=30d&siteId=site-3",
+      "/analytics?section=site&days=30&preset=30d&siteId=site-3",
       "/analytics?section=content&days=30&preset=30d",
       "/analytics?section=content&days=30&preset=30d&siteId=site-3",
       "/analytics?section=time&days=30&preset=30d&siteId=site-3",
@@ -35,6 +36,10 @@ test("dashboard home summary cards link to report pages", () => {
       "/analytics/failures",
     ],
   );
+
+  const activeCard = cards.find((card) => card.label === "Active subscribers");
+  assert.equal(activeCard?.value, "900");
+  assert.equal(activeCard?.detail, "90% of total subscribers");
 });
 
 test("dashboard home ranking cards include highest and lowest performers", () => {
