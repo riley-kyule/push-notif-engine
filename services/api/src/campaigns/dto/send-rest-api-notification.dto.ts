@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsUrl, MinLength } from "class-validator";
+import { IsOptional, IsString, IsUrl, MaxLength, MinLength } from "class-validator";
 import { Transform } from "class-transformer";
 
 // @IsOptional() only skips validation for null/undefined, not "" -- without
@@ -6,13 +6,19 @@ import { Transform } from "class-transformer";
 // @IsUrl() and fails. Mirrors the same fix in CreateCampaignDto.
 const emptyStringToNull = Transform(({ value }) => (typeof value === "string" && value.trim() === "" ? null : value));
 
+// Caps are tighter than the dashboard's CreateCampaignDto (which has none) --
+// an external caller can't be walked back from a typo or a buggy template
+// the way an admin previewing in the dashboard can, so bound the payload to
+// what a browser notification can actually render.
 export class SendRestApiNotificationDto {
   @IsString()
   @MinLength(2)
+  @MaxLength(150)
   title!: string;
 
   @IsString()
   @MinLength(2)
+  @MaxLength(500)
   body!: string;
 
   @IsUrl({ require_tld: false })
