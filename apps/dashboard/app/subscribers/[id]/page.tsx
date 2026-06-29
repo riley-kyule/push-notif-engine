@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { DashboardShell } from "../../_components/dashboard-shell";
 import { formatDisplayDateTime } from "../../_components/format-date";
 import { getSubscriber } from "../../_data/subscribers";
+import { formatCountryName } from "../../../lib/country-names";
 
 export default async function SubscriberDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -35,7 +36,7 @@ export default async function SubscriberDetailPage({ params }: { params: Promise
         </article>
         <article className="card">
           <h3>Country</h3>
-          <p className="stat">{subscriber.country}</p>
+          <p className="stat">{formatCountryName(subscriber.country)}</p>
         </article>
         <article className="card">
           <h3>Status</h3>

@@ -4,6 +4,7 @@ import { DashboardShell } from "../../_components/dashboard-shell";
 import { FilterSelect } from "../../_components/list-controls";
 import { getCountryPerformancePage, resolveAnalyticsRange, type CountryPerformanceSummary } from "../../_data/analytics";
 import { getSiteChoices } from "../../_data/sites";
+import { formatCountryName } from "../../../lib/country-names";
 import { AnalyticsComparisonCard } from "../analytics-comparison-card";
 import { AnalyticsPerformanceExplorer, type ExplorerSection } from "../analytics-performance-explorer";
 import { AnalyticsRangePicker } from "../analytics-range-picker";
@@ -14,24 +15,6 @@ function formatNumber(value: number): string {
 
 function formatPercent(value: number): string {
   return `${value}%`;
-}
-
-const countryDisplayNames = new Intl.DisplayNames(["en"], { type: "region" });
-
-// Subscriber country is stored as an ISO 3166-1 alpha-2 code (from the
-// browser SDK / cf-ipcountry geo-IP fallback), plus the literal "Unknown"
-// when neither is available -- DisplayNames throws on that, so it's passed
-// through as-is rather than rendered as a fake country name.
-function formatCountryName(code: string): string {
-  if (code === "Unknown") {
-    return code;
-  }
-
-  try {
-    return countryDisplayNames.of(code) ?? code;
-  } catch {
-    return code;
-  }
 }
 
 function aggregate(rows: CountryPerformanceSummary[]) {
