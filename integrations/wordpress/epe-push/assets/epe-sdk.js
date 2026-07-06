@@ -370,6 +370,7 @@
         border-radius: 24px;
         overflow: hidden;
         background: rgba(255, 255, 255, 0.98);
+        color: #0f172a;
         box-shadow: 0 24px 72px rgba(15, 23, 42, 0.22);
         display: grid;
         grid-template-rows: auto minmax(0, 1fr) auto;
