@@ -45,7 +45,13 @@ export class WebPushSender implements BrowserPushSender {
     // VAPID credentials, causing every subsequent send in job A to 401/403 and
     // permanently expire valid subscriber subscriptions.
     const result = await webpush.sendNotification(subscription as never, JSON.stringify(payload), {
-      TTL: 60 * 60,
+      // 24 hours: gives devices that are off overnight, or browsers with
+      // aggressive background-process killing, a full day to come back online
+      // and receive the notification. The previous 1-hour TTL was silently
+      // dropping pushes for any subscriber whose device wasn't online within
+      // that window. The spec maximum is 28 days (2,419,200s).
+      TTL: 24 * 60 * 60,
+      urgency: "normal",
       agent: keepAliveAgent,
       vapidDetails: {
         subject: credentials.vapidSubject,
