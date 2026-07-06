@@ -25,26 +25,33 @@ export interface BrowserPushCredentials {
 }
 
 export interface BrowserPushSender {
-  configure(credentials: BrowserPushCredentials): void;
-  send(subscription: BrowserPushSubscription, payload: BrowserPushNotificationPayload): Promise<{ providerMessageId: string | null }>;
+  send(
+    subscription: BrowserPushSubscription,
+    payload: BrowserPushNotificationPayload,
+    credentials: BrowserPushCredentials,
+  ): Promise<{ providerMessageId: string | null }>;
 }
 
 export class WebPushSender implements BrowserPushSender {
-  configure(credentials: BrowserPushCredentials): void {
-    webpush.setVapidDetails(
-      credentials.vapidSubject,
-      credentials.vapidPublicKey,
-      credentials.vapidPrivateKey,
-    );
-  }
-
   async send(
     subscription: BrowserPushSubscription,
     payload: BrowserPushNotificationPayload,
+    credentials: BrowserPushCredentials,
   ): Promise<{ providerMessageId: string | null }> {
+    // vapidDetails is passed per-call rather than via the legacy
+    // webpush.setVapidDetails() global mutator, which is not concurrency-safe:
+    // with up to 5 concurrent jobs for different sites sharing one Node process,
+    // a configure() call from job B mid-flight would silently overwrite job A's
+    // VAPID credentials, causing every subsequent send in job A to 401/403 and
+    // permanently expire valid subscriber subscriptions.
     const result = await webpush.sendNotification(subscription as never, JSON.stringify(payload), {
       TTL: 60 * 60,
       agent: keepAliveAgent,
+      vapidDetails: {
+        subject: credentials.vapidSubject,
+        publicKey: credentials.vapidPublicKey,
+        privateKey: credentials.vapidPrivateKey,
+      },
     });
 
     return {

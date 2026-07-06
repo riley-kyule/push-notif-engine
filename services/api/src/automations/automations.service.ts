@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { Inject, Injectable, Logger, NotFoundException, OnApplicationBootstrap } from "@nestjs/common";
 import { AuditService } from "../audit/audit.service";
 import { SitesService } from "../sites/sites.service";
 import { AUTOMATIONS_REPOSITORY } from "./automations.constants";
@@ -151,6 +151,26 @@ export class AutomationsService {
 
   async listActiveByTrigger(siteId: string, triggerEvent: AutomationRecord["triggerEvent"]): Promise<AutomationRecord[]> {
     return this.automationsRepository.listActiveByTrigger(siteId, triggerEvent);
+  }
+
+  // Ensure every site has default automations on startup -- this catches any
+  // site that was created before this seeding logic existed, or was created
+  // while the app was offline. Idempotent: seedDefaultAutomations skips
+  // triggers that already exist, so running on boot is always safe.
+  async onApplicationBootstrap(): Promise<void> {
+    try {
+      const sites = await this.sitesService.listSites({ limit: 500, offset: 0 });
+      await Promise.all(
+        sites.items.map((site) =>
+          this.seedDefaultAutomations(site.id).catch((err: unknown) => {
+            this.logger.warn(`Startup automation seed failed for site ${site.id}: ${err instanceof Error ? err.message : String(err)}`);
+          }),
+        ),
+      );
+      this.logger.log(`Startup automation seed completed for ${sites.items.length} site(s)`);
+    } catch (err: unknown) {
+      this.logger.warn(`Startup automation seed could not list sites: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   // Idempotent: skips a default if the site already has any automation on

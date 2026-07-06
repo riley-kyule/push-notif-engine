@@ -60,9 +60,6 @@ test("browser push processor marks expired subscribers", async () => {
   };
 
   const fakeSender = {
-    configure() {
-      return undefined;
-    },
     async send() {
       throw { statusCode: 410, message: "Gone" };
     },
@@ -88,6 +85,68 @@ test("browser push processor marks expired subscribers", async () => {
   assert.equal(result.expired, 1);
   assert.deepEqual(expired, ["subscriber-1"]);
   assert.deepEqual(failedEvents, [{ status: "expired" }]);
+});
+
+test("browser push processor passes VAPID credentials per send call, not via global mutable state", async () => {
+  const capturedCredentials: Array<{ publicKey: string }> = [];
+
+  const fakeRepository = {
+    async findSiteCredentials() {
+      return { id: "site-1", vapid_subject: "mailto:a@example.com", vapid_public_key: "site-A-key", vapid_private_key: "priv" };
+    },
+    async findEligibleSubscriberById() {
+      return [{ id: "sub-1", subscription_endpoint: "https://push.example.com/1", p256dh_key: "p256dh", auth_key: "auth" }];
+    },
+    async findAlreadySentSubscriberIds() { return new Set<string>(); },
+    createPendingDeliveryEvents: createPendingDeliveryEventsFake([]),
+    async markDeliveryEventSent() { return undefined; },
+  };
+
+  const fakeSender = {
+    async send(_sub: unknown, _payload: unknown, creds: { vapidPublicKey: string }) {
+      capturedCredentials.push({ publicKey: creds.vapidPublicKey });
+      return { providerMessageId: null };
+    },
+  };
+
+  const processor = new BrowserPushProcessor(fakeRepository as never, fakeSender as never);
+  await processor.process({ siteId: "site-1", subscriberId: "sub-1", enqueuedAt: new Date().toISOString(), notification: { title: "t", body: "b", url: "https://example.com", icon: null, image: null } }, "job-1");
+
+  assert.equal(capturedCredentials.length, 1);
+  assert.equal(capturedCredentials[0]?.publicKey, "site-A-key");
+});
+
+test("browser push processor retries network errors (no statusCode) instead of marking subscriber expired", async () => {
+  let attempts = 0;
+  const expiredIds: string[] = [];
+
+  const fakeRepository = {
+    async findSiteCredentials() {
+      return { id: "site-1", vapid_subject: "mailto:a@example.com", vapid_public_key: "pub", vapid_private_key: "priv" };
+    },
+    async findEligibleSubscriberById() {
+      return [{ id: "sub-1", subscription_endpoint: "https://push.example.com/1", p256dh_key: "p256dh", auth_key: "auth" }];
+    },
+    async findAlreadySentSubscriberIds() { return new Set<string>(); },
+    createPendingDeliveryEvents: createPendingDeliveryEventsFake([]),
+    async markDeliveryEventFailed({ status }: { status: string }) {
+      if (status === "expired") expiredIds.push("sub-1");
+    },
+    async markSubscriberExpired(id: string) { expiredIds.push(id); },
+  };
+
+  const fakeSender = {
+    async send() {
+      attempts += 1;
+      throw { message: "ECONNREFUSED" }; // no statusCode = network error
+    },
+  };
+
+  const processor = new BrowserPushProcessor(fakeRepository as never, fakeSender as never, async () => { return; });
+  await processor.process({ siteId: "site-1", subscriberId: "sub-1", enqueuedAt: new Date().toISOString(), notification: { title: "t", body: "b", url: "https://example.com", icon: null, image: null } }, "job-1");
+
+  assert.equal(attempts, 3, "should retry 3 times for a network error");
+  assert.equal(expiredIds.length, 0, "should not mark subscriber expired for a network error");
 });
 
 test("browser push processor also expires a subscriber on a 403 (push service rejected this subscription's auth)", async () => {
@@ -126,9 +185,6 @@ test("browser push processor also expires a subscriber on a 403 (push service re
   };
 
   const fakeSender = {
-    configure() {
-      return undefined;
-    },
     async send() {
       throw { statusCode: 403, message: "Received unexpected response code" };
     },
@@ -193,9 +249,6 @@ test("browser push processor retries transient relay failures", async () => {
   };
 
   const fakeSender = {
-    configure() {
-      return undefined;
-    },
     async send() {
       attempts += 1;
       if (attempts < 3) {
@@ -271,9 +324,6 @@ test("browser push processor filters eligible subscribers by the campaign's segm
   };
 
   const fakeSender = {
-    configure() {
-      return undefined;
-    },
     async send() {
       return { providerMessageId: null };
     },
@@ -339,9 +389,6 @@ test("browser push processor includes a deliveryId-scoped clickUrl in the outgoi
   };
 
   const fakeSender = {
-    configure() {
-      return undefined;
-    },
     async send(_subscription: unknown, notification: { deliveryId?: string | null; ackUrl?: string | null; clickUrl?: string | null }) {
       sentNotifications.push(notification);
       return { providerMessageId: "provider-123" };
@@ -419,9 +466,6 @@ test("browser push processor sends to exactly one subscriber when subscriberId i
   };
 
   const fakeSender = {
-    configure() {
-      return undefined;
-    },
     async send() {
       return { providerMessageId: "provider-1" };
     },
@@ -482,9 +526,6 @@ test("browser push processor skips subscribers already sent to under the same jo
   };
 
   const fakeSender = {
-    configure() {
-      return undefined;
-    },
     async send() {
       return { providerMessageId: "provider-1" };
     },
@@ -540,9 +581,6 @@ test("browser push processor sends with bounded concurrency, not sequentially", 
   };
 
   const fakeSender = {
-    configure() {
-      return undefined;
-    },
     async send() {
       inFlight += 1;
       maxInFlight = Math.max(maxInFlight, inFlight);
@@ -611,9 +649,6 @@ test("browser push processor splits a large subscriber list into bounded batches
   };
 
   const fakeSender = {
-    configure() {
-      return undefined;
-    },
     async send() {
       return { providerMessageId: "provider-1" };
     },

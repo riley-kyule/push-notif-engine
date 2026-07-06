@@ -1,6 +1,6 @@
 import type { BrowserPushJobPayload } from "./browser-push.types";
 import type { BrowserPushRepository } from "./browser-push.repository";
-import type { BrowserPushSender } from "./browser-push.sender";
+import type { BrowserPushCredentials, BrowserPushSender } from "./browser-push.sender";
 import { loadBrowserPushConfig } from "./config";
 import { chunk, mapWithConcurrency } from "./concurrency.util";
 
@@ -26,9 +26,14 @@ function isResponseError(error: unknown): error is PushError {
 }
 
 function isRetryableError(error: PushError): boolean {
-  const statusCode = error.statusCode;
+  const { statusCode } = error;
   if (!statusCode) {
-    return false;
+    // No HTTP status code = network-level failure (DNS resolution, connection
+    // refused, TLS handshake timeout, etc.). These are transient relay
+    // conditions, not a signal that the subscription is invalid. Treating them
+    // as non-retryable was permanently marking valid subscribers as expired
+    // every time a push relay had a momentary blip.
+    return true;
   }
 
   return statusCode === 429 || statusCode >= 500;
@@ -57,11 +62,11 @@ export class BrowserPushProcessor {
       throw new Error("Browser push credentials are missing");
     }
 
-    this.sender.configure({
+    const credentials: BrowserPushCredentials = {
       vapidSubject: site.vapid_subject,
       vapidPublicKey: site.vapid_public_key,
       vapidPrivateKey: site.vapid_private_key,
-    });
+    };
 
     const allSubscribers = job.subscriberId
       ? await this.repository.findEligibleSubscriberById(job.siteId, job.subscriberId)
@@ -113,7 +118,7 @@ export class BrowserPushProcessor {
             ackUrl: `${browserPushConfig.ackBaseUrl}/browser-push/deliveries/${deliveryId}/delivered`,
             clickUrl: `${browserPushConfig.ackBaseUrl}/browser-push/deliveries/${deliveryId}/clicked`,
           };
-          const result = await this.sendWithRetry(subscription, notification);
+          const result = await this.sendWithRetry(subscription, notification, credentials);
 
           await this.repository.markDeliveryEventSent(deliveryId, result.providerMessageId, result.attempts);
           return "sent";
@@ -155,18 +160,27 @@ export class BrowserPushProcessor {
       await this.repository.markCampaignSent(job.campaignId);
     }
 
+    // A completed job with zero sent is always worth a warning -- it means
+    // either every subscriber was filtered out (missing p256dh/auth keys,
+    // already sent in a prior attempt) or the segment matched nobody. Surface
+    // it so it doesn't silently disappear into a "completed" BullMQ entry.
+    if (totals.sent === 0 && totals.failed === 0 && totals.expired === 0) {
+      console.warn(`[browser-push] job ${jobId ?? "unknown"} completed with 0 deliveries (siteId=${job.siteId}, subscribers=${allSubscribers.length})`);
+    }
+
     return totals;
   }
 
   private async sendWithRetry(
     subscription: { endpoint: string; keys: { p256dh: string; auth: string } },
     notification: BrowserPushJobPayload["notification"],
+    credentials: BrowserPushCredentials,
   ): Promise<{ providerMessageId: string | null; attempts: number }> {
     const maxAttempts = 3;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
-        const result = await this.sender.send(subscription, notification);
+        const result = await this.sender.send(subscription, notification, credentials);
         return { ...result, attempts: attempt };
       } catch (error) {
         const pushError = isResponseError(error) ? error : { message: "Unknown push failure" };
