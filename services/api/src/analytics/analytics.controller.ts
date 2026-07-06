@@ -85,6 +85,23 @@ export class AnalyticsController {
     return { success: true, data: overview };
   }
 
+  @Get("campaign-performance")
+  async getAggregatedCampaignStats(
+    @Query("days") days?: string,
+    @Query("siteId") siteId?: string,
+    @Query("campaignId") campaignId?: string,
+    @Query("startDate") startDate?: string,
+    @Query("endDate") endDate?: string,
+  ): Promise<{ success: true; data: unknown }> {
+    const stats = await this.analyticsService.getAggregatedCampaignStats(
+      days ? parseInt(days, 10) : 30,
+      siteId,
+      campaignId,
+      parseDateRangeQuery(startDate, endDate),
+    );
+    return { success: true, data: stats };
+  }
+
   @Get("campaigns/:campaignId")
   async getCampaignStats(
     @Param("campaignId") campaignId: string,

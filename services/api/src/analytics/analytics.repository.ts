@@ -222,6 +222,71 @@ export class AnalyticsRepository {
     };
   }
 
+  async getAggregatedCampaignStats(
+    days: number,
+    siteId?: string,
+    campaignId?: string,
+    dateRange?: { startDate?: string; endDate?: string },
+  ): Promise<{
+    pending: number;
+    sent: number;
+    delivered: number;
+    failed: number;
+    expired: number;
+    clicked: number;
+    total: number;
+    deliveryRate: number;
+    clickThroughRate: number;
+  }> {
+    const params: Array<string | number> = [days];
+    // Array.push returns the new length, which is the 1-based $N index --
+    // using it inline here avoids keeping a separate counter variable.
+    const siteFilter = siteId ? `AND site_id = $${params.push(siteId)}` : "";
+    const campaignFilter = campaignId ? `AND campaign_id = $${params.push(campaignId)}` : "";
+    const dateClause = this.dateBoundsClause(params, days, "created_at", dateRange?.startDate, dateRange?.endDate);
+
+    const { rows } = await this.pool.query<CampaignStatsRow>(
+      `
+      SELECT
+        COUNT(*) FILTER (WHERE status = 'pending')        AS pending,
+        COUNT(*) FILTER (WHERE status = 'sent')           AS sent,
+        COUNT(*) FILTER (WHERE status = 'delivered')      AS delivered,
+        COUNT(*) FILTER (WHERE status = 'failed')         AS failed,
+        COUNT(*) FILTER (WHERE status = 'expired')        AS expired,
+        COUNT(*) FILTER (WHERE clicked_at IS NOT NULL)    AS clicked,
+        COUNT(*)                                          AS total
+      FROM push_delivery_events
+      WHERE campaign_id IS NOT NULL
+        AND ${dateClause}
+        ${siteFilter}
+        ${campaignFilter}
+      `,
+      params,
+    );
+
+    const row = rows[0];
+    const pending = parseInt(row?.pending ?? "0", 10);
+    const sent = parseInt(row?.sent ?? "0", 10);
+    const delivered = parseInt(row?.delivered ?? "0", 10);
+    const failed = parseInt(row?.failed ?? "0", 10);
+    const expired = parseInt(row?.expired ?? "0", 10);
+    const clicked = parseInt(row?.clicked ?? "0", 10);
+    const total = parseInt(row?.total ?? "0", 10);
+    const successfullyHandedOff = sent + delivered;
+
+    return {
+      pending,
+      sent,
+      delivered,
+      failed,
+      expired,
+      clicked,
+      total,
+      deliveryRate: total > 0 ? Math.round((delivered / total) * 10000) / 100 : 0,
+      clickThroughRate: successfullyHandedOff > 0 ? Math.round((clicked / successfullyHandedOff) * 10000) / 100 : 0,
+    };
+  }
+
   async getSiteOverview(siteId: string): Promise<{
     totalSubscribers: number;
     activeSubscribers: number;

@@ -36,6 +36,10 @@ export class AnalyticsService {
     return this.analyticsRepository.getOverview(days, siteId, dateRange);
   }
 
+  async getAggregatedCampaignStats(days = 30, siteId?: string, campaignId?: string, dateRange?: { startDate?: string; endDate?: string }) {
+    return this.analyticsRepository.getAggregatedCampaignStats(days, siteId, campaignId, dateRange);
+  }
+
   async getCountryPerformance(days = 30, siteId?: string, dateRange?: { startDate?: string; endDate?: string }) {
     return this.analyticsRepository.getCountryPerformance(days, siteId, dateRange);
   }

@@ -102,6 +102,18 @@ export function formatTimeBucketLabel(bucket: string, days: number): string {
   return new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", timeZone: "UTC" }).format(date);
 }
 
+export interface CampaignPerformanceStats {
+  pending: number;
+  sent: number;
+  delivered: number;
+  failed: number;
+  expired: number;
+  clicked: number;
+  total: number;
+  deliveryRate: number;
+  clickThroughRate: number;
+}
+
 export interface ContentPerformanceSummary {
   contentType: string;
   totalCampaigns: number;
@@ -463,4 +475,20 @@ export async function getTimePerformancePage(range: AnalyticsDateRange, siteId?:
 
 export async function getPeakHoursPage(range: AnalyticsDateRange, siteId?: string): Promise<PeakHourSummary[]> {
   return getAnalyticsApiList<PeakHourSummary>(`/analytics/peak-hours?${rangeQueryParams(range, siteId)}`);
+}
+
+export async function getCampaignPerformancePage(
+  range: AnalyticsDateRange,
+  siteId?: string,
+  campaignId?: string,
+): Promise<CampaignPerformanceStats | null> {
+  const search = new URLSearchParams();
+  search.set("days", String(range.days));
+  search.set("startDate", range.startDate);
+  search.set("endDate", range.endDate);
+  if (siteId) search.set("siteId", siteId);
+  if (campaignId) search.set("campaignId", campaignId);
+
+  const response = await apiJson<{ success: true; data: CampaignPerformanceStats }>(`/analytics/campaign-performance?${search.toString()}`);
+  return response?.data ?? null;
 }
