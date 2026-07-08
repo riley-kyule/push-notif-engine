@@ -14,6 +14,10 @@ function createController(overrides: Partial<Record<string, (...args: never[]) =
       calls.push({ method: "getCampaignStats", args });
       return overrides.getCampaignStats ? overrides.getCampaignStats(...args) : { sent: 1 };
     },
+    async getCampaignStatsBulk(...args: never[]) {
+      calls.push({ method: "getCampaignStatsBulk", args });
+      return overrides.getCampaignStatsBulk ? overrides.getCampaignStatsBulk(...args) : {};
+    },
     async getSiteOverview(...args: never[]) {
       calls.push({ method: "getSiteOverview", args });
       return overrides.getSiteOverview ? overrides.getSiteOverview(...args) : { totalSubscribers: 1 };
@@ -212,4 +216,24 @@ test("analytics controller rejects a Google Sheets exchange missing code or stat
 
   await assert.rejects(() => controller.exchangeGoogleSheetsCode("", "state"));
   await assert.rejects(() => controller.exchangeGoogleSheetsCode("code", ""));
+});
+
+test("analytics controller keeps only well-formed uuids in bulk campaign stats ids", async () => {
+  const { controller, calls } = createController();
+  const valid = "0b8f4a4e-2f0f-4d34-9c65-0d0f6f0a1b2c";
+
+  const result = await controller.getCampaignStatsBulk(` ${valid} ,not-a-uuid,,`);
+
+  assert.equal(result.success, true);
+  assert.deepEqual(calls, [{ method: "getCampaignStatsBulk", args: [[valid]] }]);
+});
+
+test("analytics controller treats a missing ids query as an empty bulk request", async () => {
+  const { controller, calls } = createController();
+
+  const result = await controller.getCampaignStatsBulk(undefined);
+
+  assert.equal(result.success, true);
+  assert.deepEqual(result.data, {});
+  assert.deepEqual(calls, [{ method: "getCampaignStatsBulk", args: [[]] }]);
 });

@@ -12,6 +12,10 @@ export class AnalyticsService {
     return this.analyticsRepository.getCampaignStats(campaignId);
   }
 
+  async getCampaignStatsBulk(campaignIds: string[]) {
+    return this.analyticsRepository.getCampaignStatsBulk(campaignIds);
+  }
+
   async getSiteOverview(siteId: string, days = 30) {
     const [overview, delivery, growth] = await Promise.all([
       this.analyticsRepository.getSiteOverview(siteId),

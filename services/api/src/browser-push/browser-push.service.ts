@@ -51,7 +51,13 @@ export class BrowserPushService {
         title: dto.title,
         body: dto.body,
         url: dto.url,
-        icon: dto.icon ?? null,
+        // The icon slot is the notification's visual identity in every
+        // browser (the large `image` only renders on some platforms), and
+        // senders -- campaigns, automations, the REST API -- often provide
+        // only an image. Fall back to it so the subscriber sees the push's
+        // own artwork; the service worker falls back to the site icon when
+        // both are absent.
+        icon: dto.icon ?? dto.image ?? null,
         image: dto.image ?? null,
       },
       enqueuedAt: new Date().toISOString(),

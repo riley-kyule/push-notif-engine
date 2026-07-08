@@ -45,32 +45,93 @@ export function buildManifest(config: NodePushStarterConfig): string {
   });
 }
 
+// Mirrors the WordPress plugin's service worker: flat payload shape,
+// delivery/click acknowledgement, image + action buttons, and a
+// postMessage so open pages can refresh the bell badge live.
 export function buildServiceWorkerScript(config: NodePushStarterConfig): string {
-  return [
-    `const EPE_API_URL = ${JSON.stringify(config.apiUrl)};`,
-    "self.addEventListener('install', () => self.skipWaiting());",
-    "self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));",
-    "self.addEventListener('push', (event) => {",
-    "  const payload = event.data ? event.data.json() : {};",
-    "  const notification = payload.notification ?? {};",
-    "  const options = {",
-    "    body: notification.body ?? payload.body ?? '',",
-    "    icon: notification.icon ?? payload.icon ?? '/icons/icon-192.png',",
-    "    badge: notification.badge ?? payload.badge ?? '/icons/icon-192.png',",
-    "    data: {",
-    "      deliveryId: payload.deliveryId ?? null,",
-    "      ackUrl: payload.ackUrl ?? null,",
-    "      clickUrl: payload.clickUrl ?? null,",
-    "      url: notification.url ?? payload.url ?? '/',",
-    "    },",
-    "  };",
-    "  event.waitUntil(self.registration.showNotification(notification.title ?? payload.title ?? 'Notification', options));",
-    "});",
-    "self.addEventListener('notificationclick', (event) => {",
-    "  event.notification.close();",
-    "  const url = event.notification.data?.url ?? '/';",
-    "  event.waitUntil(self.clients.openWindow(url));",
-    "});",
-    "void EPE_API_URL;",
-  ].join("\n");
+  const appName = JSON.stringify(config.appName);
+  const iconUrl = JSON.stringify(config.iconUrl);
+
+  return `self.addEventListener('install', (event) => {
+  event.waitUntil(self.skipWaiting());
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
+function acknowledgeDelivery(payload) {
+  if (!payload.deliveryId || !payload.ackUrl) {
+    return Promise.resolve();
+  }
+
+  return fetch(payload.ackUrl, { method: 'POST' }).catch(() => undefined);
+}
+
+function acknowledgeClick(clickUrl) {
+  if (!clickUrl) {
+    return Promise.resolve();
+  }
+
+  return fetch(clickUrl, { method: 'POST' }).catch(() => undefined);
+}
+
+self.addEventListener('push', (event) => {
+  const payload = event.data ? event.data.json() : {};
+  const title = payload.title || ${appName};
+  const options = {
+    body: payload.body || '',
+    icon: payload.icon || ${iconUrl},
+    image: payload.image || undefined,
+    data: {
+      url: payload.url || '/',
+      clickUrl: payload.clickUrl || null,
+    },
+    actions: Array.isArray(payload.buttons)
+      ? payload.buttons.slice(0, 2).map((button) => ({ action: button.url, title: button.label }))
+      : [],
+  };
+
+  // Let any open pages know a push landed so the bell badge / recents tray
+  // can refresh without a reload.
+  const notifyOpenPages = self.clients
+    .matchAll({ type: 'window', includeUncontrolled: true })
+    .then((clients) => {
+      clients.forEach((client) => client.postMessage({ type: 'epe:push-received' }));
+    })
+    .catch(() => undefined);
+
+  event.waitUntil(Promise.all([
+    self.registration.showNotification(title, options),
+    acknowledgeDelivery(payload),
+    notifyOpenPages,
+  ]));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data && event.notification.data.url ? event.notification.data.url : '/';
+  const clickUrl = event.notification.data && event.notification.data.clickUrl ? event.notification.data.clickUrl : null;
+  event.waitUntil(
+    Promise.all([
+      acknowledgeClick(clickUrl),
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+        for (const client of clients) {
+          if ('focus' in client) {
+            client.focus();
+            if ('navigate' in client) {
+              client.navigate(targetUrl);
+            }
+            return;
+          }
+        }
+        if (self.clients.openWindow) {
+          return self.clients.openWindow(targetUrl);
+        }
+        return undefined;
+      }),
+    ])
+  );
+});
+`;
 }

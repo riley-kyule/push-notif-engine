@@ -353,3 +353,90 @@ test("campaigns service resolves uploaded media assets into campaign URLs", asyn
   const cloned = await service.cloneCampaign(created.id, {});
   assert.equal(cloned.imageUrl, "http://127.0.0.1:3001/api/campaign-media/cloned-image/file");
 });
+
+test("campaigns service hands the campaign's own icon and image to dispatch", async () => {
+  const sitesService = {
+    async getSite() {
+      return { id: "site-1" };
+    },
+  };
+  const segmentsService = {
+    async getSegment() {
+      return { id: "segment-1", siteId: "site-1" };
+    },
+  };
+  const campaignTaxonomiesService = {
+    async ensureActive() {
+      return undefined;
+    },
+  };
+  let mediaResult: { imageUrl: string | null; iconUrl: string | null } = {
+    imageUrl: "https://example.com/hero.png",
+    iconUrl: null,
+  };
+  const campaignMediaService = {
+    async resolveCampaignMedia() {
+      return mediaResult;
+    },
+    async attachAssetsToCampaign() {
+      return undefined;
+    },
+    async cloneCampaignAssets() {
+      return { imageUrl: null, iconUrl: null };
+    },
+    async deleteCampaignAssets() {
+      return undefined;
+    },
+  };
+  const dispatches: Array<{ icon: string | null; image: string | null }> = [];
+  const browserPushService = {
+    async dispatch(input: { icon: string | null; image: string | null }) {
+      dispatches.push({ icon: input.icon, image: input.image });
+      return { jobId: "job-1", queued: true as const };
+    },
+  };
+  const repository = new InMemoryCampaignsRepository();
+  const service = new CampaignsService(
+    sitesService as never,
+    segmentsService as never,
+    browserPushService as never,
+    campaignMediaService as never,
+    campaignTaxonomiesService as never,
+    createFakeAuditService(),
+    repository as never,
+  );
+
+  const imageOnly = await service.createCampaign({
+    siteId: "site-1",
+    name: "Image Only",
+    channel: "web",
+    type: "instant",
+    title: "Big Sale",
+    message: "Shop now",
+    url: "https://example.com",
+    imageUrl: "https://example.com/hero.png",
+  });
+  await service.sendCampaign(imageOnly.id);
+
+  mediaResult = { imageUrl: "https://example.com/hero.png", iconUrl: "https://example.com/icon.png" };
+  const withIcon = await service.createCampaign({
+    siteId: "site-1",
+    name: "With Icon",
+    channel: "web",
+    type: "instant",
+    title: "Big Sale",
+    message: "Shop now",
+    url: "https://example.com",
+    imageUrl: "https://example.com/hero.png",
+    iconUrl: "https://example.com/icon.png",
+  });
+  await service.sendCampaign(withIcon.id);
+
+  // The campaign's stored values pass through untouched -- the image-as-icon
+  // fallback lives in BrowserPushService.dispatch so REST and automation
+  // sends get it too.
+  assert.deepEqual(dispatches, [
+    { icon: null, image: "https://example.com/hero.png" },
+    { icon: "https://example.com/icon.png", image: "https://example.com/hero.png" },
+  ]);
+});

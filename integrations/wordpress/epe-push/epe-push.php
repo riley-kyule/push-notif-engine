@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Exotic Push Engine
  * Description: Browser push integration for Exotic WordPress sites.
- * Version: 1.0.9
+ * Version: 1.1.1
  * Author: Riley Kyule
  * Text Domain: exotic-push-engine
  */
@@ -93,7 +93,7 @@ final class Exotic_Push_Engine_Plugin {
         // Registered with no src and loaded purely as a vehicle for inline content
         // below -- see the comment on add_inline_script_nonce() for why the SDK is
         // inlined rather than loaded as an external <script src> file.
-        wp_register_script('exotic-push-engine-sdk', '', [], '1.0.7', true);
+        wp_register_script('exotic-push-engine-sdk', '', [], '1.1.1', true);
         wp_enqueue_script('exotic-push-engine-sdk');
 
         $sdk_path = plugin_dir_path(__FILE__) . 'assets/epe-sdk.js';
@@ -214,9 +214,19 @@ self.addEventListener('push', (event) => {
       : [],
   };
 
+  // Let any open pages know a push landed so the bell badge / recents tray
+  // can refresh without a reload.
+  const notifyOpenPages = self.clients
+    .matchAll({ type: 'window', includeUncontrolled: true })
+    .then((clients) => {
+      clients.forEach((client) => client.postMessage({ type: 'epe:push-received' }));
+    })
+    .catch(() => undefined);
+
   event.waitUntil(Promise.all([
     self.registration.showNotification(title, options),
     acknowledgeDelivery(payload),
+    notifyOpenPages,
   ]));
 });
 

@@ -265,6 +265,26 @@ interface CampaignAnalyticsStats {
   clickThroughRate: number;
 }
 
+// Fetch live stats for a page of campaigns in chunks -- one bulk request per
+// chunk keeps the querystring well under header-size limits even at the 500
+// page size.
+const STATS_CHUNK_SIZE = 150;
+
+async function resolveCampaignListStats(campaignIds: string[]): Promise<Record<string, CampaignAnalyticsStats>> {
+  const chunks: string[][] = [];
+  for (let i = 0; i < campaignIds.length; i += STATS_CHUNK_SIZE) {
+    chunks.push(campaignIds.slice(i, i + STATS_CHUNK_SIZE));
+  }
+
+  const responses = await Promise.all(
+    chunks.map((chunk) =>
+      apiJson<CampaignApiResponse<Record<string, CampaignAnalyticsStats>>>(`/analytics/campaigns?ids=${chunk.join(",")}`),
+    ),
+  );
+
+  return Object.assign({}, ...responses.map((response) => response?.data ?? {}));
+}
+
 async function resolveCampaignMetrics(campaignId: string): Promise<CampaignDetail["metrics"] | null> {
   const response = await apiJson<CampaignApiResponse<CampaignAnalyticsStats>>(`/analytics/campaigns/${campaignId}`);
   if (!response?.data || response.data.total === 0) {
@@ -309,7 +329,28 @@ export async function getCampaignList(filters: CampaignListFilters = {}): Promis
     `/campaigns?${buildCampaignListQuery(filters)}`,
   );
 
-  const items = response?.data?.items?.map((item) => toCampaignSummary(item)) ?? campaignSummaries;
+  const records = response?.data?.items;
+  if (!records) {
+    return { items: campaignSummaries, total: campaignSummaries.length };
+  }
+
+  // The /campaigns list payload has no delivery metrics, so hydrate sent/CTR
+  // from the same analytics source the detail page uses -- otherwise every
+  // row renders the "0%" placeholder from toCampaignSummary.
+  const stats = await resolveCampaignListStats(records.map((record) => record.id));
+  const items = records.map((record) => {
+    const summary = toCampaignSummary(record);
+    const campaignStats = stats[record.id];
+    if (!campaignStats || campaignStats.total === 0) {
+      return summary;
+    }
+    return {
+      ...summary,
+      sent: (campaignStats.sent + campaignStats.delivered).toLocaleString(),
+      ctr: `${campaignStats.clickThroughRate}%`,
+    };
+  });
+
   return {
     items,
     total: response?.data?.total ?? items.length,

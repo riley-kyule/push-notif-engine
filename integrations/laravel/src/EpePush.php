@@ -44,35 +44,97 @@ final class EpePush
         ], JSON_PRETTY_PRINT);
     }
 
-    // The SDK posts to whatever ackUrl/clickUrl/url the push payload carries, so
-    // this worker needs no per-site config beyond what's already in the payload —
-    // it's identical across every site, generated for parity with the Node/WordPress
-    // integrations rather than because Laravel needs anything site-specific here.
+    // Mirrors the WordPress plugin's service worker: flat payload shape,
+    // delivery/click acknowledgement, image + action buttons, and a
+    // postMessage so open pages can refresh the bell badge live. The
+    // configured app name and icon fill in when a payload omits its own.
     public static function serviceWorkerScript(): string
     {
-        return <<<'JS'
-self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
+        $bootstrap = self::bootstrapConfig();
+        $app_name = json_encode((string) $bootstrap['appName']);
+        $icon_url = json_encode((string) $bootstrap['iconUrl']);
+
+        return <<<JS
+self.addEventListener('install', (event) => {
+  event.waitUntil(self.skipWaiting());
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
+function acknowledgeDelivery(payload) {
+  if (!payload.deliveryId || !payload.ackUrl) {
+    return Promise.resolve();
+  }
+
+  return fetch(payload.ackUrl, { method: 'POST' }).catch(() => undefined);
+}
+
+function acknowledgeClick(clickUrl) {
+  if (!clickUrl) {
+    return Promise.resolve();
+  }
+
+  return fetch(clickUrl, { method: 'POST' }).catch(() => undefined);
+}
+
 self.addEventListener('push', (event) => {
   const payload = event.data ? event.data.json() : {};
-  const notification = payload.notification ?? {};
+  const title = payload.title || {$app_name};
   const options = {
-    body: notification.body ?? payload.body ?? '',
-    icon: notification.icon ?? payload.icon ?? '/icons/icon-192.png',
-    badge: notification.badge ?? payload.badge ?? '/icons/icon-192.png',
+    body: payload.body || '',
+    icon: payload.icon || {$icon_url},
+    image: payload.image || undefined,
     data: {
-      deliveryId: payload.deliveryId ?? null,
-      ackUrl: payload.ackUrl ?? null,
-      clickUrl: payload.clickUrl ?? null,
-      url: notification.url ?? payload.url ?? '/',
+      url: payload.url || '/',
+      clickUrl: payload.clickUrl || null,
     },
+    actions: Array.isArray(payload.buttons)
+      ? payload.buttons.slice(0, 2).map((button) => ({ action: button.url, title: button.label }))
+      : [],
   };
-  event.waitUntil(self.registration.showNotification(notification.title ?? payload.title ?? 'Notification', options));
+
+  // Let any open pages know a push landed so the bell badge / recents tray
+  // can refresh without a reload.
+  const notifyOpenPages = self.clients
+    .matchAll({ type: 'window', includeUncontrolled: true })
+    .then((clients) => {
+      clients.forEach((client) => client.postMessage({ type: 'epe:push-received' }));
+    })
+    .catch(() => undefined);
+
+  event.waitUntil(Promise.all([
+    self.registration.showNotification(title, options),
+    acknowledgeDelivery(payload),
+    notifyOpenPages,
+  ]));
 });
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = event.notification.data?.url ?? '/';
-  event.waitUntil(self.clients.openWindow(url));
+  const targetUrl = event.notification.data && event.notification.data.url ? event.notification.data.url : '/';
+  const clickUrl = event.notification.data && event.notification.data.clickUrl ? event.notification.data.clickUrl : null;
+  event.waitUntil(
+    Promise.all([
+      acknowledgeClick(clickUrl),
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+        for (const client of clients) {
+          if ('focus' in client) {
+            client.focus();
+            if ('navigate' in client) {
+              client.navigate(targetUrl);
+            }
+            return;
+          }
+        }
+        if (self.clients.openWindow) {
+          return self.clients.openWindow(targetUrl);
+        }
+        return undefined;
+      }),
+    ])
+  );
 });
 JS;
     }

@@ -64,9 +64,20 @@ function acknowledgeClick(clickUrl) {
   }).catch(() => undefined);
 }
 
+function notifyOpenPages() {
+  // Let any open pages know a push landed so subscriber-facing UI (e.g. the
+  // bell badge / recents tray in the site SDK) can refresh without a reload.
+  return self.clients
+    .matchAll({ type: "window", includeUncontrolled: true })
+    .then((clients) => {
+      clients.forEach((client) => client.postMessage({ type: "epe:push-received" }));
+    })
+    .catch(() => undefined);
+}
+
 self.addEventListener("push", (event) => {
   const payload = resolvePayload(event.data);
-  event.waitUntil(Promise.all([showPushNotification(payload), acknowledgeDelivery(payload)]));
+  event.waitUntil(Promise.all([showPushNotification(payload), acknowledgeDelivery(payload), notifyOpenPages()]));
 });
 
 self.addEventListener("message", (event) => {

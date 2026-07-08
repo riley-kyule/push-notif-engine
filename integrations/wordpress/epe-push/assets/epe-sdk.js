@@ -5,6 +5,7 @@
   var state = {
     launcher: null,
     tray: null,
+    trayList: null,
     trayItems: [],
     bellOffset: 20,
   };
@@ -95,6 +96,76 @@
     } catch {
       return;
     }
+  }
+
+  function getSeenNotificationsKey() {
+    return "epe:notifications:seen:" + getSiteKey();
+  }
+
+  function readSeenNotificationIds() {
+    try {
+      var raw = window.localStorage.getItem(getSeenNotificationsKey());
+      var parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function markNotificationsSeen(notifications) {
+    try {
+      var seen = readSeenNotificationIds();
+      notifications.forEach(function (notification) {
+        if (notification && notification.id && seen.indexOf(notification.id) === -1) {
+          seen.push(notification.id);
+        }
+      });
+      // The public feed only ever serves the 10 most recent, so a short
+      // tail is enough to decide what's already been seen.
+      window.localStorage.setItem(getSeenNotificationsKey(), JSON.stringify(seen.slice(-50)));
+    } catch {
+      return;
+    }
+  }
+
+  function countUnseenNotifications(notifications) {
+    var seen = readSeenNotificationIds();
+    return notifications.filter(function (notification) {
+      return notification && notification.id && seen.indexOf(notification.id) === -1;
+    }).length;
+  }
+
+  function updateLauncherBadge(count) {
+    if (!state.launcher) {
+      return;
+    }
+
+    var badge = state.launcher.querySelector(".epe-optin-launcher__badge");
+    if (!count) {
+      if (badge) {
+        badge.remove();
+      }
+      state.launcher.setAttribute("aria-label", "Open recent notifications");
+      return;
+    }
+
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "epe-optin-launcher__badge";
+      badge.setAttribute("aria-hidden", "true");
+      state.launcher.appendChild(badge);
+    }
+    badge.textContent = count > 9 ? "9+" : String(count);
+    state.launcher.setAttribute(
+      "aria-label",
+      "Open recent notifications (" + count + " new)",
+    );
+  }
+
+  function refreshLauncherBadge() {
+    fetchRecentNotifications().then(function (notifications) {
+      updateLauncherBadge(countUnseenNotifications(notifications));
+    });
   }
 
   function isUnsubscribedLocally() {
@@ -361,6 +432,23 @@
       .epe-optin-launcher svg {
         width: 18px;
         height: 18px;
+      }
+      .epe-optin-launcher__badge {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 5px;
+        border-radius: 999px;
+        background: #dc2626;
+        color: #ffffff;
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 18px;
+        text-align: center;
+        box-shadow: 0 0 0 2px #ffffff;
+        box-sizing: border-box;
       }
       .epe-notification-tray {
         position: fixed;
@@ -717,6 +805,7 @@
     if (state.tray) {
       state.tray.remove();
       state.tray = null;
+      state.trayList = null;
     }
   }
 
@@ -794,11 +883,26 @@
     tray.appendChild(footer);
     document.body.appendChild(tray);
     state.tray = tray;
+    state.trayList = list;
     updateBellPosition();
 
+    populateTrayList(list);
+  }
+
+  function populateTrayList(list) {
     fetchRecentNotifications().then(function (notifications) {
+      // The tray may have been closed (or re-rendered) while the fetch was
+      // in flight -- don't write into a detached list.
+      if (!list.isConnected) {
+        return;
+      }
+
       state.trayItems = notifications;
       list.innerHTML = "";
+
+      // An open tray counts as reading everything currently in it.
+      markNotificationsSeen(notifications);
+      updateLauncherBadge(0);
 
       if (!notifications.length) {
         var empty = document.createElement("div");
@@ -860,6 +964,7 @@
     document.body.appendChild(bell);
     state.launcher = bell;
     updateBellPosition();
+    refreshLauncherBadge();
   }
 
   function renderOptInLauncher(registration) {
@@ -883,12 +988,34 @@
     updateBellPosition();
   }
 
+  function handlePushReceived() {
+    if (state.tray && state.trayList) {
+      populateTrayList(state.trayList);
+    } else {
+      refreshLauncherBadge();
+    }
+  }
+
   function init() {
     if (!config.apiUrl || !getSiteKey() || !config.vapidPublicKey) {
       return;
     }
 
     trackPageVisit();
+
+    // The service worker posts this when a push lands, so the badge (and an
+    // open tray) update without a reload.
+    navigator.serviceWorker.addEventListener("message", function (event) {
+      if (!event.data || event.data.type !== "epe:push-received") {
+        return;
+      }
+
+      // The recents feed only lists a campaign once its whole send job has
+      // finished, and an individual device usually gets its push mid-job --
+      // refresh now for the fast path and once more for the stragglers.
+      handlePushReceived();
+      setTimeout(handlePushReceived, 5000);
+    });
 
     navigator.serviceWorker
       .register(config.serviceWorkerUrl || "/push-sw.js", { scope: "/" })

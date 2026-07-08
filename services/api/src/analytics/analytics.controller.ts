@@ -102,6 +102,21 @@ export class AnalyticsController {
     return { success: true, data: stats };
   }
 
+  // Bulk variant of campaigns/:campaignId so list pages can hydrate a whole
+  // page of rows with one request. `ids` is a comma-separated list.
+  @Get("campaigns")
+  async getCampaignStatsBulk(@Query("ids") ids?: string): Promise<{ success: true; data: unknown }> {
+    // campaign_id is a uuid column; anything else would abort the whole
+    // query with a cast error, so drop malformed ids instead.
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const campaignIds = (ids ?? "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter((id) => uuidPattern.test(id));
+    const stats = await this.analyticsService.getCampaignStatsBulk(campaignIds);
+    return { success: true, data: stats };
+  }
+
   @Get("campaigns/:campaignId")
   async getCampaignStats(
     @Param("campaignId") campaignId: string,

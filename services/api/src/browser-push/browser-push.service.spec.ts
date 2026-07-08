@@ -40,6 +40,50 @@ test("browser push service enqueues a dispatch job", async () => {
   assert.equal(result.jobId, "job-1");
 });
 
+test("browser push service fills the icon slot from the image when no icon is given", async () => {
+  const fakeSitesService = {
+    async getSite() {
+      return {
+        id: "site-1",
+        vapidSubject: "mailto:push@example.com",
+        vapidPublicKey: "public-key",
+        vapidPrivateKey: "private-key",
+      };
+    },
+  };
+
+  const payloads: BrowserPushJobPayload[] = [];
+  const queue = {
+    async add(_name: string, payload: BrowserPushJobPayload) {
+      payloads.push(payload);
+      return { id: "job-1", payload };
+    },
+  };
+
+  const fakeAuditService = { async log() { return undefined; } };
+  const service = new BrowserPushService(fakeSitesService as never, {} as never, fakeAuditService as never, queue as never);
+
+  await service.dispatch({
+    siteId: "site-1",
+    title: "Image only",
+    body: "No explicit icon",
+    url: "https://example.com/articles/1",
+    image: "https://example.com/hero.png",
+  });
+  await service.dispatch({
+    siteId: "site-1",
+    title: "Both set",
+    body: "Explicit icon wins",
+    url: "https://example.com/articles/2",
+    icon: "https://example.com/icon.png",
+    image: "https://example.com/hero.png",
+  });
+
+  assert.equal(payloads[0]?.notification.icon, "https://example.com/hero.png");
+  assert.equal(payloads[0]?.notification.image, "https://example.com/hero.png");
+  assert.equal(payloads[1]?.notification.icon, "https://example.com/icon.png");
+});
+
 test("browser push service clears failed deliveries and audits the count", async () => {
   const auditCalls: Array<Record<string, unknown>> = [];
   const fakeBrowserPushRepository = {
