@@ -222,6 +222,57 @@ export class AnalyticsRepository {
     };
   }
 
+  // One grouped query for a whole page of campaigns -- the list view would
+  // otherwise need a getCampaignStats round-trip per row.
+  async getCampaignStatsBulk(campaignIds: string[]): Promise<
+    Record<
+      string,
+      {
+        sent: number;
+        delivered: number;
+        clicked: number;
+        total: number;
+        clickThroughRate: number;
+      }
+    >
+  > {
+    if (campaignIds.length === 0) {
+      return {};
+    }
+
+    const { rows } = await this.pool.query<CampaignStatsRow & { campaign_id: string }>(
+      `
+      SELECT
+        campaign_id,
+        COUNT(*) FILTER (WHERE status = 'sent')        AS sent,
+        COUNT(*) FILTER (WHERE status = 'delivered')   AS delivered,
+        COUNT(*) FILTER (WHERE clicked_at IS NOT NULL) AS clicked,
+        COUNT(*)                                       AS total
+      FROM push_delivery_events
+      WHERE campaign_id = ANY($1::uuid[])
+      GROUP BY campaign_id
+      `,
+      [campaignIds],
+    );
+
+    const stats: Record<string, { sent: number; delivered: number; clicked: number; total: number; clickThroughRate: number }> = {};
+    for (const row of rows) {
+      const sent = parseInt(row.sent ?? "0", 10);
+      const delivered = parseInt(row.delivered ?? "0", 10);
+      const clicked = parseInt(row.clicked ?? "0", 10);
+      const total = parseInt(row.total ?? "0", 10);
+      const successfullyHandedOff = sent + delivered;
+      stats[row.campaign_id] = {
+        sent,
+        delivered,
+        clicked,
+        total,
+        clickThroughRate: successfullyHandedOff > 0 ? Math.round((clicked / successfullyHandedOff) * 10000) / 100 : 0,
+      };
+    }
+    return stats;
+  }
+
   async getAggregatedCampaignStats(
     days: number,
     siteId?: string,

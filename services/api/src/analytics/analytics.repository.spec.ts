@@ -284,3 +284,41 @@ test("getSitePerformance keeps the siteId placeholder stable when a date range i
   assert.match(call.sql, /WHERE s\.id = \$2/);
   assert.deepEqual(call.params, [30, "site-1", "2026-01-31T21:00:00.000Z", "2026-02-02T21:00:00.000Z"]);
 });
+
+test("getCampaignStatsBulk groups stats per campaign in a single query", async () => {
+  const rows = [
+    { campaign_id: "11111111-1111-4111-8111-111111111111", sent: "4", delivered: "6", clicked: "5", total: "12" },
+    { campaign_id: "22222222-2222-4222-8222-222222222222", sent: "0", delivered: "0", clicked: "0", total: "3" },
+  ];
+  const { pool, calls } = createRowReturningFakePool([rows]);
+  const repository = new AnalyticsRepository(pool as never);
+
+  const stats = await repository.getCampaignStatsBulk([
+    "11111111-1111-4111-8111-111111111111",
+    "22222222-2222-4222-8222-222222222222",
+    "33333333-3333-4333-8333-333333333333",
+  ]);
+
+  assert.equal(calls.length, 1);
+  assert.match(calls[0]?.sql ?? "", /WHERE campaign_id = ANY\(\$1::uuid\[\]\)/);
+  assert.match(calls[0]?.sql ?? "", /GROUP BY campaign_id/);
+  assert.deepEqual(calls[0]?.params, [[
+    "11111111-1111-4111-8111-111111111111",
+    "22222222-2222-4222-8222-222222222222",
+    "33333333-3333-4333-8333-333333333333",
+  ]]);
+
+  assert.deepEqual(stats["11111111-1111-4111-8111-111111111111"], { sent: 4, delivered: 6, clicked: 5, total: 12, clickThroughRate: 50 });
+  // Nothing successfully handed off -> CTR is 0, not NaN.
+  assert.deepEqual(stats["22222222-2222-4222-8222-222222222222"], { sent: 0, delivered: 0, clicked: 0, total: 3, clickThroughRate: 0 });
+  // Campaigns with no delivery events simply have no entry.
+  assert.equal(stats["33333333-3333-4333-8333-333333333333"], undefined);
+});
+
+test("getCampaignStatsBulk skips the query entirely for an empty id list", async () => {
+  const { pool, calls } = createFakePool();
+  const repository = new AnalyticsRepository(pool as never);
+
+  assert.deepEqual(await repository.getCampaignStatsBulk([]), {});
+  assert.equal(calls.length, 0);
+});
