@@ -5,7 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import type { SiteSummary } from "../sites.utils";
-import { buildManifestAsset, buildSdkSnippet, buildServiceWorkerAsset } from "../site-integrations";
+import {
+  buildManifestAsset,
+  buildSdkSnippet,
+  buildServiceWorkerAsset,
+  buildSubscriptionShortcode,
+} from "../site-integrations";
 
 function downloadTextFile(filename: string, content: string, mimeType: string): void {
   const blob = new Blob([content], { type: mimeType });
@@ -19,7 +24,8 @@ function downloadTextFile(filename: string, content: string, mimeType: string): 
 
 export function SiteActions({ site }: { site: SiteSummary }) {
   const router = useRouter();
-  const [copied, setCopied] = useState(false);
+  const [copiedSdkSnippet, setCopiedSdkSnippet] = useState(false);
+  const [copiedShortcode, setCopiedShortcode] = useState(false);
 
   async function handleDelete() {
     const confirmed = window.confirm("Delete this site? This removes the dashboard record only.");
@@ -42,8 +48,14 @@ export function SiteActions({ site }: { site: SiteSummary }) {
 
   async function handleCopySdkSnippet() {
     await navigator.clipboard.writeText(buildSdkSnippet(site));
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1500);
+    setCopiedSdkSnippet(true);
+    window.setTimeout(() => setCopiedSdkSnippet(false), 1500);
+  }
+
+  async function handleCopySubscriptionShortcode() {
+    await navigator.clipboard.writeText(buildSubscriptionShortcode());
+    setCopiedShortcode(true);
+    window.setTimeout(() => setCopiedShortcode(false), 1500);
   }
 
   return (
@@ -55,7 +67,10 @@ export function SiteActions({ site }: { site: SiteSummary }) {
         Edit Site
       </Link>
       <button className="button secondary" type="button" onClick={handleCopySdkSnippet}>
-        {copied ? "Copied SDK Snippet" : "Copy SDK Snippet"}
+        {copiedSdkSnippet ? "Copied SDK Snippet" : "Copy SDK Snippet"}
+      </button>
+      <button className="button secondary" type="button" onClick={handleCopySubscriptionShortcode}>
+        {copiedShortcode ? "Copied Shortcode" : "Copy Subscription Shortcode"}
       </button>
       <button
         className="button secondary"

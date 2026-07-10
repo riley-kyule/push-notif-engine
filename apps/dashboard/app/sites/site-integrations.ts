@@ -46,6 +46,10 @@ export function buildSdkSnippet(site: SiteSummary): string {
   ].join("\n");
 }
 
+export function buildSubscriptionShortcode(): string {
+  return "[epe_subscribe_button]";
+}
+
 export function buildRestApiSnippet(site: SiteSummary): string {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "https://api.exoticpush.local/api";
   return [

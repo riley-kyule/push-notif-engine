@@ -553,6 +553,128 @@
     }
   }
 
+  function getActiveSubscription(registration) {
+    if (!config.vapidPublicKey) {
+      return Promise.resolve(null);
+    }
+
+    var desiredKey = decodeBase64Url(config.vapidPublicKey);
+
+    return registration.pushManager.getSubscription().then(function (subscription) {
+      if (!subscription || !subscriptionKeyMatches(subscription, desiredKey)) {
+        return null;
+      }
+
+      return subscription;
+    });
+  }
+
+  function updateSubscriptionButtons(registration) {
+    var buttons = document.querySelectorAll("[data-epe-subscribe-button]");
+    if (!buttons.length) {
+      return Promise.resolve();
+    }
+
+    var canSubscribe =
+      Boolean(config.apiUrl) &&
+      Boolean(getSiteKey()) &&
+      Boolean(config.vapidPublicKey) &&
+      Notification.permission !== "denied";
+
+    if (!canSubscribe) {
+      buttons.forEach(function (button) {
+        if (!(button instanceof HTMLElement)) {
+          return;
+        }
+
+        button.hidden = true;
+        button.setAttribute("aria-hidden", "true");
+      });
+
+      return Promise.resolve();
+    }
+
+    return getActiveSubscription(registration).then(function (subscription) {
+      buttons.forEach(function (button) {
+        if (!(button instanceof HTMLElement)) {
+          return;
+        }
+
+        var label = button.getAttribute("data-epe-subscribe-label") || "Subscribe";
+        if (subscription) {
+          button.hidden = true;
+          button.setAttribute("aria-hidden", "true");
+          return;
+        }
+
+        button.hidden = false;
+        button.removeAttribute("aria-hidden");
+        button.disabled = false;
+        button.textContent = label;
+      });
+    });
+  }
+
+  function bindSubscriptionButtons(registration) {
+    var buttons = document.querySelectorAll("[data-epe-subscribe-button]");
+    if (!buttons.length) {
+      return;
+    }
+
+    buttons.forEach(function (button) {
+      if (!(button instanceof HTMLElement) || button.dataset.epeBound === "1") {
+        return;
+      }
+
+      button.dataset.epeBound = "1";
+      button.addEventListener("click", function () {
+        if (button.disabled) {
+          return;
+        }
+
+        button.disabled = true;
+        button.textContent = "Subscribing...";
+
+        var continueWithSubscription = function (permission) {
+          if (permission !== "granted") {
+            button.disabled = false;
+            button.textContent = button.getAttribute("data-epe-subscribe-label") || "Subscribe";
+            updateSubscriptionButtons(registration);
+            return;
+          }
+
+          registerSubscription(registration)
+            .then(function (subscription) {
+              if (subscription) {
+                renderSubscriberLauncher(registration);
+                return updateSubscriptionButtons(registration);
+              }
+
+              button.disabled = false;
+              button.textContent = button.getAttribute("data-epe-subscribe-label") || "Subscribe";
+              return undefined;
+            })
+            .catch(function () {
+              button.disabled = false;
+              button.textContent = button.getAttribute("data-epe-subscribe-label") || "Subscribe";
+              updateSubscriptionButtons(registration);
+            });
+        };
+
+        if (Notification.permission === "default") {
+          Notification.requestPermission().then(continueWithSubscription).catch(function () {
+            button.disabled = false;
+            button.textContent = button.getAttribute("data-epe-subscribe-label") || "Subscribe";
+            updateSubscriptionButtons(registration);
+          });
+          return;
+        }
+
+        continueWithSubscription(Notification.permission);
+      });
+    });
+  }
+
   function registerSubscription(registration) {
     if (!config.apiUrl || !getSiteKey() || !config.vapidPublicKey) {
       return Promise.resolve(null);
@@ -839,6 +961,7 @@
           .then(function () {
             markLocallyUnsubscribed();
             closeTrayAndLauncher();
+            updateSubscriptionButtons(registration);
             return true;
           });
       });
@@ -1021,6 +1144,8 @@
       .register(config.serviceWorkerUrl || "/push-sw.js", { scope: "/" })
       .then(function (registration) {
         if (isUnsubscribedLocally()) {
+          bindSubscriptionButtons(registration);
+          updateSubscriptionButtons(registration);
           return;
         }
 
@@ -1029,12 +1154,19 @@
             if (subscription) {
               renderSubscriberLauncher(registration);
             }
+            bindSubscriptionButtons(registration);
+            return updateSubscriptionButtons(registration);
           });
         }
 
         if (Notification.permission === "denied") {
+          bindSubscriptionButtons(registration);
+          updateSubscriptionButtons(registration);
           return;
         }
+
+        bindSubscriptionButtons(registration);
+        updateSubscriptionButtons(registration);
 
         if ((config.optInPromptType || "lightbox-1") === "bell-icon") {
           renderOptInLauncher(registration);

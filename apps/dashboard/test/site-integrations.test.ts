@@ -6,6 +6,7 @@ import {
   buildRestApiSnippet,
   buildRestApiUsageSnippet,
   buildSdkSnippet,
+  buildSubscriptionShortcode,
   buildServiceWorkerAsset,
 } from "../app/sites/site-integrations";
 
@@ -23,6 +24,7 @@ const site = {
 
 test("site integration artifacts are generated per site", () => {
   const sdkSnippet = buildSdkSnippet(site);
+  const subscriptionShortcode = buildSubscriptionShortcode();
   const restApiSnippet = buildRestApiSnippet(site);
   const restApiUsageSnippet = buildRestApiUsageSnippet(site);
   const serviceWorker = buildServiceWorkerAsset(site);
@@ -33,6 +35,7 @@ test("site integration artifacts are generated per site", () => {
   assert.match(sdkSnippet, /push-sw\.js/);
   assert.match(sdkSnippet, /manifest\.json/);
   assert.match(sdkSnippet, /Exotic Africa/);
+  assert.equal(subscriptionShortcode, "[epe_subscribe_button]");
   assert.match(restApiSnippet, /rest-api-credentials/);
   assert.match(restApiSnippet, /Authorization: Bearer/);
   assert.match(restApiUsageSnippet, /rest-api\/identity/);

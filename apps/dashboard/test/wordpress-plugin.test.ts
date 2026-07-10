@@ -15,6 +15,8 @@ test("wordpress plugin scaffold exposes expected endpoints and settings", () => 
   assert.match(pluginFile, /wp_head/);
   assert.match(pluginFile, /rel="manifest"/);
   assert.match(pluginFile, /add_options_page/);
+  assert.match(pluginFile, /epe_subscribe_button/);
   assert.match(readmeFile, /CSP guidance/);
   assert.match(readmeFile, /browser push only/i);
+  assert.match(readmeFile, /\[epe_subscribe_button\]/);
 });

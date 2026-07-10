@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Exotic Push Engine
  * Description: Browser push integration for Exotic WordPress sites.
- * Version: 1.1.1
+ * Version: 1.2.1
  * Author: Riley Kyule
  * Text Domain: exotic-push-engine
  */
@@ -12,7 +12,8 @@ if (!defined('ABSPATH')) {
 }
 
 final class Exotic_Push_Engine_Plugin {
-    private const OPTION_KEY      = 'epe_push_engine_settings';
+    private const OPTION_KEY         = 'epe_push_engine_settings';
+    private const SHORTCODE_SUBSCRIBE_BUTTON = 'epe_subscribe_button';
     private const QUERY_VAR_PUSH_SW  = 'epe_push_sw';
     private const QUERY_VAR_MANIFEST = 'epe_push_manifest';
 
@@ -26,6 +27,7 @@ final class Exotic_Push_Engine_Plugin {
         add_action('wp_head', [__CLASS__, 'inject_manifest_link']);
         add_action('admin_menu', [__CLASS__, 'register_admin_menu']);
         add_action('admin_init', [__CLASS__, 'register_settings']);
+        add_shortcode(self::SHORTCODE_SUBSCRIBE_BUTTON, [__CLASS__, 'render_subscribe_button_shortcode']);
         register_activation_hook(__FILE__, [__CLASS__, 'activate']);
         register_deactivation_hook(__FILE__, [__CLASS__, 'deactivate']);
     }
@@ -93,7 +95,7 @@ final class Exotic_Push_Engine_Plugin {
         // Registered with no src and loaded purely as a vehicle for inline content
         // below -- see the comment on add_inline_script_nonce() for why the SDK is
         // inlined rather than loaded as an external <script src> file.
-        wp_register_script('exotic-push-engine-sdk', '', [], '1.1.1', true);
+        wp_register_script('exotic-push-engine-sdk', '', [], '1.2.1', true);
         wp_enqueue_script('exotic-push-engine-sdk');
 
         $sdk_path = plugin_dir_path(__FILE__) . 'assets/epe-sdk.js';
@@ -161,6 +163,35 @@ final class Exotic_Push_Engine_Plugin {
 
     public static function inject_manifest_link(): void {
         echo '<link rel="manifest" href="' . esc_url(home_url('/manifest.json')) . '">' . "\n";
+    }
+
+    public static function render_subscribe_button_shortcode(array $atts = [], ?string $content = null, string $tag = ''): string {
+        $attributes = shortcode_atts(
+            [
+                'label' => 'Subscribe',
+                'subscribed_label' => 'Subscribed',
+                'class' => '',
+            ],
+            $atts,
+            $tag
+        );
+
+        $custom_classes = array_filter(array_map(
+            'sanitize_html_class',
+            preg_split('/\s+/', sanitize_text_field((string) $attributes['class'])) ?: []
+        ));
+
+        $class_name = trim('epe-subscribe-button' . ($custom_classes ? ' ' . implode(' ', $custom_classes) : ''));
+        $label = sanitize_text_field((string) $attributes['label']);
+        $subscribed_label = sanitize_text_field((string) $attributes['subscribed_label']);
+
+        return sprintf(
+            '<button type="button" hidden class="%1$s" data-epe-subscribe-button data-epe-subscribe-label="%2$s" data-epe-subscribed-label="%3$s">%4$s</button>',
+            esc_attr($class_name),
+            esc_attr($label),
+            esc_attr($subscribed_label),
+            esc_html($label)
+        );
     }
 
     private static function serve_service_worker(): void {
