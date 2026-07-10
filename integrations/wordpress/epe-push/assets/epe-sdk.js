@@ -601,9 +601,12 @@
         }
 
         var label = button.getAttribute("data-epe-subscribe-label") || "Subscribe";
+        var subscribedLabel = button.getAttribute("data-epe-subscribed-label") || "You are Subscribed";
         if (subscription) {
-          button.hidden = true;
-          button.setAttribute("aria-hidden", "true");
+          button.hidden = false;
+          button.removeAttribute("aria-hidden");
+          button.disabled = true;
+          button.textContent = subscribedLabel;
           return;
         }
 

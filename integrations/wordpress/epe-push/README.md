@@ -24,7 +24,7 @@ This is the WordPress integration scaffold for Exotic Push Engine.
 2. Activate the plugin in WordPress admin.
 3. Open `Settings > Exotic Push Engine`.
 4. Configure the API URL and site key. Branding is pulled from the EPE site settings automatically.
-5. Place `[epe_subscribe_button]` in the theme wherever you want the subscribe CTA to appear. The plugin hides the button for already-subscribed users and wires the click action to the currently configured site key and API URL.
+5. Place `[epe_subscribe_button]` in the theme wherever you want the subscribe CTA to appear. The plugin switches the button to `You are Subscribed` for already-subscribed users and wires the click action to the currently configured site key and API URL.
 
 ## CSP guidance
 
