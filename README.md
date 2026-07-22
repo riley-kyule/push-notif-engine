@@ -72,7 +72,7 @@ FROM roles WHERE slug = 'super-admin';
 
 Generate the argon2 hash with `node -e "require('argon2').hash('yourpassword').then(console.log)"`.
 
-Each service needs its own `.env` (see `.env.example` in each of `services/api`, `services/worker`, `apps/dashboard`). None of the three load `.env` automatically at runtime in dev — `node dist/main.js` does not read `.env` files. Either `export` the variables in your shell before starting, or run via a process manager (PM2 in production) that injects them.
+Each service needs its own `.env` (see `.env.example` in each of `services/api`, `services/worker`, `apps/dashboard`). None of the three load `.env` automatically at runtime in dev — `node dist/main.js` does not read `.env` files. Either export the variables in your shell before starting or inject them through Docker Compose in production.
 
 ```bash
 # services/api
@@ -89,6 +89,9 @@ CORS_ORIGINS=http://127.0.0.1:3000
 DATABASE_URL=...
 REDIS_URL=...
 BROWSER_PUSH_ACK_BASE_URL=http://127.0.0.1:3001/api   # used to build delivery/click ack URLs sent to browsers
+BROWSER_PUSH_SEND_CONCURRENCY=25
+BROWSER_PUSH_QUEUE_CONCURRENCY=1
+BROWSER_PUSH_TRANSIENT_FAILURE_THRESHOLD=10
 
 # apps/dashboard
 NEXT_PUBLIC_API_URL=http://127.0.0.1:3001/api
@@ -403,7 +406,11 @@ All four integrations vendor the exact same `epe-sdk.js` (the WordPress plugin's
 
 ## Production deployment
 
-Full step-by-step runbook: [`infrastructure/deployment/cpanel.md`](infrastructure/deployment/cpanel.md). Summary of what exists:
+The current production topology is Docker Compose; see the production section in [`docs/vm-cloudflare-tunnel.md`](docs/vm-cloudflare-tunnel.md#docker-compose-production-topology). The older PM2/cPanel path remains documented at [`infrastructure/deployment/cpanel.md`](infrastructure/deployment/cpanel.md) as a fallback.
+
+Production safeguards now include worker-reported DNS/TLS connectivity to FCM, a dedicated worker egress network, and a circuit breaker that retries a whole BullMQ job instead of recording thousands of recipient failures during an infrastructure outage.
+
+Legacy deployment artifacts that remain supported:
 
 - **`ecosystem.config.js`** (repo root) — PM2 process definitions for all three services. Each app loads its own `.env` by parsing it directly in the config file (PM2's built-in `env_file` option was tested and found to silently not apply the variables on the PM2 version used here — don't reintroduce it without re-verifying).
 - **`services/api/scripts/migrate.mjs`** (run via `npm run migrate` from `services/api`) — idempotent migration runner. Tracks applied files in a `schema_migrations` table, so it's safe to run on every deploy, including the first one.

@@ -206,3 +206,51 @@ If the tunnel does not serve the site:
 - Cloudflare Tunnel create-remote-tunnel docs: https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/get-started/create-remote-tunnel/
 - Cloudflare Tunnel configuration file docs: https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/local-management/configuration-file/
 
+## 5. Docker Compose production topology
+
+Production currently runs as Docker Compose. PostgreSQL and Redis use an externally isolated network; the delivery worker must join both that internal network and a dedicated egress network:
+
+```yaml
+services:
+  push-worker:
+    environment:
+      BROWSER_PUSH_ACK_BASE_URL: "https://push.exotic-online.com/api"
+      BROWSER_PUSH_SEND_CONCURRENCY: "25"
+      BROWSER_PUSH_QUEUE_CONCURRENCY: "1"
+      BROWSER_PUSH_TRANSIENT_FAILURE_THRESHOLD: "10"
+    networks:
+      - push_internal
+      - push_egress
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    dns_opt:
+      - timeout:2
+      - attempts:5
+    healthcheck:
+      test: ["CMD", "node", "services/worker/dist/src/healthcheck.js"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+networks:
+  push_internal:
+    driver: bridge
+    internal: true
+  push_egress:
+    driver: bridge
+```
+
+Never attach the worker only to `push_internal`. Docker networks declared with `internal: true` have no external route; the worker will still reach PostgreSQL and Redis while FCM requests fail with `getaddrinfo EAI_AGAIN`.
+
+Before deployment, run `docker compose config -q`. Recreate the worker with `docker compose up -d --force-recreate --no-deps push-worker`, then verify DNS and HTTPS from inside the container:
+
+```bash
+docker compose exec push-worker node -e 'require("node:dns").promises.lookup("fcm.googleapis.com").then(() => console.log("DNS OK")).catch((error) => { console.error(error); process.exit(1); })'
+docker compose exec push-worker node -e 'fetch("https://fcm.googleapis.com").then((response) => console.log("FCM reachable, HTTP", response.status)).catch((error) => { console.error(error); process.exit(1); })'
+```
+
+Any HTTP response from the second command proves DNS, routing, TLS, and HTTP connectivity; `404` at the FCM root is expected. The worker also performs this DNS/TLS probe every 30 seconds and includes the result in its Redis heartbeat. Platform Health weights that signal and raises a critical alert when egress fails.
+
+If transient network/provider failures reach `BROWSER_PUSH_TRANSIENT_FAILURE_THRESHOLD`, the processor opens a circuit and fails the BullMQ job. BullMQ retries up to five times with exponential backoff starting at 30 seconds. Existing idempotency skips recipients already sent successfully; if all attempts are exhausted, remaining pending delivery rows become `failed` with `INFRASTRUCTURE_RETRY_EXHAUSTED`.
