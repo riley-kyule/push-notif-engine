@@ -29,9 +29,16 @@ test("platform health service scores all healthy components as 100", async () =>
         return {
           "worker:123": JSON.stringify({
             label: "worker-123",
-            lastSeenAt: "2026-06-22T00:00:00.000Z",
+            lastSeenAt: new Date().toISOString(),
             uptimeMs: 123456,
             redisLatencyMs: 4,
+            browserPushEgress: {
+              status: "healthy",
+              checkedAt: new Date().toISOString(),
+              latencyMs: 15,
+              errorCode: null,
+              errorMessage: null,
+            },
           }),
         };
       },
@@ -121,7 +128,19 @@ test("platform health prunes offline worker ghosts once a live heartbeat exists"
       },
       async hgetall() {
         return {
-          "worker:1": JSON.stringify({ label: "worker-1", lastSeenAt: now, uptimeMs: 1000, redisLatencyMs: 1 }),
+          "worker:1": JSON.stringify({
+            label: "worker-1",
+            lastSeenAt: now,
+            uptimeMs: 1000,
+            redisLatencyMs: 1,
+            browserPushEgress: {
+              status: "healthy",
+              checkedAt: now,
+              latencyMs: 10,
+              errorCode: null,
+              errorMessage: null,
+            },
+          }),
           "worker:2": JSON.stringify({ label: "worker-2", lastSeenAt: longDead, uptimeMs: 1000, redisLatencyMs: 1 }),
           "worker:3": JSON.stringify({ label: "worker-3", lastSeenAt: longDead, uptimeMs: 1000, redisLatencyMs: 1 }),
         };
@@ -194,4 +213,42 @@ test("platform health keeps the single most recent ghost when every worker is of
   assert.deepEqual(summary.workerHeartbeats.map((entry) => entry.key), ["worker:2"]);
   assert.deepEqual(deletedFields, ["worker:1"]);
   assert.equal(summary.alerts.some((alert) => alert.key === "workers:stale"), true);
+});
+
+test("platform health degrades and alerts when a live worker cannot reach FCM", async () => {
+  const now = new Date().toISOString();
+  const service = new PlatformHealthService(
+    { async query() { return { rows: [] }; } } as never,
+    { async ping() { return true; } } as never,
+    {
+      async ping() { return "PONG"; },
+      async llen() { return 0; },
+      async zcard() { return 0; },
+      async hgetall() {
+        return {
+          "worker:1": JSON.stringify({
+            label: "worker-1",
+            lastSeenAt: now,
+            uptimeMs: 1000,
+            redisLatencyMs: 1,
+            browserPushEgress: {
+              status: "unhealthy",
+              checkedAt: now,
+              latencyMs: 2,
+              errorCode: "EAI_AGAIN",
+              errorMessage: "getaddrinfo EAI_AGAIN fcm.googleapis.com",
+            },
+          }),
+        };
+      },
+    } as never,
+    { async getSitePerformance() { return []; } } as never,
+  );
+
+  const summary = await service.getPlatformHealth();
+
+  assert.equal(summary.score, 80);
+  assert.equal(summary.status, "degraded");
+  assert.equal(summary.components.find((component) => component.key === "push-egress")?.status, "unhealthy");
+  assert.equal(summary.alerts.some((alert) => alert.key === "component:push-egress"), true);
 });

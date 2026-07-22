@@ -3,7 +3,7 @@ export type PlatformHealthStatus = "healthy" | "degraded" | "unhealthy";
 export type PlatformHealthComponentStatus = "healthy" | "unhealthy";
 
 export interface PlatformHealthComponent {
-  key: "database" | "storage" | "queue";
+  key: "database" | "storage" | "queue" | "push-egress";
   label: string;
   status: PlatformHealthComponentStatus;
   detail: string;
@@ -27,6 +27,13 @@ export interface PlatformWorkerHeartbeat {
   lastSeenAt: string | null;
   uptimeMs: number;
   redisLatencyMs: number;
+  browserPushEgress: {
+    status: "healthy" | "unhealthy";
+    checkedAt: string;
+    latencyMs: number;
+    errorCode: string | null;
+    errorMessage: string | null;
+  } | null;
   status: "healthy" | "stale" | "offline";
 }
 

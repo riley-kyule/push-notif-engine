@@ -62,30 +62,47 @@ export class PlatformHealthService {
       this.getSiteHealth(),
     ]);
 
+    const liveWorkers = workerHeartbeats.filter((worker) => worker.status !== "offline");
+    const unhealthyEgress = liveWorkers.find((worker) => worker.browserPushEgress?.status === "unhealthy");
+    const pushEgressHealthy = liveWorkers.length > 0 && liveWorkers.every((worker) => worker.browserPushEgress?.status === "healthy");
+    const pushEgressDetail = pushEgressHealthy
+      ? `Delivery workers can resolve and establish TLS connections to FCM (${liveWorkers[0]?.browserPushEgress?.latencyMs ?? 0}ms).`
+      : unhealthyEgress?.browserPushEgress
+        ? `Delivery worker cannot reach FCM: ${unhealthyEgress.browserPushEgress.errorCode ?? "network error"} ${unhealthyEgress.browserPushEgress.errorMessage ?? ""}`.trim()
+        : "No live worker has reported a successful browser-push egress check.";
+
     const components: PlatformHealthComponent[] = [
       {
         key: "database",
         label: "Database",
         status: databaseHealthy ? "healthy" : "unhealthy",
         detail: databaseHealthy ? "PostgreSQL responded to a live query." : "PostgreSQL query failed.",
-        weight: 40,
-        score: scoreComponent(databaseHealthy, 40),
+        weight: 35,
+        score: scoreComponent(databaseHealthy, 35),
       },
       {
         key: "queue",
         label: "Queue broker",
         status: queueHealthy ? "healthy" : "unhealthy",
         detail: queueHealthy ? "Redis is responding for BullMQ workers and rate limiting." : "Redis is unreachable.",
-        weight: 30,
-        score: scoreComponent(queueHealthy, 30),
+        weight: 25,
+        score: scoreComponent(queueHealthy, 25),
       },
       {
         key: "storage",
         label: "Media storage",
         status: storageHealthy ? "healthy" : "unhealthy",
         detail: storageHealthy ? "Campaign media bucket is reachable." : "Campaign media bucket is unreachable.",
-        weight: 30,
-        score: scoreComponent(storageHealthy, 30),
+        weight: 20,
+        score: scoreComponent(storageHealthy, 20),
+      },
+      {
+        key: "push-egress",
+        label: "Push provider egress",
+        status: pushEgressHealthy ? "healthy" : "unhealthy",
+        detail: pushEgressDetail,
+        weight: 20,
+        score: scoreComponent(pushEgressHealthy, 20),
       },
     ];
 
@@ -201,6 +218,7 @@ export class PlatformHealthService {
           lastSeenAt: parsed.lastSeenAt,
           uptimeMs: parsed.uptimeMs,
           redisLatencyMs: parsed.redisLatencyMs,
+          browserPushEgress: parsed.browserPushEgress,
           status,
           lastSeenMs: Number.isFinite(lastSeenMs) ? lastSeenMs : 0,
         });
@@ -340,7 +358,13 @@ export function createPlatformHealthRedisClient(): IORedis {
   }) as IORedis;
 }
 
-function safeParseHeartbeat(value: string): { label: string; lastSeenAt: string; uptimeMs: number; redisLatencyMs: number } | null {
+function safeParseHeartbeat(value: string): {
+  label: string;
+  lastSeenAt: string;
+  uptimeMs: number;
+  redisLatencyMs: number;
+  browserPushEgress: PlatformWorkerHeartbeat["browserPushEgress"];
+} | null {
   try {
     const parsed = JSON.parse(value) as unknown;
     if (
@@ -360,10 +384,34 @@ function safeParseHeartbeat(value: string): { label: string; lastSeenAt: string;
         lastSeenAt: (parsed as { lastSeenAt: string }).lastSeenAt,
         uptimeMs: (parsed as { uptimeMs: number }).uptimeMs,
         redisLatencyMs: (parsed as { redisLatencyMs: number }).redisLatencyMs,
+        browserPushEgress: parseBrowserPushEgress(parsed),
       };
     }
     return null;
   } catch {
     return null;
   }
+}
+
+function parseBrowserPushEgress(parsed: object): PlatformWorkerHeartbeat["browserPushEgress"] {
+  if (!("browserPushEgress" in parsed) || typeof parsed.browserPushEgress !== "object" || parsed.browserPushEgress === null) {
+    return null;
+  }
+
+  const egress = parsed.browserPushEgress as Record<string, unknown>;
+  if (
+    (egress.status !== "healthy" && egress.status !== "unhealthy") ||
+    typeof egress.checkedAt !== "string" ||
+    typeof egress.latencyMs !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    status: egress.status,
+    checkedAt: egress.checkedAt,
+    latencyMs: egress.latencyMs,
+    errorCode: typeof egress.errorCode === "string" ? egress.errorCode : null,
+    errorMessage: typeof egress.errorMessage === "string" ? egress.errorMessage : null,
+  };
 }
