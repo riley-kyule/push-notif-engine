@@ -209,6 +209,22 @@ export class BrowserPushRepository {
     );
   }
 
+  async markPendingDeliveryEventsFailed(jobId: string, errorMessage: string): Promise<void> {
+    await this.pool.query(
+      `
+      UPDATE push_delivery_events
+      SET status = 'failed',
+          error_code = 'INFRASTRUCTURE_RETRY_EXHAUSTED',
+          error_message = $2,
+          updated_at = NOW(),
+          last_attempted_at = NOW()
+      WHERE job_id = $1
+        AND status = 'pending'
+      `,
+      [jobId, errorMessage],
+    );
+  }
+
   async markSubscriberExpired(subscriberId: string): Promise<void> {
     await this.pool.query(
       `

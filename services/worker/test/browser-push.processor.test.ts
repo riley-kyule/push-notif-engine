@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { BrowserPushProcessor } from "../src/browser-push.processor";
+import { BrowserPushProcessor, TransientPushInfrastructureError } from "../src/browser-push.processor";
 import type { BrowserPushJobPayload } from "../src/browser-push.types";
 
 // loadBrowserPushConfig() now requires this (see config.ts) rather than
@@ -669,4 +669,70 @@ test("browser push processor splits a large subscriber list into bounded batches
     insertBatchSizes.every((size) => size <= 5_000),
     "no single batch should exceed the configured batch size",
   );
+});
+
+test("browser push processor opens the circuit instead of recording a mass transient outage", async () => {
+  process.env.BROWSER_PUSH_SEND_CONCURRENCY = "1";
+  process.env.BROWSER_PUSH_TRANSIENT_FAILURE_THRESHOLD = "3";
+  let sendAttempts = 0;
+  let failedRows = 0;
+
+  const fakeRepository = {
+    async findSiteCredentials() {
+      return {
+        id: "site-1",
+        vapid_subject: "mailto:push@example.com",
+        vapid_public_key: "public-key",
+        vapid_private_key: "private-key",
+      };
+    },
+    async listEligibleSubscribers() {
+      return Array.from({ length: 20 }, (_, index) => ({
+        id: `subscriber-${index}`,
+        subscription_endpoint: `https://fcm.googleapis.com/${index}`,
+        p256dh_key: "p256dh",
+        auth_key: "auth",
+      }));
+    },
+    async findAlreadySentSubscriberIds() {
+      return new Set<string>();
+    },
+    createPendingDeliveryEvents: createPendingDeliveryEventsFake([]),
+    async markDeliveryEventSent() {
+      return undefined;
+    },
+    async markDeliveryEventFailed() {
+      failedRows += 1;
+    },
+    async markSubscriberExpired() {
+      return undefined;
+    },
+  };
+
+  const fakeSender = {
+    async send() {
+      sendAttempts += 1;
+      throw Object.assign(new Error("getaddrinfo EAI_AGAIN fcm.googleapis.com"), { code: "EAI_AGAIN" });
+    },
+  };
+
+  const processor = new BrowserPushProcessor(fakeRepository as never, fakeSender as never, async () => undefined);
+
+  try {
+    await assert.rejects(
+      () => processor.process({
+        siteId: "site-1",
+        enqueuedAt: new Date().toISOString(),
+        notification: { title: "t", body: "b", url: "https://example.com", icon: null, image: null },
+      }, "job-outage"),
+      (error: unknown) =>
+        error instanceof TransientPushInfrastructureError && error.failureCount === 3 && error.causeCode === "EAI_AGAIN",
+    );
+  } finally {
+    delete process.env.BROWSER_PUSH_SEND_CONCURRENCY;
+    delete process.env.BROWSER_PUSH_TRANSIENT_FAILURE_THRESHOLD;
+  }
+
+  assert.equal(sendAttempts, 9, "three recipients should each exhaust three local attempts before the circuit opens");
+  assert.equal(failedRows, 0, "transient rows stay pending so BullMQ can retry the same job later");
 });

@@ -10,6 +10,7 @@ export interface BrowserPushConfig {
   ackBaseUrl: string;
   sendConcurrency: number;
   queueConcurrency: number;
+  transientFailureThreshold: number;
 }
 
 export interface MobilePushConfig {
@@ -75,6 +76,10 @@ export function loadBrowserPushConfig(): BrowserPushConfig {
     // *within* a single job. BullMQ defaults this to 1 (jobs processed one at a
     // time) if left unset; we set it explicitly so it's a real, tunable decision.
     queueConcurrency: readConcurrencyEnv("BROWSER_PUSH_QUEUE_CONCURRENCY", 5),
+    // Stop a job before one infrastructure outage becomes tens of thousands
+    // of recipient failures. BullMQ retries the job later and the processor's
+    // idempotency guard skips recipients that already succeeded.
+    transientFailureThreshold: readConcurrencyEnv("BROWSER_PUSH_TRANSIENT_FAILURE_THRESHOLD", 10),
   };
 }
 

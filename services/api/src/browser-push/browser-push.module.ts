@@ -24,8 +24,8 @@ function createBrowserPushQueue(): Queue {
     // retry loop. Safe to retry the whole job: the processor skips subscribers it
     // already delivered to for this job id (see findAlreadySentSubscriberIds).
     defaultJobOptions: {
-      attempts: 3,
-      backoff: { type: "exponential", delay: 2_000 },
+      attempts: 5,
+      backoff: { type: "exponential", delay: 30_000 },
       // Without a cap, every completed/failed job's data and result stay in
       // Redis forever -- harmless per job, but at sustained campaign/automation
       // volume this is unbounded memory growth on the one thing the whole queue

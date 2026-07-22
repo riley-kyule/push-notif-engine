@@ -7,6 +7,7 @@ import { BrowserPushProcessor } from "./browser-push.processor";
 import { BrowserPushRepository } from "./browser-push.repository";
 import { WebPushSender } from "./browser-push.sender";
 import type { BrowserPushJobPayload } from "./browser-push.types";
+import { checkBrowserPushEgress } from "./egress-health";
 import { clearWorkerHeartbeat, createHeartbeatPayload, heartbeatField, WORKER_HEARTBEAT_HASH, writeWorkerHeartbeat } from "./heartbeat";
 import { MobilePushProcessor } from "./mobile-push.processor";
 import { MobilePushRepository } from "./mobile-push.repository";
@@ -97,8 +98,9 @@ export async function bootstrapBrowserPushWorker(): Promise<{
     const startedAt = process.hrtime.bigint();
     await connection.ping();
     const redisLatencyMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+    const browserPushEgress = await checkBrowserPushEgress();
     await writeWorkerHeartbeat(connection, {
-      ...createHeartbeatPayload(heartbeatLabel),
+      ...createHeartbeatPayload(heartbeatLabel, browserPushEgress),
       redisLatencyMs: Math.round(redisLatencyMs),
     });
   };
@@ -123,6 +125,26 @@ export async function bootstrapBrowserPushWorker(): Promise<{
     },
   );
 
+  worker.on("failed", (job, error) => {
+    const configuredAttempts = job?.opts.attempts ?? 1;
+    const exhausted = Boolean(job && job.attemptsMade >= configuredAttempts);
+    if (!job?.id || !exhausted) {
+      return;
+    }
+
+    void repository
+      .markPendingDeliveryEventsFailed(job.id, error.message)
+      .then(async () => {
+        if (job.data.campaignId) {
+          await repository.markCampaignFailed(job.data.campaignId);
+        }
+      })
+      .catch((cleanupError: unknown) => {
+        // eslint-disable-next-line no-console
+        console.error(`[worker] unable to finalize pending deliveries for exhausted job ${job.id}:`, cleanupError);
+      });
+  });
+
   const mobileWorker = new Worker<MobilePushJobPayload>(
     MOBILE_PUSH_QUEUE_NAME,
     async (job) => mobileProcessor.process(job.data, job.id),
@@ -139,8 +161,11 @@ export async function bootstrapBrowserPushWorker(): Promise<{
       console.error(`[worker] ${name} worker error:`, error);
     });
     instance.on("failed", (job, error) => {
+      const configuredAttempts = job?.opts.attempts ?? 1;
+      const attempt = job?.attemptsMade ?? configuredAttempts;
+      const retryState = attempt < configuredAttempts ? `attempt ${attempt}/${configuredAttempts}; retry scheduled` : `all ${configuredAttempts} attempt(s) exhausted`;
       // eslint-disable-next-line no-console
-      console.error(`[worker] ${name} job ${job?.id ?? "unknown"} failed after all retries:`, error.message);
+      console.error(`[worker] ${name} job ${job?.id ?? "unknown"} failed (${retryState}):`, error.message);
     });
   }
 

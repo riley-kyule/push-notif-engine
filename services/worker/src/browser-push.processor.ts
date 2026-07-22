@@ -39,8 +39,30 @@ function isRetryableError(error: PushError): boolean {
   return statusCode === 429 || statusCode >= 500;
 }
 
+export class TransientPushInfrastructureError extends Error {
+  constructor(
+    readonly failureCount: number,
+    readonly causeCode: string | null,
+    causeMessage: string,
+  ) {
+    super(
+      `Browser push infrastructure circuit opened after ${failureCount} transient failures` +
+        `${causeCode ? ` (${causeCode})` : ""}: ${causeMessage}`,
+    );
+    this.name = "TransientPushInfrastructureError";
+  }
+}
+
 function isAttemptedError(error: unknown): error is { attempts: number } {
   return typeof error === "object" && error !== null && "attempts" in error && typeof (error as { attempts: unknown }).attempts === "number";
+}
+
+function getPushErrorCode(error: unknown, statusCode?: number): string | null {
+  if (statusCode) {
+    return String(statusCode);
+  }
+
+  return typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : null;
 }
 
 export class BrowserPushProcessor {
@@ -79,7 +101,15 @@ export class BrowserPushProcessor {
     const subscribers = allSubscribers.filter((subscriber) => !alreadySent.has(subscriber.id));
 
     type Outcome = "sent" | "failed" | "expired";
+    type RecipientResult =
+      | { kind: "outcome"; outcome: Outcome }
+      | { kind: "transient"; deliveryId: string; errorCode: string | null; errorMessage: string; attempts: number }
+      | { kind: "deferred" };
     const totals = { sent: 0, failed: 0, expired: 0 };
+    const circuit: { failureCount: number; error: TransientPushInfrastructureError | null } = {
+      failureCount: 0,
+      error: null,
+    };
 
     for (const batch of chunk(subscribers, SEND_BATCH_SIZE)) {
       // One bulk insert per batch instead of one INSERT per subscriber, and one
@@ -97,10 +127,16 @@ export class BrowserPushProcessor {
         })),
       });
 
-      const outcomes = await mapWithConcurrency(batch, browserPushConfig.sendConcurrency, async (subscriber): Promise<Outcome> => {
+      const results = await mapWithConcurrency(batch, browserPushConfig.sendConcurrency, async (subscriber): Promise<RecipientResult> => {
         const deliveryId = deliveryIdsBySubscriber.get(subscriber.id);
         if (!deliveryId) {
-          return "failed";
+          return { kind: "outcome", outcome: "failed" };
+        }
+
+        // Once the circuit opens, do not start another provider request. The
+        // delivery remains pending so BullMQ's later job attempt can reuse it.
+        if (circuit.error) {
+          return { kind: "deferred" };
         }
 
         const subscription = {
@@ -121,10 +157,29 @@ export class BrowserPushProcessor {
           const result = await this.sendWithRetry(subscription, notification, credentials);
 
           await this.repository.markDeliveryEventSent(deliveryId, result.providerMessageId, result.attempts);
-          return "sent";
+          return { kind: "outcome", outcome: "sent" };
         } catch (error) {
           const statusCode = isResponseError(error) ? error.statusCode : undefined;
           const message = isResponseError(error) ? error.message : "Unknown push failure";
+          const attempts = isAttemptedError(error) ? error.attempts : 1;
+          const errorCode = getPushErrorCode(error, statusCode);
+
+          const pushError: PushError = statusCode ? { statusCode, message } : { message };
+          if (isRetryableError(pushError)) {
+            circuit.failureCount += 1;
+            if (circuit.failureCount >= browserPushConfig.transientFailureThreshold && !circuit.error) {
+              circuit.error = new TransientPushInfrastructureError(circuit.failureCount, errorCode, message);
+            }
+
+            return {
+              kind: "transient",
+              deliveryId,
+              errorCode,
+              errorMessage: message,
+              attempts,
+            };
+          }
+
           // A 401/403 here means the push service rejected this specific
           // subscription's auth -- permanent for that subscription (the
           // browser revoked permission, cleared site data, the registration
@@ -133,26 +188,39 @@ export class BrowserPushProcessor {
           // up to 3x with backoff in sendWithRetry before reaching here, so
           // this isn't a transient rate-limit blip either.
           const shouldExpire = statusCode === 401 || statusCode === 403 || statusCode === 404 || statusCode === 410;
-          const attempts = isAttemptedError(error) ? error.attempts : 1;
 
           await this.repository.markDeliveryEventFailed(deliveryId, {
             status: shouldExpire ? "expired" : "failed",
-            errorCode: statusCode ? String(statusCode) : null,
+            errorCode,
             errorMessage: message,
             retryCount: attempts,
           });
 
           if (shouldExpire) {
             await this.repository.markSubscriberExpired(subscriber.id);
-            return "expired";
+            return { kind: "outcome", outcome: "expired" };
           }
 
-          return "failed";
+          return { kind: "outcome", outcome: "failed" };
         }
       });
 
-      for (const outcome of outcomes) {
-        totals[outcome] += 1;
+      if (circuit.error) {
+        throw circuit.error;
+      }
+
+      for (const result of results) {
+        if (result.kind === "transient") {
+          await this.repository.markDeliveryEventFailed(result.deliveryId, {
+            status: "failed",
+            errorCode: result.errorCode,
+            errorMessage: result.errorMessage,
+            retryCount: result.attempts,
+          });
+          totals.failed += 1;
+        } else if (result.kind === "outcome") {
+          totals[result.outcome] += 1;
+        }
       }
     }
 
