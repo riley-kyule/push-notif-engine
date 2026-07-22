@@ -66,6 +66,7 @@ if [[ -z "$refresh_secret" ]]; then
 fi
 
 google_client_id="$(read_line "Google OAuth client ID (optional)" "")"
+public_api_url="$(read_line "Public API URL used by subscriber browsers" "https://push.exotic-online.com/api")"
 media_backend="$(read_line "Campaign media storage backend" "local")"
 media_root="$(read_line "Campaign media storage root" "storage/campaign-media")"
 media_s3_config=""
@@ -110,7 +111,10 @@ EOF
 cat > services/worker/.env <<EOF
 DATABASE_URL=postgresql://epe:${encoded_db_password}@127.0.0.1:5432/exotic_push_engine
 REDIS_URL=redis://127.0.0.1:6379
-BROWSER_PUSH_ACK_BASE_URL=http://127.0.0.1:3001/api
+BROWSER_PUSH_ACK_BASE_URL=${public_api_url}
+BROWSER_PUSH_SEND_CONCURRENCY=25
+BROWSER_PUSH_QUEUE_CONCURRENCY=1
+BROWSER_PUSH_TRANSIENT_FAILURE_THRESHOLD=10
 EOF
 
 cat > apps/dashboard/.env <<EOF
