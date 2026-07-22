@@ -30,7 +30,7 @@ export default async function PlatformHealthPage() {
     <DashboardShell
       eyebrow="Platform"
       title="Platform health"
-      description="Monitor database, queue broker, and storage health in one compact view."
+      description="Monitor database, queues, storage, workers, and push-provider connectivity in one compact view."
       actions={
         <>
           <span className={`badge ${toneClass}`}>{badge.label}</span>
@@ -70,6 +70,10 @@ export default async function PlatformHealthPage() {
               <div>
                 <strong>Storage</strong>
                 <span>Campaign media bucket availability</span>
+              </div>
+              <div>
+                <strong>Push provider egress</strong>
+                <span>Worker DNS and TLS connectivity to FCM</span>
               </div>
             </div>
           </div>
@@ -191,6 +195,7 @@ export default async function PlatformHealthPage() {
                       {Math.round(worker.uptimeMs / 1000).toLocaleString()}s uptime
                       {" · "}
                       {worker.redisLatencyMs}ms Redis
+                      {worker.browserPushEgress ? ` · ${worker.browserPushEgress.latencyMs}ms FCM (${worker.browserPushEgress.status})` : " · FCM check unavailable"}
                     </span>
                   </div>
                   <span className={`badge ${worker.status === "healthy" ? "good" : worker.status === "stale" ? "warn" : "bad"}`}>

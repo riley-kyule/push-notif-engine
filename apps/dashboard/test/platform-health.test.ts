@@ -8,7 +8,7 @@ test("platform health summary falls back cleanly when the API is unavailable", (
 
   assert.equal(summary.status, "unknown");
   assert.equal(summary.score, 0);
-  assert.equal(summary.components.length, 3);
+  assert.equal(summary.components.length, 4);
 });
 
 test("platform health badge maps score bands to readable labels", () => {

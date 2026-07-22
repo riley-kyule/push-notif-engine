@@ -27,6 +27,13 @@ export interface PlatformWorkerHeartbeatSummary {
   lastSeenAt: string | null;
   uptimeMs: number;
   redisLatencyMs: number;
+  browserPushEgress: {
+    status: "healthy" | "unhealthy";
+    checkedAt: string;
+    latencyMs: number;
+    errorCode: string | null;
+    errorMessage: string | null;
+  } | null;
   status: "healthy" | "stale" | "offline";
 }
 
@@ -95,7 +102,7 @@ const fallbackHealth: PlatformHealthSummary = {
       status: "unhealthy",
       detail: "Unavailable until the API health endpoint responds.",
       score: 0,
-      weight: 40,
+      weight: 35,
     },
     {
       key: "queue",
@@ -103,7 +110,7 @@ const fallbackHealth: PlatformHealthSummary = {
       status: "unhealthy",
       detail: "Unavailable until Redis is reachable.",
       score: 0,
-      weight: 30,
+      weight: 25,
     },
     {
       key: "storage",
@@ -111,7 +118,15 @@ const fallbackHealth: PlatformHealthSummary = {
       status: "unhealthy",
       detail: "Unavailable until object storage is reachable.",
       score: 0,
-      weight: 30,
+      weight: 20,
+    },
+    {
+      key: "push-egress",
+      label: "Push provider egress",
+      status: "unhealthy",
+      detail: "Unavailable until a delivery worker reports provider connectivity.",
+      score: 0,
+      weight: 20,
     },
   ],
   queueDepth: [
@@ -144,24 +159,32 @@ const demoHealth: PlatformHealthSummary = {
       label: "Database",
       status: "healthy",
       detail: "PostgreSQL responded to a live query.",
-      score: 40,
-      weight: 40,
+      score: 35,
+      weight: 35,
     },
     {
       key: "queue",
       label: "Queue broker",
       status: "healthy",
       detail: "Redis is responding for BullMQ workers and rate limiting.",
-      score: 30,
-      weight: 30,
+      score: 25,
+      weight: 25,
     },
     {
       key: "storage",
       label: "Media storage",
       status: "healthy",
       detail: "Campaign media bucket is reachable.",
-      score: 26,
-      weight: 30,
+      score: 16,
+      weight: 20,
+    },
+    {
+      key: "push-egress",
+      label: "Push provider egress",
+      status: "healthy",
+      detail: "Delivery workers can resolve and establish TLS connections to FCM.",
+      score: 20,
+      weight: 20,
     },
   ],
   queueDepth: [
@@ -175,6 +198,13 @@ const demoHealth: PlatformHealthSummary = {
       lastSeenAt: new Date(Date.now() - 18_000).toISOString(),
       uptimeMs: 4_280_000,
       redisLatencyMs: 3,
+      browserPushEgress: {
+        status: "healthy",
+        checkedAt: new Date().toISOString(),
+        latencyMs: 18,
+        errorCode: null,
+        errorMessage: null,
+      },
       status: "healthy",
     },
     {
@@ -183,6 +213,13 @@ const demoHealth: PlatformHealthSummary = {
       lastSeenAt: new Date(Date.now() - 33_000).toISOString(),
       uptimeMs: 3_740_000,
       redisLatencyMs: 4,
+      browserPushEgress: {
+        status: "healthy",
+        checkedAt: new Date().toISOString(),
+        latencyMs: 21,
+        errorCode: null,
+        errorMessage: null,
+      },
       status: "healthy",
     },
   ],
