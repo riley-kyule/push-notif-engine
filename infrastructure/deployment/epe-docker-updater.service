@@ -7,19 +7,19 @@ Requires=docker.service
 Type=simple
 User=riley
 Group=docker
-WorkingDirectory=/srv/exotic/stacks/push-engine
-Environment=EPE_REPO_DIR=/srv/exotic/stacks/push-engine
+WorkingDirectory=/srv/exotic/src/push-engine
+Environment=EPE_REPO_DIR=/srv/exotic/src/push-engine
 Environment=EPE_COMPOSE_FILES=/srv/exotic/stacks/push-engine/compose.yaml:/srv/exotic/stacks/push-engine/compose.updates.yaml
 Environment=EPE_DEPLOYMENT_REQUEST_DIR=/srv/exotic/run/push-engine
 Environment=PUSH_ENGINE_IMAGE=exotic-push-engine:production
 Environment=EPE_DEPLOY_BRANCH=main
-ExecStart=/usr/bin/node /srv/exotic/stacks/push-engine/scripts/docker-update-agent.mjs
+ExecStart=/usr/bin/node /srv/exotic/src/push-engine/scripts/docker-update-agent.mjs
 Restart=always
 RestartSec=5
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
-ReadWritePaths=/srv/exotic/stacks/push-engine /srv/exotic/run/push-engine
+ReadWritePaths=/srv/exotic/src/push-engine /srv/exotic/stacks/push-engine /srv/exotic/run/push-engine
 
 [Install]
 WantedBy=multi-user.target

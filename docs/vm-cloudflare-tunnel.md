@@ -285,7 +285,12 @@ The API container must not mount `/var/run/docker.sock`; that socket is
 effectively root access to the host. EPE instead uses a small host-side agent
 that accepts only the two update actions already exposed by the dashboard.
 
-The installer generates `compose.updates.yaml`, which gives the API only the
+The source checkout and live stack are deliberately separate:
+
+- Source: `/srv/exotic/src/push-engine`
+- Live Compose/config: `/srv/exotic/stacks/push-engine`
+
+The installer generates `compose.updates.yaml` beside the live `compose.yaml`, which gives the API only the
 request-directory bind mount and switches all application services to the
 stable `exotic-push-engine:production` tag:
 
@@ -302,12 +307,15 @@ normal first-user UID for `riley`):
 
 ```bash
 test "$(id -u riley)" = "1000"
-sudo ./scripts/install-docker-updater.sh
+sudo EPE_STACK_DIR=/srv/exotic/stacks/push-engine \
+  EPE_REPO_DIR=/srv/exotic/src/push-engine \
+  ./scripts/install-docker-updater.sh
 ```
 
 The base `compose.yaml` is not rewritten. Both the updater and one-time
 deployment commands use
-`COMPOSE_FILE=compose.yaml:compose.updates.yaml`, so the generated override is
+`COMPOSE_FILE=/srv/exotic/stacks/push-engine/compose.yaml:/srv/exotic/stacks/push-engine/compose.updates.yaml`,
+so the generated override is
 merged predictably with the existing production stack.
 
 The agent:

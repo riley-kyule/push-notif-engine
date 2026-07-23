@@ -12,7 +12,7 @@ services:
       EPE_DEPLOYMENT_REQUEST_DIR: /deployment
       EPE_ENABLE_DEPLOYMENT_ACTIONS: "true"
     volumes:
-      - /srv/exotic/run/push-engine:/deployment
+      - ${EPE_DEPLOYMENT_REQUEST_DIR:-/srv/exotic/run/push-engine}:/deployment
     networks:
       - push_internal
       - push_egress
