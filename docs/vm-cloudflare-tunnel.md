@@ -278,3 +278,62 @@ files, and back it up securely. See
 [`delivery-reliability-and-crm-callbacks.md`](delivery-reliability-and-crm-callbacks.md)
 for the migration, callback, VAPID-encryption, service-worker, and verification
 sequence.
+
+### Dashboard-triggered Docker updates
+
+The API container must not mount `/var/run/docker.sock`; that socket is
+effectively root access to the host. EPE instead uses a small host-side agent
+that accepts only the two update actions already exposed by the dashboard.
+
+The installer generates `compose.updates.yaml`, which gives the API only the
+request-directory bind mount and switches all application services to the
+stable `exotic-push-engine:production` tag:
+
+```yaml
+environment:
+  EPE_DEPLOYMENT_MODE: docker
+  EPE_DEPLOYMENT_REQUEST_DIR: /deployment
+volumes:
+  - /srv/exotic/run/push-engine:/deployment
+```
+
+One-time host setup (the production Node image runs as UID 1000, which is the
+normal first-user UID for `riley`):
+
+```bash
+test "$(id -u riley)" = "1000"
+sudo ./scripts/install-docker-updater.sh
+```
+
+The base `compose.yaml` is not rewritten. Both the updater and one-time
+deployment commands use
+`COMPOSE_FILE=compose.yaml:compose.updates.yaml`, so the generated override is
+merged predictably with the existing production stack.
+
+The agent:
+
+1. Refuses to deploy over modified tracked files.
+2. Fetches and fast-forwards to `origin/main`.
+3. Builds `infrastructure/deployment/Dockerfile` with the deployed commit baked
+   into the image.
+4. Validates Compose and runs the migration container.
+5. Recreates only API, dashboard, and worker application containers.
+6. Runs `scripts/validate-docker-deployment.sh`.
+7. Writes atomic progress and final service health back to the dashboard.
+
+`Minor Update` uses Docker's build cache. `Core Update` pulls the PostgreSQL and
+Redis base images and builds the application image with `--pull --no-cache`.
+The active request id is stored in the browser, so polling resumes after the
+dashboard container restarts.
+
+Troubleshooting:
+
+```bash
+sudo journalctl -u epe-docker-updater -n 200 --no-pager
+cat /srv/exotic/run/push-engine/status.json
+COMPOSE_FILE=compose.yaml:compose.updates.yaml docker compose ps
+```
+
+If the panel says the agent is unavailable, verify the bind mount, directory
+ownership, `EPE_DEPLOYMENT_MODE=docker`, and the systemd service. A failed
+update remains visible with its last 40KB of output.

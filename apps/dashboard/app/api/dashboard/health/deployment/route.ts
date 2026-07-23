@@ -11,9 +11,9 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  // The API's own exec timeout for a core update is 20 minutes (npm install +
-  // two builds + migrate) -- the default BFF fetch timeout (5s) would abort
-  // long before that, so this call needs its own, longer ceiling.
+  // Docker mode only places an allowlisted request in the host agent's inbox;
+  // the dashboard follows progress through /deployment/status while containers
+  // are rebuilt and restarted. PM2 fallback still executes synchronously.
   const res = await apiFetch(
     "/health/deployment",
     {

@@ -1,14 +1,18 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { useToast } from "../_components/toast";
 
 type DeploymentAction = "minor-update" | "core-update";
+type DeploymentMode = "docker" | "pm2";
 
 type DeploymentResult = {
   action: DeploymentAction;
+  mode: DeploymentMode;
+  requestId: string | null;
+  accepted: boolean;
   command: string;
   stdout: string;
   stderr: string;
@@ -16,6 +20,7 @@ type DeploymentResult = {
 };
 
 type DeploymentVersion = {
+  mode: DeploymentMode;
   local: { commit: string | null; branch: string | null; dirty: boolean };
   github: { commit: string | null; branch: string | null };
   comparison: "up-to-date" | "behind" | "ahead" | "diverged" | "unknown";
@@ -23,155 +28,142 @@ type DeploymentVersion = {
   behindBy: number | null;
 };
 
-type Pm2ProcessStatus = {
+type DeploymentService = {
   name: string;
-  pmId: number;
-  pid: number | null;
   status: string;
-  uptimeMs: number | null;
-  restarts: number;
-  cpu: number | null;
-  memoryBytes: number | null;
+  health: string | null;
+  image: string | null;
+  startedAt: string | null;
 };
 
-const EXPECTED_PROCESS_NAMES = ["epe-api", "epe-worker", "epe-dashboard"];
+type DeploymentStatus = {
+  mode: DeploymentMode;
+  state: "idle" | "queued" | "running" | "succeeded" | "failed" | "unavailable";
+  requestId: string | null;
+  action: DeploymentAction | null;
+  message: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  services: DeploymentService[];
+  logs: string;
+};
 
-// scripts/pm2-restart.sh deliberately delays the actual `pm2 restart` by 5
-// seconds so it doesn't kill the very process (this API call) that's still
-// sending the deployment response. Start polling a little past that, and
-// keep retrying for a while -- the API/dashboard processes themselves go
-// down and come back up during the restart, so early polls are expected to
-// fail outright, not just report stale status.
-const PM2_POLL_INITIAL_DELAY_MS = 7_000;
-const PM2_POLL_INTERVAL_MS = 3_000;
-const PM2_POLL_MAX_ATTEMPTS = 12;
+const ACTIVE_REQUEST_STORAGE_KEY = "epe_active_deployment_request";
+const STATUS_POLL_INTERVAL_MS = 5_000;
+const STATUS_POLL_MAX_ATTEMPTS = 240;
 
 function actionLabel(action: DeploymentAction): string {
   return action === "minor-update" ? "Minor Update" : "Core Update";
 }
 
-function actionDescription(action: DeploymentAction): string {
+function actionDescription(action: DeploymentAction, mode: DeploymentMode): string {
+  if (mode === "pm2") {
+    return action === "minor-update"
+      ? "Pull source and restart PM2 processes"
+      : "Install dependencies, build, migrate, and restart PM2";
+  }
   return action === "minor-update"
-    ? "git pull, then restart PM2"
-    : "npm install, build API and dashboard, migrate, build worker, then restart PM2";
+    ? "Fast-forward source, build with cache, migrate, and recreate application containers"
+    : "Refresh base images, rebuild without cache, migrate, and recreate application containers";
 }
 
 function formatComparison(value: DeploymentVersion["comparison"]): string {
-  if (value === "up-to-date") {
-    return "Up to date";
-  }
-
-  if (value === "behind") {
-    return "Behind GitHub";
-  }
-
-  if (value === "ahead") {
-    return "Ahead of GitHub";
-  }
-
-  if (value === "diverged") {
-    return "Diverged";
-  }
-
+  if (value === "up-to-date") return "Up to date";
+  if (value === "behind") return "Behind GitHub";
+  if (value === "ahead") return "Ahead of GitHub";
+  if (value === "diverged") return "Diverged";
   return "Unknown";
-}
-
-function formatUptime(uptimeMs: number | null): string {
-  if (uptimeMs === null) return "unknown uptime";
-  const seconds = Math.floor(uptimeMs / 1000);
-  if (seconds < 60) return `${seconds}s uptime`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m uptime`;
-  const hours = Math.floor(minutes / 60);
-  return `${hours}h ${minutes % 60}m uptime`;
 }
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function fetchPm2Status(): Promise<Pm2ProcessStatus[] | null> {
+async function fetchDeploymentStatus(): Promise<DeploymentStatus | null> {
   try {
-    const response = await fetch("/api/dashboard/health/deployment/pm2-status");
-    const payload = (await response.json().catch(() => null)) as { success?: boolean; data?: Pm2ProcessStatus[] } | null;
-    if (!response.ok || !payload?.data) {
-      return null;
-    }
-    return payload.data;
+    const response = await fetch("/api/dashboard/health/deployment/status", { cache: "no-store" });
+    const payload = (await response.json().catch(() => null)) as { data?: DeploymentStatus } | null;
+    return response.ok && payload?.data ? payload.data : null;
   } catch {
     return null;
   }
-}
-
-// Polls pm2 status until every process this deploy could have touched is
-// reporting "online" with an uptime shorter than the time since the restart
-// was scheduled (i.e. it actually restarted, not just "was already up"), or
-// until attempts run out -- whichever comes first.
-async function pollForRestartedProcesses(): Promise<{ processes: Pm2ProcessStatus[] | null; allOnline: boolean }> {
-  await sleep(PM2_POLL_INITIAL_DELAY_MS);
-
-  let lastResult: Pm2ProcessStatus[] | null = null;
-  for (let attempt = 0; attempt < PM2_POLL_MAX_ATTEMPTS; attempt += 1) {
-    const processes = await fetchPm2Status();
-    if (processes) {
-      lastResult = processes;
-      const relevant = processes.filter((process) => EXPECTED_PROCESS_NAMES.includes(process.name));
-      const allOnline = relevant.length > 0 && relevant.every((process) => process.status === "online");
-      if (allOnline) {
-        return { processes, allOnline: true };
-      }
-    }
-
-    await sleep(PM2_POLL_INTERVAL_MS);
-  }
-
-  return { processes: lastResult, allOnline: false };
 }
 
 export function DeploymentActionsPanel() {
   const toast = useToast();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [isRestarting, setIsRestarting] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [loadingVersion, setLoadingVersion] = useState(true);
   const [result, setResult] = useState<DeploymentResult | null>(null);
   const [version, setVersion] = useState<DeploymentVersion | null>(null);
-  const [pm2Status, setPm2Status] = useState<Pm2ProcessStatus[] | null>(null);
+  const [deploymentStatus, setDeploymentStatus] = useState<DeploymentStatus | null>(null);
 
-  useEffect(() => {
-    void fetch("/api/dashboard/health/deployment/version")
+  const loadVersion = useCallback(() => {
+    setLoadingVersion(true);
+    void fetch("/api/dashboard/health/deployment/version", { cache: "no-store" })
       .then(async (response) => {
         const payload = (await response.json().catch(() => null)) as
-          | { success?: boolean; data?: DeploymentVersion; error?: { message?: string } }
+          | { data?: DeploymentVersion; error?: { message?: string } }
           | null;
-
         if (!response.ok || !payload?.data) {
           throw new Error(payload?.error?.message ?? "Unable to load deployment version");
         }
-
         setVersion(payload.data);
       })
-      .catch(() => {
-        setVersion(null);
-      })
-      .finally(() => {
-        setLoadingVersion(false);
-      });
+      .catch(() => setVersion(null))
+      .finally(() => setLoadingVersion(false));
   }, []);
 
-  function run(action: DeploymentAction) {
-    if (
-      !window.confirm(
-        action === "minor-update"
-          ? "This will git pull and restart PM2. Continue?"
-          : "This will reinstall dependencies, build, migrate, and restart PM2. Continue?",
-      )
-    ) {
-      return;
+  const pollDeployment = useCallback(async (requestId: string) => {
+    setIsUpdating(true);
+    for (let attempt = 0; attempt < STATUS_POLL_MAX_ATTEMPTS; attempt += 1) {
+      const status = await fetchDeploymentStatus();
+      if (status) {
+        setDeploymentStatus(status);
+        if (status.requestId === requestId && status.state === "succeeded") {
+          localStorage.removeItem(ACTIVE_REQUEST_STORAGE_KEY);
+          setIsUpdating(false);
+          toast.showSuccess("Docker update completed and all services passed validation.");
+          loadVersion();
+          router.refresh();
+          return;
+        }
+        if (status.requestId === requestId && status.state === "failed") {
+          localStorage.removeItem(ACTIVE_REQUEST_STORAGE_KEY);
+          setIsUpdating(false);
+          toast.showError(`Docker update failed: ${status.message}`);
+          loadVersion();
+          return;
+        }
+      }
+      await sleep(STATUS_POLL_INTERVAL_MS);
     }
+    setIsUpdating(false);
+    toast.showError("The update is still unconfirmed after 20 minutes. Check the deployment status or host updater service.");
+  }, [loadVersion, router, toast]);
+
+  useEffect(() => {
+    loadVersion();
+    void fetchDeploymentStatus().then((status) => {
+      if (status) setDeploymentStatus(status);
+    });
+    const activeRequest = localStorage.getItem(ACTIVE_REQUEST_STORAGE_KEY);
+    if (activeRequest) void pollDeployment(activeRequest);
+  }, [loadVersion, pollDeployment]);
+
+  function run(action: DeploymentAction) {
+    const mode = version?.mode ?? "docker";
+    const confirmation = mode === "docker"
+      ? action === "minor-update"
+        ? "This will pull, build, migrate, and recreate the Docker application containers. Continue?"
+        : "This will pull base images, rebuild without cache, migrate, and recreate the Docker application containers. Continue?"
+      : action === "minor-update"
+        ? "This will pull source and restart PM2. Continue?"
+        : "This will reinstall dependencies, build, migrate, and restart PM2. Continue?";
+    if (!window.confirm(confirmation)) return;
 
     setResult(null);
-    setPm2Status(null);
     startTransition(() => {
       void fetch("/api/dashboard/health/deployment", {
         method: "POST",
@@ -180,46 +172,37 @@ export function DeploymentActionsPanel() {
       })
         .then(async (response) => {
           const payload = (await response.json().catch(() => null)) as
-            | { success?: boolean; data?: DeploymentResult; error?: { message?: string; details?: string } }
+            | { data?: DeploymentResult; error?: { message?: string; details?: string } }
             | null;
-
           if (!response.ok || !payload?.data) {
             const detail = payload?.error?.details ? ` ${payload.error.details}` : "";
             throw new Error(`${payload?.error?.message ?? `Unable to run ${actionLabel(action).toLowerCase()}`}${detail}`);
           }
 
           setResult(payload.data);
-          toast.showSuccess(`${actionLabel(action)} ran successfully. Waiting for PM2 to restart...`);
-
-          setIsRestarting(true);
-          const { processes, allOnline } = await pollForRestartedProcesses();
-          setPm2Status(processes);
-          setIsRestarting(false);
-
-          if (allOnline) {
-            toast.showSuccess(
-              `${actionLabel(action)} completed — ${EXPECTED_PROCESS_NAMES.join(", ")} all online.`,
-            );
+          if (payload.data.mode === "docker" && payload.data.requestId) {
+            localStorage.setItem(ACTIVE_REQUEST_STORAGE_KEY, payload.data.requestId);
+            toast.showSuccess(`${actionLabel(action)} queued on the Docker host.`);
+            void pollDeployment(payload.data.requestId);
           } else {
-            toast.showError(
-              `${actionLabel(action)} ran, but PM2 status couldn't be confirmed yet. Check the process list below or run "pm2 status" on the server.`,
-            );
+            toast.showSuccess(`${actionLabel(action)} completed.`);
+            loadVersion();
+            router.refresh();
           }
-
-          router.refresh();
         })
         .catch((error) => {
-          setIsRestarting(false);
           toast.showError(error instanceof Error ? error.message : `Unable to run ${actionLabel(action).toLowerCase()}.`);
         });
     });
   }
 
+  const mode = version?.mode ?? deploymentStatus?.mode ?? "docker";
+
   return (
     <section className="card platform-health-deployment-card">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">Deployment</p>
+          <p className="eyebrow">Deployment · {mode === "docker" ? "Docker Compose" : "PM2 fallback"}</p>
           <h3>Maintenance actions</h3>
         </div>
         <span className="badge warn">Super admin only</span>
@@ -227,114 +210,91 @@ export function DeploymentActionsPanel() {
 
       <div className="grid cards-2" style={{ marginTop: 14 }}>
         <article className="card" style={{ margin: 0 }}>
-          <p className="eyebrow">VM version</p>
-          {loadingVersion ? (
-            <p className="subtle">Checking local version...</p>
-          ) : version ? (
+          <p className="eyebrow">Running version</p>
+          {loadingVersion ? <p className="subtle">Checking deployed version...</p> : version ? (
             <>
-              <p className="stat" style={{ marginBottom: 6 }}>
-                {version.local.commit ?? "unknown"}
-              </p>
+              <p className="stat" style={{ marginBottom: 6 }}>{version.local.commit ?? "unknown"}</p>
               <p className="subtle">
-                Local {version.local.branch ?? "branch unknown"}
-                {version.local.dirty ? " · dirty working tree" : ""}
+                {version.local.branch ?? "branch unknown"}{version.local.dirty ? " · host checkout modified" : ""}
               </p>
             </>
-          ) : (
-            <p className="subtle">Version status unavailable.</p>
-          )}
+          ) : <p className="subtle">Version status unavailable.</p>}
         </article>
 
         <article className="card" style={{ margin: 0 }}>
           <p className="eyebrow">GitHub version</p>
-          {loadingVersion ? (
-            <p className="subtle">Checking GitHub version...</p>
-          ) : version ? (
+          {loadingVersion ? <p className="subtle">Checking GitHub version...</p> : version ? (
             <>
-              <p className="stat" style={{ marginBottom: 6 }}>
-                {version.github.commit ?? "unknown"}
-              </p>
+              <p className="stat" style={{ marginBottom: 6 }}>{version.github.commit ?? "unknown"}</p>
               <p className="subtle">
                 GitHub {version.github.branch ?? "main"} · {formatComparison(version.comparison)}
                 {version.behindBy !== null || version.aheadBy !== null
-                  ? ` (${version.behindBy ?? 0} behind, ${version.aheadBy ?? 0} ahead)`
-                  : ""}
+                  ? ` (${version.behindBy ?? 0} behind, ${version.aheadBy ?? 0} ahead)` : ""}
               </p>
             </>
-          ) : (
-            <p className="subtle">Version status unavailable.</p>
-          )}
+          ) : <p className="subtle">Version status unavailable.</p>}
         </article>
       </div>
 
-      <p className="subtle">Use the smaller update for a code pull plus restart. Use the core update when dependencies or builds changed.</p>
+      <p className="subtle">
+        Docker updates are executed by the restricted host update agent. The API never receives access to the Docker socket.
+      </p>
 
       <div className="grid cards-2" style={{ marginTop: 14 }}>
         {(["minor-update", "core-update"] as const).map((action) => (
           <article key={action} className="card" style={{ margin: 0 }}>
-            <p className="eyebrow">{action === "minor-update" ? "Quick sync" : "Full update"}</p>
-            <p className="stat" style={{ marginBottom: 6 }}>
-              {actionLabel(action)}
-            </p>
-            <p className="subtle">{actionDescription(action)}</p>
-            <button className="button primary" type="button" onClick={() => run(action)} disabled={isPending || isRestarting} style={{ marginTop: 12 }}>
-              {isPending ? "Running..." : isRestarting ? "Restarting..." : actionLabel(action)}
+            <p className="eyebrow">{action === "minor-update" ? "Cached build" : "Clean rebuild"}</p>
+            <p className="stat" style={{ marginBottom: 6 }}>{actionLabel(action)}</p>
+            <p className="subtle">{actionDescription(action, mode)}</p>
+            <button
+              className="button primary"
+              type="button"
+              onClick={() => run(action)}
+              disabled={isPending || isUpdating || deploymentStatus?.state === "unavailable"}
+              style={{ marginTop: 12 }}
+            >
+              {isPending ? "Queueing..." : isUpdating ? "Updating..." : actionLabel(action)}
             </button>
           </article>
         ))}
       </div>
 
-      {result ? (
-        <pre
-          className="card"
-          style={{
-            marginTop: 14,
-            whiteSpace: "pre-wrap",
-            overflowX: "auto",
-            background: "var(--surface)",
-          }}
-        >{`Command: ${result.command}
-Exit code: ${result.exitCode ?? "unknown"}
-
-STDOUT:
-${result.stdout || "(empty)"}
-
-STDERR:
-${result.stderr || "(empty)"}`}</pre>
+      {deploymentStatus ? (
+        <section className="card" style={{ marginTop: 14 }}>
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">Update status</p>
+              <h3>{deploymentStatus.state}</h3>
+              <p className="subtle">{deploymentStatus.message}</p>
+            </div>
+            <span className={`badge ${deploymentStatus.state === "succeeded" || deploymentStatus.state === "idle" ? "active" : "warn"}`}>
+              {deploymentStatus.mode}
+            </span>
+          </div>
+          {deploymentStatus.logs ? (
+            <pre style={{ whiteSpace: "pre-wrap", overflowX: "auto", maxHeight: 320 }}>{deploymentStatus.logs}</pre>
+          ) : null}
+        </section>
       ) : null}
 
-      {isRestarting ? (
+      {result ? (
         <p className="subtle" style={{ marginTop: 14 }}>
-          Waiting for PM2 to restart epe-api, epe-worker, and epe-dashboard...
+          Request {result.requestId ?? "completed"} · {result.stdout || result.command}
         </p>
       ) : null}
 
-      {pm2Status ? (
+      {deploymentStatus?.services.length ? (
         <div className="table-wrap" style={{ marginTop: 14 }}>
           <table className="table">
-            <thead>
-              <tr>
-                <th>Process</th>
-                <th>Status</th>
-                <th>PID</th>
-                <th>Uptime</th>
-                <th>Restarts</th>
-                <th>CPU</th>
-                <th>Memory</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Service</th><th>Status</th><th>Health</th><th>Image</th><th>Started</th></tr></thead>
             <tbody>
-              {pm2Status.map((process) => (
-                <tr key={process.pmId}>
-                  <td>{process.name}</td>
-                  <td>
-                    <span className={`badge ${process.status === "online" ? "active" : "warn"}`}>{process.status}</span>
-                  </td>
-                  <td className="subtle">{process.pid ?? "—"}</td>
-                  <td className="subtle">{formatUptime(process.uptimeMs)}</td>
-                  <td className="subtle">{process.restarts}</td>
-                  <td className="subtle">{process.cpu === null ? "—" : `${process.cpu}%`}</td>
-                  <td className="subtle">{process.memoryBytes === null ? "—" : `${Math.round(process.memoryBytes / (1024 * 1024))} MB`}</td>
+              {deploymentStatus.services.map((service) => (
+                <tr key={service.name}>
+                  <td>{service.name}</td>
+                  <td><span className={`badge ${service.status === "running" ? "active" : "warn"}`}>{service.status}</span></td>
+                  <td className="subtle">{service.health ?? "—"}</td>
+                  <td className="subtle">{service.image ?? "—"}</td>
+                  <td className="subtle">{service.startedAt ?? "—"}</td>
                 </tr>
               ))}
             </tbody>

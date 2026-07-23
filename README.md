@@ -435,10 +435,18 @@ When using the legacy PM2 fallback, do not reuse a shell where `services/api/.en
 
 The dashboard's `Platform Health` page also exposes two guarded maintenance actions for super admins:
 
-- `Minor Update` for the pull-and-restart path
-- `Core Update` for the full install/build/migrate/restart path
+- `Minor Update` fast-forwards the host checkout, uses the Docker build cache, runs migrations, and recreates the application containers.
+- `Core Update` additionally refreshes PostgreSQL/Redis base images and performs a clean application-image rebuild.
 
-That panel also shows the local VM commit and the current GitHub `main` commit so you can see whether the VM is behind before triggering an update. `scripts/pm2-restart.sh` deliberately delays the actual `pm2 restart` by 5 seconds so it doesn't kill the very process sending the deploy action's HTTP response — the panel accounts for this: after the script finishes, it polls a `GET /api/health/deployment/pm2-status` endpoint (backed by `pm2 jlist`) for up to ~40 seconds, then shows each process's real status/uptime/restarts/memory and a toast confirming `epe-api`, `epe-worker`, and `epe-dashboard` actually came back online — not just that the deploy script itself exited 0.
+Docker deployments use `scripts/docker-update-agent.mjs` as a restricted host-side
+agent. The API writes an allowlisted request to a bind-mounted inbox and polls
+`GET /api/health/deployment/status`; it never receives the Docker socket or the
+ability to execute arbitrary host commands. The panel survives API/dashboard
+container restarts by retaining the active request id in the browser, then shows
+the final container health, image, and update log. See the Docker section in
+[`docs/vm-cloudflare-tunnel.md`](docs/vm-cloudflare-tunnel.md#dashboard-triggered-docker-updates)
+for the one-time host service installation. The old PM2 endpoint and scripts
+remain available only when `EPE_DEPLOYMENT_MODE=pm2`.
 
 ## Infrastructure runbooks
 

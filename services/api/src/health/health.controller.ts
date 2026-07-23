@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpException, HttpStatus, Inject, Post, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, HttpException, HttpStatus, Inject, Post, UseGuards } from "@nestjs/common";
 import { Pool } from "pg";
 
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
@@ -10,7 +10,14 @@ import { DATABASE_POOL } from "../database/database.constants";
 import { CAMPAIGN_MEDIA_STORAGE } from "../campaign-media/campaign-media.constants";
 import type { CampaignMediaStoragePort } from "../campaign-media/campaign-media-storage.port";
 import { AuditService } from "../audit/audit.service";
-import { DeploymentAction, DeploymentOperationsService, type DeploymentVersionInfo, type Pm2ProcessStatus } from "./deployment-operations.service";
+import {
+  DeploymentAction,
+  DeploymentOperationsService,
+  type DeploymentActionResult,
+  type DeploymentRuntimeStatus,
+  type DeploymentVersionInfo,
+  type Pm2ProcessStatus,
+} from "./deployment-operations.service";
 import { PlatformHealthService } from "./platform-health.service";
 
 @Controller("health")
@@ -62,6 +69,14 @@ export class HealthController {
     return { success: true, data: await this.deploymentOperationsService.getVersionInfo() };
   }
 
+  @Get("deployment/status")
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles("super-admin")
+  async getDeploymentStatus(): Promise<{ success: true; data: DeploymentRuntimeStatus }> {
+    return { success: true, data: await this.deploymentOperationsService.getDeploymentStatus() };
+  }
+
+  // Legacy PM2 endpoint retained for fallback deployments and older dashboards.
   @Get("deployment/pm2-status")
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("super-admin")
@@ -77,9 +92,12 @@ export class HealthController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<{
     success: true;
-    data: { action: DeploymentAction; command: string; stdout: string; stderr: string; exitCode: number | null };
+    data: DeploymentActionResult;
   }> {
-    const action = body.action === "minor-update" ? "minor-update" : "core-update";
+    if (body.action !== "minor-update" && body.action !== "core-update") {
+      throw new BadRequestException("action must be minor-update or core-update");
+    }
+    const action = body.action;
     const result = await this.deploymentOperationsService.run(action);
 
     if (result.exitCode === null || result.exitCode !== 0) {
