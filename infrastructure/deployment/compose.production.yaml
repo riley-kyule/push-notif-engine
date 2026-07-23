@@ -82,9 +82,12 @@ services:
       REDIS_URL: "redis://:${REDIS_PASSWORD}@push-redis:6379"
       CAMPAIGN_MEDIA_STORAGE_ROOT: /data/campaign-media
       TMPDIR: /backup-temp
+      EPE_DEPLOYMENT_MODE: docker
+      EPE_DEPLOYMENT_REQUEST_DIR: /deployment
     volumes:
       - push_media:/data
       - push_backup_temp:/backup-temp
+      - /srv/exotic/run/push-engine:/deployment
     networks: [push_internal, push_egress, proxy]
     dns: [1.1.1.1, 8.8.8.8]
     dns_opt: [timeout:2, attempts:5]

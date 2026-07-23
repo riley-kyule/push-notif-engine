@@ -1,0 +1,31 @@
+# Installed as /srv/exotic/stacks/push-engine/compose.updates.yaml by
+# scripts/install-docker-updater.sh. It augments the existing production
+# compose.yaml without rewriting deployment-specific secrets or volumes.
+services:
+  push-migrate:
+    image: exotic-push-engine:production
+
+  push-api:
+    image: exotic-push-engine:production
+    environment:
+      EPE_DEPLOYMENT_MODE: docker
+      EPE_DEPLOYMENT_REQUEST_DIR: /deployment
+      EPE_ENABLE_DEPLOYMENT_ACTIONS: "true"
+    volumes:
+      - /srv/exotic/run/push-engine:/deployment
+    networks:
+      - push_internal
+      - push_egress
+      - proxy
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    dns_opt:
+      - timeout:2
+      - attempts:5
+
+  push-dashboard:
+    image: exotic-push-engine:production
+
+  push-worker:
+    image: exotic-push-engine:production

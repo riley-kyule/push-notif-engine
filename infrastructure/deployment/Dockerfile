@@ -1,5 +1,6 @@
 # Build from the repository root:
 # docker build -f infrastructure/deployment/Dockerfile -t exotic-push-engine:<commit> .
+ARG EPE_BUILD_COMMIT=unknown
 FROM node:22-bookworm-slim AS build
 WORKDIR /repo
 
@@ -16,7 +17,9 @@ RUN npm run build --workspace @epe/api \
  && npm prune --omit=dev
 
 FROM node:22-bookworm-slim AS runtime
-ENV NODE_ENV=production
+ARG EPE_BUILD_COMMIT
+ENV NODE_ENV=production \
+    EPE_BUILD_COMMIT=${EPE_BUILD_COMMIT}
 WORKDIR /repo
 
 # pg_dump is required by full-system backups. ca-certificates is required for

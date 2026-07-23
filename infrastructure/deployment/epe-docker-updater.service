@@ -1,0 +1,25 @@
+[Unit]
+Description=Exotic Push Engine Docker update agent
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=riley
+Group=docker
+WorkingDirectory=/srv/exotic/stacks/push-engine
+Environment=EPE_REPO_DIR=/srv/exotic/stacks/push-engine
+Environment=EPE_COMPOSE_FILES=/srv/exotic/stacks/push-engine/compose.yaml:/srv/exotic/stacks/push-engine/compose.updates.yaml
+Environment=EPE_DEPLOYMENT_REQUEST_DIR=/srv/exotic/run/push-engine
+Environment=PUSH_ENGINE_IMAGE=exotic-push-engine:production
+Environment=EPE_DEPLOY_BRANCH=main
+ExecStart=/usr/bin/node /srv/exotic/stacks/push-engine/scripts/docker-update-agent.mjs
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/srv/exotic/stacks/push-engine /srv/exotic/run/push-engine
+
+[Install]
+WantedBy=multi-user.target
