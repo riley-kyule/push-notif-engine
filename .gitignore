@@ -3,10 +3,14 @@ node_modules
 *.tsbuildinfo
 dist
 coverage
+.DS_Store
 *.md
 !README.md
+!docs/delivery-reliability-and-crm-callbacks.md
 .claude/
 .env
 .env.*
+!services/api/.env.example
+!services/worker/.env.example
 *.log
 tmp

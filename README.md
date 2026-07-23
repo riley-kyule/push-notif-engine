@@ -47,7 +47,9 @@ integrations/*    WordPress plugin, Magento module, Node.js/Laravel starter pack
 - **One VAPID key pair per site.** Generated server-side, never reused across sites.
 - **Service workers are served from the site's own origin** (via the WordPress plugin, or a static file for other platforms) — the browser Push API requires this; EPE cannot serve a cross-origin service worker.
 
-Deployment target is a single cPanel VPS with PM2 managing the three Node processes — no Docker.
+Production runs on a single VPS with Docker Compose. The tracked hardened baseline is
+[`infrastructure/deployment/compose.production.yaml`](infrastructure/deployment/compose.production.yaml);
+the older cPanel/PM2 path remains a supported fallback.
 
 ## Local development setup
 
@@ -142,6 +144,7 @@ Full-system backups to a connected cloud provider, managed at `/platform/backup-
 - A backup archive is a single `tar.gz` containing a real `pg_dump --format=custom` of the whole database plus every campaign media file — everything needed to restore or migrate the system, deliberately excluding `.env`/secrets.
 - Scheduling is a `@Cron(EVERY_HOUR)` check (`BackupSchedulerService`) against each connection's `auto_backup_enabled`/`frequency` (daily/weekly/monthly)/`next_backup_due_at` — or trigger one immediately with `POST /api/backup/:provider/run` (runs in the background, returns right away).
 - **Restore is manual, by design** — there's no one-click restore endpoint. The dashboard's restore toolkit card pre-fills the exact `pg_restore` command for the latest successful run with a copy button; campaign media is restored by extracting the archive's `media/` directory.
+- `scripts/verify-backup-restore.sh` validates the archive, manifest, media count, and dump; when given an empty disposable `*restore_drill*` database it also performs and verifies a full restore.
 - `GET /api/backup` (provider connection status) and `GET /api/backup/runs` (history: status, trigger, file name/size, error message) back the dashboard's summary cards and run history table.
 
 ### Getting Dropbox app credentials
@@ -175,6 +178,8 @@ Each site can issue one REST API credential pair for CRM-driven actions and sche
 - `Authorization: Bearer <rest_api_auth_token>`
 
 The dashboard exposes this under `Site Settings -> Integrations -> REST API`. The API also exposes `GET /api/sites/:id/rest-api/identity` as a protected verification endpoint for CRM systems that need to confirm the credentials before using downstream site-scoped actions.
+
+CRM sends may include a public `callbackUrl`. EPE stores the callback durably, sends a final campaign summary with bounded retries, and exposes its state at `GET /api/sites/:siteId/rest-api/notifications/:notificationId/callback`. Set `CRM_CALLBACK_SIGNING_SECRET` to add an HMAC signature. The complete contract and rollout procedure are in [`docs/delivery-reliability-and-crm-callbacks.md`](docs/delivery-reliability-and-crm-callbacks.md).
 
 Dashboard: `/sites` (list, with an "Add Site" button), `/sites/new`, `/sites/:id` (detail — VAPID keys, SDK snippet, downloadable service worker + manifest), `/sites/:id/edit`, `/platform-health` (platform score ring plus database, queue broker, storage, queue depth, worker heartbeat, and delivery drilldowns), `/platform/backup-config` (backup provider setup, schedules, history, and restore guidance).
 The platform health page also surfaces active alerts derived from queue backlog, worker heartbeat freshness, and component health.
@@ -408,7 +413,9 @@ All four integrations vendor the exact same `epe-sdk.js` (the WordPress plugin's
 
 The current production topology is Docker Compose; see the production section in [`docs/vm-cloudflare-tunnel.md`](docs/vm-cloudflare-tunnel.md#docker-compose-production-topology). The older PM2/cPanel path remains documented at [`infrastructure/deployment/cpanel.md`](infrastructure/deployment/cpanel.md) as a fallback.
 
-Production safeguards now include worker-reported DNS/TLS connectivity to FCM, a dedicated worker egress network, and a circuit breaker that retries a whole BullMQ job instead of recording thousands of recipient failures during an infrastructure outage.
+Production safeguards include worker-reported DNS/TLS connectivity to browser FCM, FCM v1 OAuth, and APNs; a dedicated worker egress network; durable provider incidents; adaptive send concurrency; and queue-level retry for both bulk outages and single-recipient automatic pushes. VAPID private keys are encrypted at rest with the API/worker-shared `VAPID_KEY_ENCRYPTION_KEY`.
+
+The shared non-root production image is built from [`infrastructure/deployment/Dockerfile`](infrastructure/deployment/Dockerfile). The deployment validator and delivery/CRM runbook are [`scripts/validate-docker-deployment.sh`](scripts/validate-docker-deployment.sh) and [`docs/delivery-reliability-and-crm-callbacks.md`](docs/delivery-reliability-and-crm-callbacks.md).
 
 Legacy deployment artifacts that remain supported:
 
@@ -418,7 +425,7 @@ Legacy deployment artifacts that remain supported:
 
 All three of the above were actually run end-to-end locally (PM2 managing all three services via `ecosystem.config.js`, nginx proxying real requests through to them, a full login → create campaign → send → worker-processes-the-job round trip) before being considered done — not just written and assumed correct.
 
-When starting the stack manually, do not reuse a shell where `services/api/.env` was sourced. `PORT=3001` from the API will leak into the dashboard unless you start each process in an isolated env. The repo-level PM2 ecosystem file avoids that class of bug and is the preferred startup path. The helper scripts in `scripts/` wrap that flow:
+When using the legacy PM2 fallback, do not reuse a shell where `services/api/.env` was sourced. `PORT=3001` from the API will leak into the dashboard unless you start each process in an isolated env. The repo-level PM2 ecosystem file avoids that class of bug. The helper scripts in `scripts/` wrap that fallback flow:
 
 - `scripts/pm2-bootstrap.sh` starts a clean PM2 stack from `ecosystem.config.js`
 - `scripts/pm2-enable-autostart.sh` installs the PM2 systemd startup hook once per VM and saves the current process list
@@ -465,4 +472,5 @@ Each service uses Node's built-in test runner (`node --import tsx --test`), not 
 
 ## Known gaps
 
-- **No automated PM2 boot-persistence test** — `pm2 save` + `pm2 startup` are documented in the runbook but haven't been tested through an actual server reboot, since that requires the real VPS.
+- **Production rollout is pending** — migrations 031–033, shared VAPID encryption key, CRM callback signing secret, updated images, integration service workers, and the live Docker validation script must be applied on the VPS.
+- **A/B testing currently supports deterministic 50/50 browser variants** — automated winner selection and multivariate/native-push experiments remain future work.
