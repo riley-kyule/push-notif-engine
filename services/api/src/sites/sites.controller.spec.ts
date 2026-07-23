@@ -36,3 +36,18 @@ test("sites controller can generate rest api credentials", async () => {
   assert.equal(response.success, true);
   assert.equal((response.data as { authToken?: string }).authToken, "super-secret-token");
 });
+
+test("sites controller redacts VAPID private keys without corrupting dates", async () => {
+  const createdAt = new Date("2026-07-23T09:00:00.000Z");
+  const controller = new SitesController({
+    async getSite() {
+      return { id: "site-1", vapidPrivateKey: "private-key", createdAt };
+    },
+  } as never);
+
+  const response = await controller.get("site-1");
+  const site = response.data as { vapidPrivateKey: string; createdAt: Date };
+
+  assert.equal(site.vapidPrivateKey, "[configured]");
+  assert.equal(site.createdAt, createdAt);
+});

@@ -7,6 +7,7 @@
     "build": "nest build",
     "start": "node dist/main.js",
     "migrate": "node scripts/migrate.mjs",
+    "encrypt-vapid-keys": "node scripts/encrypt-vapid-keys.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --import tsx --test $(find src -name '*.spec.ts')"
   },

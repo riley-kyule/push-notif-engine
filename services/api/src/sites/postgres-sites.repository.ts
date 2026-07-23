@@ -2,6 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import type { Pool } from "pg";
 
 import { DATABASE_POOL } from "../database/database.constants";
+import { decryptVapidPrivateKey, encryptVapidPrivateKey } from "../common/vapid-key-encryption.util";
 import type { SiteListFilters, SiteListResult, SiteRecord, SiteRestApiCredentialsRecord, SiteStatus } from "./sites.types";
 import type { CreateSiteInput, SiteAutomationDefaultsRecord, SitesRepository, UpdateSiteInput } from "./sites.repository";
 
@@ -90,7 +91,7 @@ export class PostgresSitesRepository implements SitesRepository {
         input.restApiCredentialsGeneratedAt ?? null,
         input.vapidSubject,
         input.vapidPublicKey,
-        input.vapidPrivateKey,
+        input.vapidPrivateKey ? encryptVapidPrivateKey(input.vapidPrivateKey) : null,
         input.status,
         input.timezone,
       ],
@@ -179,7 +180,7 @@ export class PostgresSitesRepository implements SitesRepository {
         input.restApiCredentialsGeneratedAt ?? null,
         input.vapidSubject ?? null,
         input.vapidPublicKey ?? null,
-        input.vapidPrivateKey ?? null,
+        input.vapidPrivateKey ? encryptVapidPrivateKey(input.vapidPrivateKey) : null,
         input.status ?? null,
         input.timezone ?? null,
       ],
@@ -377,7 +378,7 @@ export class PostgresSitesRepository implements SitesRepository {
       restApiCredentialsGeneratedAt: row.rest_api_credentials_generated_at ? new Date(row.rest_api_credentials_generated_at) : null,
       vapidSubject: row.vapid_subject,
       vapidPublicKey: row.vapid_public_key,
-      vapidPrivateKey: row.vapid_private_key,
+      vapidPrivateKey: row.vapid_private_key ? decryptVapidPrivateKey(row.vapid_private_key) : null,
       status: row.status,
       lastConnectedAt: row.last_connected_at ? new Date(row.last_connected_at) : null,
       subscriberCount: Number(row.subscriber_count),

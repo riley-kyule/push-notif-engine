@@ -10,6 +10,18 @@ import { ListSitesQueryDto } from "./dto/list-sites-query.dto";
 import { UpdateSiteDto } from "./dto/update-site.dto";
 import { SitesService } from "./sites.service";
 
+function redactVapidPrivateKey<T>(value: T): T {
+  if (!value || typeof value !== "object") return value;
+  if (value instanceof Date) return value;
+  if (Array.isArray(value)) return value.map(redactVapidPrivateKey) as T;
+  const record = value as Record<string, unknown>;
+  const redacted = Object.fromEntries(Object.entries(record).map(([key, item]) => [
+    key,
+    key === "vapidPrivateKey" ? (item ? "[configured]" : null) : redactVapidPrivateKey(item),
+  ]));
+  return redacted as T;
+}
+
 @Controller("sites")
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("super-admin", "admin", "sub-admin")
@@ -19,19 +31,19 @@ export class SitesController {
   @Post()
   async create(@Body() dto: CreateSiteDto, @CurrentUser() user: AuthenticatedUser): Promise<{ success: true; data: unknown }> {
     const site = await this.sitesService.createSite(dto, user.id);
-    return { success: true, data: site };
+    return { success: true, data: redactVapidPrivateKey(site) };
   }
 
   @Get()
   async list(@Query() query: ListSitesQueryDto): Promise<{ success: true; data: unknown }> {
     const result = await this.sitesService.listSites(query);
-    return { success: true, data: result };
+    return { success: true, data: redactVapidPrivateKey(result) };
   }
 
   @Get(":id")
   async get(@Param("id") id: string): Promise<{ success: true; data: unknown }> {
     const site = await this.sitesService.getSite(id);
-    return { success: true, data: site };
+    return { success: true, data: redactVapidPrivateKey(site) };
   }
 
   @Patch(":id")
@@ -41,13 +53,13 @@ export class SitesController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<{ success: true; data: unknown }> {
     const site = await this.sitesService.updateSite(id, dto, user.id);
-    return { success: true, data: site };
+    return { success: true, data: redactVapidPrivateKey(site) };
   }
 
   @Post(":id/generate-vapid")
   async generateVapid(@Param("id") id: string, @CurrentUser() user: AuthenticatedUser): Promise<{ success: true; data: unknown }> {
     const site = await this.sitesService.generateVapidKeys(id, user.id);
-    return { success: true, data: site };
+    return { success: true, data: redactVapidPrivateKey(site) };
   }
 
   @Post(":id/rest-api-credentials")
