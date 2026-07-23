@@ -4,6 +4,7 @@ import { DashboardShell } from "../_components/dashboard-shell";
 import { formatDisplayDate } from "../_components/format-date";
 import { fallbackSiteChoices, getSiteChoices } from "../_data/sites";
 import { getFallbackSegmentSummaries, getSegmentSummaries } from "../_data/segments-dashboard";
+import { ReengagementTemplate } from "./reengagement-template";
 
 function formatDate(value: string): string {
   return formatDisplayDate(value);
@@ -14,6 +15,7 @@ export default async function SegmentsPage() {
     getSiteChoices().catch(() => fallbackSiteChoices),
     getSegmentSummaries().catch(() => getFallbackSegmentSummaries()),
   ]);
+  const realSites = sites.filter((site) => site.id !== "site-3");
 
   return (
     <DashboardShell
@@ -47,6 +49,17 @@ export default async function SegmentsPage() {
           <p className="stat">{segments.reduce((total, segment) => total + segment.ruleCount, 0)}</p>
           <p className="subtle">Segment rules currently in play</p>
         </article>
+      </section>
+
+      <section className="card" style={{ marginTop: 18 }}>
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">Quick template</p>
+            <h3>Re-engage dormant subscribers</h3>
+            <p className="subtle">Create a reusable active-subscriber segment based on last-seen activity, then select it in a scheduled campaign.</p>
+          </div>
+        </div>
+        <ReengagementTemplate sites={realSites} />
       </section>
 
       <section className="card" style={{ marginTop: 18 }}>
