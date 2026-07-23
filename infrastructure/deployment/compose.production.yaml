@@ -1,0 +1,163 @@
+name: push-engine
+
+x-node-security: &node-security
+  init: true
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  read_only: true
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=64m
+  stop_grace_period: 45s
+
+services:
+  push-redis:
+    image: redis:7-bookworm
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD}"]
+    volumes:
+      - push_redis_data:/data
+    networks: [push_internal]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD:?set REDIS_PASSWORD}"
+
+  push-postgres:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: exotic_push_engine
+      POSTGRES_USER: epe
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}"
+    volumes:
+      - push_postgres_data:/var/lib/postgresql/data
+    networks: [push_internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U epe -d exotic_push_engine"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  push-migrate:
+    image: "${PUSH_ENGINE_IMAGE:?set PUSH_ENGINE_IMAGE}"
+    command: ["npm", "run", "migrate", "--workspace", "@epe/api"]
+    env_file: "${API_ENV_FILE:-/srv/exotic/config/push-engine/api.env}"
+    environment:
+      DATABASE_URL: "postgresql://epe:${POSTGRES_PASSWORD}@push-postgres:5432/exotic_push_engine"
+    networks: [push_internal]
+    depends_on:
+      push-postgres: { condition: service_healthy }
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: "no"
+
+  push-storage-init:
+    image: busybox:1.36
+    command: ["chown", "-R", "1000:1000", "/data", "/backup-temp"]
+    user: "0:0"
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - push_media:/data
+      - push_backup_temp:/backup-temp
+    networks: [push_internal]
+    restart: "no"
+
+  push-api:
+    <<: *node-security
+    image: "${PUSH_ENGINE_IMAGE:?set PUSH_ENGINE_IMAGE}"
+    command: ["node", "services/api/dist/main.js"]
+    env_file: "${API_ENV_FILE:-/srv/exotic/config/push-engine/api.env}"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://epe:${POSTGRES_PASSWORD}@push-postgres:5432/exotic_push_engine"
+      REDIS_URL: "redis://:${REDIS_PASSWORD}@push-redis:6379"
+      CAMPAIGN_MEDIA_STORAGE_ROOT: /data/campaign-media
+      TMPDIR: /backup-temp
+    volumes:
+      - push_media:/data
+      - push_backup_temp:/backup-temp
+    networks: [push_internal, push_egress, proxy]
+    dns: [1.1.1.1, 8.8.8.8]
+    dns_opt: [timeout:2, attempts:5]
+    depends_on:
+      push-migrate: { condition: service_completed_successfully }
+      push-storage-init: { condition: service_completed_successfully }
+      push-redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  push-dashboard:
+    <<: *node-security
+    image: "${PUSH_ENGINE_IMAGE:?set PUSH_ENGINE_IMAGE}"
+    command: ["npm", "start", "--workspace", "@epe/dashboard"]
+    env_file: "${DASHBOARD_ENV_FILE:-/srv/exotic/config/push-engine/dashboard.env}"
+    environment:
+      NODE_ENV: production
+      DASHBOARD_API_BASE_URL: http://push-api:3001/api
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+      - /repo/apps/dashboard/.next/cache:rw,noexec,nosuid,size=128m
+    networks: [push_internal, proxy]
+    depends_on:
+      push-api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/login').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  push-worker:
+    <<: *node-security
+    image: "${PUSH_ENGINE_IMAGE:?set PUSH_ENGINE_IMAGE}"
+    command: ["node", "services/worker/dist/src/main.js"]
+    env_file: "${WORKER_ENV_FILE:-/srv/exotic/config/push-engine/worker.env}"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://epe:${POSTGRES_PASSWORD}@push-postgres:5432/exotic_push_engine"
+      REDIS_URL: "redis://:${REDIS_PASSWORD}@push-redis:6379"
+      BROWSER_PUSH_ACK_BASE_URL: "${BROWSER_PUSH_ACK_BASE_URL:?set BROWSER_PUSH_ACK_BASE_URL}"
+      BROWSER_PUSH_SEND_CONCURRENCY: "${BROWSER_PUSH_SEND_CONCURRENCY:-25}"
+      BROWSER_PUSH_QUEUE_CONCURRENCY: "${BROWSER_PUSH_QUEUE_CONCURRENCY:-1}"
+      BROWSER_PUSH_TRANSIENT_FAILURE_THRESHOLD: "${BROWSER_PUSH_TRANSIENT_FAILURE_THRESHOLD:-10}"
+      MOBILE_PUSH_TRANSIENT_FAILURE_THRESHOLD: "${MOBILE_PUSH_TRANSIENT_FAILURE_THRESHOLD:-10}"
+    networks: [push_internal, push_egress]
+    dns: [1.1.1.1, 8.8.8.8]
+    dns_opt: [timeout:2, attempts:5]
+    depends_on:
+      push-migrate: { condition: service_completed_successfully }
+      push-redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "services/worker/dist/src/healthcheck.js"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+networks:
+  push_internal:
+    driver: bridge
+    internal: true
+  push_egress:
+    driver: bridge
+  proxy:
+    external: true
+
+volumes:
+  push_postgres_data:
+  push_redis_data:
+  push_media:
+  push_backup_temp:

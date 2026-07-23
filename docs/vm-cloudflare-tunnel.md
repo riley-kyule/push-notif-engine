@@ -218,6 +218,9 @@ services:
       BROWSER_PUSH_SEND_CONCURRENCY: "25"
       BROWSER_PUSH_QUEUE_CONCURRENCY: "1"
       BROWSER_PUSH_TRANSIENT_FAILURE_THRESHOLD: "10"
+      MOBILE_PUSH_SEND_CONCURRENCY: "200"
+      MOBILE_PUSH_QUEUE_CONCURRENCY: "1"
+      MOBILE_PUSH_TRANSIENT_FAILURE_THRESHOLD: "10"
     networks:
       - push_internal
       - push_egress
@@ -251,6 +254,27 @@ docker compose exec push-worker node -e 'require("node:dns").promises.lookup("fc
 docker compose exec push-worker node -e 'fetch("https://fcm.googleapis.com").then((response) => console.log("FCM reachable, HTTP", response.status)).catch((error) => { console.error(error); process.exit(1); })'
 ```
 
-Any HTTP response from the second command proves DNS, routing, TLS, and HTTP connectivity; `404` at the FCM root is expected. The worker also performs this DNS/TLS probe every 30 seconds and includes the result in its Redis heartbeat. Platform Health weights that signal and raises a critical alert when egress fails.
+Any HTTP response from the second command proves DNS, routing, TLS, and HTTP connectivity; `404` at the FCM root is expected. The worker also probes browser FCM, Google OAuth/FCM v1, and APNs every 30 seconds and includes the results in its Redis heartbeat. Platform Health weights those signals and raises a critical alert when provider egress fails.
 
 If transient network/provider failures reach `BROWSER_PUSH_TRANSIENT_FAILURE_THRESHOLD`, the processor opens a circuit and fails the BullMQ job. BullMQ retries up to five times with exponential backoff starting at 30 seconds. Existing idempotency skips recipients already sent successfully; if all attempts are exhausted, remaining pending delivery rows become `failed` with `INFRASTRUCTURE_RETRY_EXHAUSTED`.
+
+Automatic pushes often target one subscriber, so a single exhausted transient
+failure also fails that job immediately instead of waiting for the bulk
+threshold. Native pushes use the corresponding `MOBILE_PUSH_*` limits. Both
+processors reduce concurrency after provider pressure and recover gradually
+after healthy batches.
+
+Use the tracked baseline at
+`infrastructure/deployment/compose.production.yaml`, then validate the running
+stack:
+
+```bash
+scripts/validate-docker-deployment.sh compose.yaml
+```
+
+The API and worker must receive the same `VAPID_KEY_ENCRYPTION_KEY`. Generate it
+once with `openssl rand -base64 32`, store it in both protected environment
+files, and back it up securely. See
+[`delivery-reliability-and-crm-callbacks.md`](delivery-reliability-and-crm-callbacks.md)
+for the migration, callback, VAPID-encryption, service-worker, and verification
+sequence.

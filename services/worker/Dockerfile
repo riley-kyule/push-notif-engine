@@ -1,6 +1,5 @@
 # Build context must be the monorepo root: docker build -f services/worker/Dockerfile .
-# Optional artifact for running the worker in a container (e.g. for local dev or a
-# non-cPanel environment). The documented production path remains cPanel VPS + PM2.
+# Production worker image. Build context must remain the repository root.
 FROM node:22-slim AS build
 WORKDIR /repo
 
@@ -23,7 +22,10 @@ COPY services/worker/package.json services/worker/package.json
 
 RUN npm ci --omit=dev --workspace=@epe/worker
 
-COPY --from=build /repo/services/worker/dist services/worker/dist
+COPY --from=build --chown=node:node /repo/services/worker/dist services/worker/dist
 
 WORKDIR /repo/services/worker
+USER node
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD ["node", "dist/src/healthcheck.js"]
 CMD ["node", "dist/src/main.js"]
