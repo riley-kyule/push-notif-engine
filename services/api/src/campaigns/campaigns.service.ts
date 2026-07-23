@@ -13,6 +13,7 @@ import type {
   CampaignListFilters,
   CampaignListResult,
   CampaignRecord,
+  CampaignVariant,
 } from "./campaigns.types";
 import type { CampaignsRepository, CreateCampaignInput, UpdateCampaignInput } from "./campaigns.repository";
 import { CloneCampaignDto } from "./dto/clone-campaign.dto";
@@ -42,6 +43,16 @@ function normalizeButtons(buttons: CreateCampaignDto["buttons"] | UpdateCampaign
   return (buttons ?? []).map((button) => ({
     label: button.label,
     url: button.url,
+  }));
+}
+
+function normalizeVariants(variants: CreateCampaignDto["abVariants"] | UpdateCampaignDto["abVariants"]): CampaignVariant[] {
+  return (variants ?? []).map((variant) => ({
+    id: variant.id,
+    title: variant.title,
+    message: variant.message,
+    url: variant.url,
+    weight: variant.weight,
   }));
 }
 
@@ -192,6 +203,7 @@ export class CampaignsService {
       imageUrl: existing.imageUrl,
       iconUrl: existing.iconUrl,
       buttons: existing.buttons,
+      abVariants: existing.abVariants,
       expirationAt: existing.expirationAt,
       status: "draft",
       scheduledAt: null,
@@ -277,6 +289,9 @@ export class CampaignsService {
       image: campaign.imageUrl,
       campaignId: campaign.id,
       segmentId: campaign.segmentId,
+      variants: campaign.abVariants.map((variant) => ({
+        id: variant.id, title: variant.title, body: variant.message, url: variant.url, weight: variant.weight,
+      })),
     });
 
     await this.campaignsRepository.update(id, { status: "sending" });
@@ -302,6 +317,9 @@ export class CampaignsService {
       image: campaign.imageUrl,
       campaignId: campaign.id,
       segmentId: campaign.segmentId,
+      variants: campaign.abVariants.map((variant) => ({
+        id: variant.id, title: variant.title, body: variant.message, url: variant.url, weight: variant.weight,
+      })),
     });
   }
 
@@ -347,6 +365,7 @@ export class CampaignsService {
       imageUrl: media.imageUrl,
       iconUrl: media.iconUrl,
       buttons: normalizeButtons(dto.buttons),
+      abVariants: normalizeVariants(dto.abVariants),
       expirationAt: toNullableDate(dto.expirationAt) ?? null,
       status: dto.status ?? "draft",
       scheduledAt: toNullableDate(dto.scheduledAt) ?? null,
@@ -376,6 +395,7 @@ export class CampaignsService {
       imageUrl: dto.imageAssetId !== undefined || dto.imageUrl !== undefined ? media.imageUrl : existing.imageUrl,
       iconUrl: dto.iconAssetId !== undefined || dto.iconUrl !== undefined ? media.iconUrl : existing.iconUrl,
       buttons: dto.buttons ? normalizeButtons(dto.buttons) : existing.buttons,
+      abVariants: dto.abVariants ? normalizeVariants(dto.abVariants) : existing.abVariants,
       expirationAt: dto.expirationAt === undefined ? existing.expirationAt : (toNullableDate(dto.expirationAt) ?? null),
       status: dto.status ?? existing.status,
       scheduledAt:

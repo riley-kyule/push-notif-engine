@@ -5,6 +5,7 @@ import type {
   CampaignListFilters,
   CampaignListResult,
   CampaignRecord,
+  CampaignVariant,
   CampaignRecurrenceType,
   CampaignStatus,
   CampaignType,
@@ -23,6 +24,7 @@ export interface CreateCampaignInput {
   imageUrl: string | null;
   iconUrl: string | null;
   buttons: CampaignButton[];
+  abVariants: CampaignVariant[];
   expirationAt: Date | null;
   status: CampaignStatus;
   scheduledAt: Date | null;
@@ -46,6 +48,7 @@ export interface UpdateCampaignInput {
   imageUrl?: string | null;
   iconUrl?: string | null;
   buttons?: CampaignButton[];
+  abVariants?: CampaignVariant[];
   expirationAt?: Date | null;
   status?: CampaignStatus;
   scheduledAt?: Date | null;

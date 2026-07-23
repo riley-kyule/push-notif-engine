@@ -11,6 +11,7 @@ function cloneCampaign(campaign: CampaignRecord): CampaignRecord {
   return {
     ...campaign,
     buttons: campaign.buttons.map((button) => ({ ...button })),
+    abVariants: campaign.abVariants.map((variant) => ({ ...variant })),
   };
 }
 
@@ -33,6 +34,7 @@ export class InMemoryCampaignsRepository implements CampaignsRepository {
       imageUrl: input.imageUrl,
       iconUrl: input.iconUrl,
       buttons: input.buttons.map((button) => ({ ...button })),
+      abVariants: input.abVariants.map((variant) => ({ ...variant })),
       expirationAt: input.expirationAt,
       status: input.status,
       scheduledAt: input.scheduledAt,
@@ -67,6 +69,7 @@ export class InMemoryCampaignsRepository implements CampaignsRepository {
     campaign.imageUrl = input.imageUrl === undefined ? campaign.imageUrl : input.imageUrl;
     campaign.iconUrl = input.iconUrl === undefined ? campaign.iconUrl : input.iconUrl;
     campaign.buttons = input.buttons ? input.buttons.map((button) => ({ ...button })) : campaign.buttons;
+    campaign.abVariants = input.abVariants ? input.abVariants.map((variant) => ({ ...variant })) : campaign.abVariants;
     campaign.expirationAt = input.expirationAt === undefined ? campaign.expirationAt : input.expirationAt;
     campaign.status = input.status ?? campaign.status;
     campaign.scheduledAt = input.scheduledAt === undefined ? campaign.scheduledAt : input.scheduledAt;

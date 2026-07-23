@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { DashboardShell } from "../../_components/dashboard-shell";
-import { campaignDetails, getCampaignById } from "../../_data/campaigns";
+import { campaignDetails, getCampaignById, getCampaignVariantStats } from "../../_data/campaigns";
 import { CampaignActions } from "./campaign-actions";
 
 export async function generateStaticParams(): Promise<Array<{ id: string }>> {
@@ -10,7 +10,8 @@ export async function generateStaticParams(): Promise<Array<{ id: string }>> {
 
 export default async function CampaignDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const campaign = (await getCampaignById(id)) ?? campaignDetails[id];
+  const [liveCampaign, variantStats] = await Promise.all([getCampaignById(id), getCampaignVariantStats(id)]);
+  const campaign = liveCampaign ?? campaignDetails[id];
   if (!campaign) {
     notFound();
   }
@@ -64,6 +65,27 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
           </div>
         </article>
       </section>
+
+      {variantStats.length > 1 ? (
+        <section className="card" style={{ marginTop: 18 }}>
+          <h3>A/B test performance</h3>
+          <div className="audit-logs-table-wrap" style={{ marginTop: 14 }}>
+            <table className="audit-logs-table">
+              <thead><tr><th>Variant</th><th>Audience</th><th>Delivered</th><th>Failed</th><th>Clicked</th><th>CTR</th></tr></thead>
+              <tbody>{variantStats.map((variant) => (
+                <tr key={variant.variantId}>
+                  <td><strong>{variant.variantId}</strong></td>
+                  <td>{variant.total.toLocaleString()}</td>
+                  <td>{variant.delivered.toLocaleString()} ({variant.deliveryRate}%)</td>
+                  <td>{(variant.failed + variant.expired).toLocaleString()}</td>
+                  <td>{variant.clicked.toLocaleString()}</td>
+                  <td>{variant.clickThroughRate}%</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
 
       <CampaignActions campaignId={campaign.id} initialName={campaign.name} />
     </DashboardShell>

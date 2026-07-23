@@ -1,4 +1,4 @@
-import { IsArray, IsIn, IsInt, IsOptional, IsString, IsUUID, IsUrl, Min, MinLength, ValidateNested } from "class-validator";
+import { ArrayMaxSize, ArrayUnique, IsArray, IsIn, IsInt, IsOptional, IsString, IsUUID, IsUrl, Matches, Max, MaxLength, Min, MinLength, ValidateNested } from "class-validator";
 import { Transform, Type } from "class-transformer";
 
 // @IsOptional() only skips validation for null/undefined, not "" -- without
@@ -17,6 +17,14 @@ class CampaignButtonDto {
 
   @IsUrl({ require_tld: false })
   url!: string;
+}
+
+class CampaignVariantDto {
+  @IsString() @MinLength(1) @MaxLength(50) @Matches(/^[a-z0-9][a-z0-9-]*$/) id!: string;
+  @IsString() @MinLength(2) title!: string;
+  @IsString() @MinLength(2) message!: string;
+  @IsUrl({ require_tld: false }) url!: string;
+  @IsInt() @Min(1) @Max(10_000) weight!: number;
 }
 
 export class UpdateCampaignDto {
@@ -80,6 +88,14 @@ export class UpdateCampaignDto {
   @ValidateNested({ each: true })
   @Type(() => CampaignButtonDto)
   buttons?: CampaignButtonDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ArrayUnique((variant: CampaignVariantDto) => variant.id)
+  @ValidateNested({ each: true })
+  @Type(() => CampaignVariantDto)
+  abVariants?: CampaignVariantDto[];
 
   @IsOptional()
   @IsString()

@@ -265,6 +265,23 @@ interface CampaignAnalyticsStats {
   clickThroughRate: number;
 }
 
+export interface CampaignVariantStats {
+  variantId: string;
+  sent: number;
+  delivered: number;
+  failed: number;
+  expired: number;
+  clicked: number;
+  total: number;
+  deliveryRate: number;
+  clickThroughRate: number;
+}
+
+export async function getCampaignVariantStats(campaignId: string): Promise<CampaignVariantStats[]> {
+  const response = await apiJson<CampaignApiResponse<CampaignVariantStats[]>>(`/analytics/campaigns/${campaignId}/variants`);
+  return response?.data ?? [];
+}
+
 // Fetch live stats for a page of campaigns in chunks -- one bulk request per
 // chunk keeps the querystring well under header-size limits even at the 500
 // page size.

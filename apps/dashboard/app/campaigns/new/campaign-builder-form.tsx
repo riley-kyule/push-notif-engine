@@ -44,6 +44,10 @@ export function CampaignBuilderForm({ sites: allSites, segments, taxonomies }: C
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   const [destination, setDestination] = useState("");
+  const [abTestEnabled, setAbTestEnabled] = useState(false);
+  const [variantBTitle, setVariantBTitle] = useState("");
+  const [variantBMessage, setVariantBMessage] = useState("");
+  const [variantBDestination, setVariantBDestination] = useState("");
   const [channel, setChannel] = useState<CampaignChannel>("web");
   const [type, setType] = useState<CampaignType>("scheduled");
   const [contentType, setContentType] = useState(taxonomies.find((taxonomy) => taxonomy.slug === "promotion")?.slug ?? taxonomies[0]?.slug ?? "promotion");
@@ -165,6 +169,12 @@ export function CampaignBuilderForm({ sites: allSites, segments, taxonomies }: C
       imageAssetId,
       iconAssetId,
       buttons: showButtons ? previewButtons : [],
+      abVariants: abTestEnabled
+        ? [
+            { id: "control", title, message, url: destination, weight: 50 },
+            { id: "variant-b", title: variantBTitle, message: variantBMessage, url: variantBDestination, weight: 50 },
+          ]
+        : [],
       expirationAt: null,
       status: "draft" as const,
       scheduledAt: isInstant ? null : localTimeInZoneToUtcIso(schedule, targetTimezone),
@@ -222,6 +232,9 @@ export function CampaignBuilderForm({ sites: allSites, segments, taxonomies }: C
     }
     if (!destination.trim()) {
       return "Destination URL is required.";
+    }
+    if (abTestEnabled && (variantBTitle.trim().length < 2 || variantBMessage.trim().length < 2 || !variantBDestination.trim())) {
+      return "Variant B needs a title, message, and destination URL.";
     }
     if (showButtons && (!primaryButtonUrl.trim() || !secondaryButtonUrl.trim())) {
       return "Both action button URLs are required when action buttons are enabled.";
@@ -411,6 +424,32 @@ export function CampaignBuilderForm({ sites: allSites, segments, taxonomies }: C
             <div className="field">
               <label htmlFor="destination">Destination URL</label>
               <input className="input" id="destination" placeholder="https://yoursite.com/landing-page" value={destination} onChange={(event) => setDestination(event.target.value)} />
+            </div>
+
+            <div className="card" style={{ marginBottom: 18 }}>
+              <label className="checkbox-row">
+                <input type="checkbox" checked={abTestEnabled} onChange={(event) => setAbTestEnabled(event.target.checked)} />
+                <span>
+                  <strong>Run a 50/50 A/B test</strong>
+                  <small className="subtle">Each subscriber is assigned deterministically, so retries never switch variants.</small>
+                </span>
+              </label>
+              {abTestEnabled ? (
+                <div className="grid" style={{ marginTop: 14 }}>
+                  <div className="field">
+                    <label htmlFor="variant-b-title">Variant B title</label>
+                    <input className="input" id="variant-b-title" value={variantBTitle} onChange={(event) => setVariantBTitle(event.target.value)} />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="variant-b-message">Variant B message</label>
+                    <textarea className="textarea" id="variant-b-message" value={variantBMessage} onChange={(event) => setVariantBMessage(event.target.value)} />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="variant-b-destination">Variant B destination URL</label>
+                    <input className="input" id="variant-b-destination" value={variantBDestination} onChange={(event) => setVariantBDestination(event.target.value)} />
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="grid cards-2">

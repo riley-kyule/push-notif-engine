@@ -13,6 +13,14 @@ export interface CampaignButton {
   url: string;
 }
 
+export interface CampaignVariant {
+  id: string;
+  title: string;
+  message: string;
+  url: string;
+  weight: number;
+}
+
 export interface CampaignRecord {
   id: string;
   siteId: string;
@@ -27,6 +35,7 @@ export interface CampaignRecord {
   imageUrl: string | null;
   iconUrl: string | null;
   buttons: CampaignButton[];
+  abVariants: CampaignVariant[];
   expirationAt: Date | null;
   status: CampaignStatus;
   scheduledAt: Date | null;

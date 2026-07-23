@@ -2,7 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import type { Pool } from "pg";
 
 import { DATABASE_POOL } from "../database/database.constants";
-import type { CampaignButton, CampaignListFilters, CampaignListResult, CampaignRecord } from "./campaigns.types";
+import type { CampaignButton, CampaignListFilters, CampaignListResult, CampaignRecord, CampaignVariant } from "./campaigns.types";
 import type { CampaignsRepository, CreateCampaignInput, UpdateCampaignInput } from "./campaigns.repository";
 
 interface DbCampaignRow {
@@ -19,6 +19,7 @@ interface DbCampaignRow {
   image_url: string | null;
   icon_url: string | null;
   buttons: unknown;
+  ab_variants: unknown;
   expiration_at: string | null;
   status: string;
   scheduled_at: string | null;
@@ -52,6 +53,18 @@ function encodeButtons(buttons: CampaignButton[]): string {
   return JSON.stringify(buttons);
 }
 
+function decodeVariants(value: unknown): CampaignVariant[] {
+  const decoded = typeof value === "string" ? JSON.parse(value) as unknown : value;
+  if (!Array.isArray(decoded)) return [];
+  return decoded.map((variant) => ({
+    id: String((variant as { id?: unknown }).id ?? ""),
+    title: String((variant as { title?: unknown }).title ?? ""),
+    message: String((variant as { message?: unknown }).message ?? ""),
+    url: String((variant as { url?: unknown }).url ?? ""),
+    weight: Number((variant as { weight?: unknown }).weight ?? 1),
+  }));
+}
+
 @Injectable()
 export class PostgresCampaignsRepository implements CampaignsRepository {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool) {}
@@ -60,11 +73,11 @@ export class PostgresCampaignsRepository implements CampaignsRepository {
     const { rows } = await this.pool.query<DbCampaignRow>(
       `
       INSERT INTO campaigns (
-        site_id, segment_id, name, channel, type, title, message, url, image_url, icon_url, buttons,
+        site_id, segment_id, name, channel, type, title, message, url, image_url, icon_url, buttons, ab_variants,
         content_type, expiration_at, status, scheduled_at, timezone, recurrence_type, recurrence_interval,
         recurrence_until_at, cloned_from_campaign_id, sent_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
       RETURNING *
       `,
       [
@@ -79,6 +92,7 @@ export class PostgresCampaignsRepository implements CampaignsRepository {
         input.imageUrl,
         input.iconUrl,
         encodeButtons(input.buttons),
+        JSON.stringify(input.abVariants),
         input.contentType,
         input.expirationAt,
         input.status,
@@ -115,15 +129,16 @@ export class PostgresCampaignsRepository implements CampaignsRepository {
           image_url = COALESCE($11, image_url),
           icon_url = COALESCE($12, icon_url),
           buttons = COALESCE($13::jsonb, buttons),
-          expiration_at = COALESCE($14, expiration_at),
-          status = COALESCE($15, status),
-          scheduled_at = COALESCE($16, scheduled_at),
-          timezone = COALESCE($17, timezone),
-          recurrence_type = COALESCE($18, recurrence_type),
-          recurrence_interval = COALESCE($19, recurrence_interval),
-          recurrence_until_at = COALESCE($20, recurrence_until_at),
-          cloned_from_campaign_id = COALESCE($21, cloned_from_campaign_id),
-          sent_at = COALESCE($22, sent_at),
+          ab_variants = COALESCE($14::jsonb, ab_variants),
+          expiration_at = COALESCE($15, expiration_at),
+          status = COALESCE($16, status),
+          scheduled_at = COALESCE($17, scheduled_at),
+          timezone = COALESCE($18, timezone),
+          recurrence_type = COALESCE($19, recurrence_type),
+          recurrence_interval = COALESCE($20, recurrence_interval),
+          recurrence_until_at = COALESCE($21, recurrence_until_at),
+          cloned_from_campaign_id = COALESCE($22, cloned_from_campaign_id),
+          sent_at = COALESCE($23, sent_at),
           updated_at = NOW()
       WHERE id = $1
       RETURNING *
@@ -142,6 +157,7 @@ export class PostgresCampaignsRepository implements CampaignsRepository {
         input.imageUrl ?? null,
         input.iconUrl ?? null,
         input.buttons ? encodeButtons(input.buttons) : null,
+        input.abVariants ? JSON.stringify(input.abVariants) : null,
         input.expirationAt ?? null,
         input.status ?? null,
         input.scheduledAt ?? null,
@@ -297,6 +313,7 @@ export class PostgresCampaignsRepository implements CampaignsRepository {
       imageUrl: row.image_url,
       iconUrl: row.icon_url,
       buttons: decodeButtons(row.buttons),
+      abVariants: decodeVariants(row.ab_variants),
       expirationAt: row.expiration_at ? new Date(row.expiration_at) : null,
       status: row.status as CampaignRecord["status"],
       scheduledAt: row.scheduled_at ? new Date(row.scheduled_at) : null,
