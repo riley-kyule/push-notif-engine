@@ -16,6 +16,7 @@ import { CampaignsService } from "./campaigns.service";
 import { PostgresCampaignsRepository } from "./postgres-campaigns.repository";
 import { RestApiCampaignsController } from "./rest-api-campaigns.controller";
 import { RestApiSendRateLimitGuard } from "./rest-api-send-rate-limit.guard";
+import { NotificationCallbackService } from "./notification-callback.service";
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { RestApiSendRateLimitGuard } from "./rest-api-send-rate-limit.guard";
     CampaignsService,
     CampaignsSchedulerService,
     RestApiSendRateLimitGuard,
+    NotificationCallbackService,
     {
       provide: CAMPAIGNS_REPOSITORY,
       useClass: PostgresCampaignsRepository,

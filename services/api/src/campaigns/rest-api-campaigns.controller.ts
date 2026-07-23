@@ -9,6 +9,7 @@ import type { SiteRecord } from "../sites/sites.types";
 import { CampaignsService } from "./campaigns.service";
 import { SendRestApiNotificationDto } from "./dto/send-rest-api-notification.dto";
 import { RestApiSendRateLimitGuard } from "./rest-api-send-rate-limit.guard";
+import { NotificationCallbackService } from "./notification-callback.service";
 
 const IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60;
 
@@ -30,6 +31,7 @@ export class RestApiCampaignsController {
     private readonly campaignsService: CampaignsService,
     private readonly analyticsService: AnalyticsService,
     @Inject(RATE_LIMIT_REDIS) private readonly redis: IORedis,
+    private readonly notificationCallbackService: NotificationCallbackService,
   ) {}
 
   @Post("notifications")
@@ -83,6 +85,10 @@ export class RestApiCampaignsController {
       ...(dto.image !== undefined ? { imageUrl: dto.image } : {}),
     });
 
+    if (dto.callbackUrl) {
+      await this.notificationCallbackService.register(site.id, campaign.id, dto.callbackUrl);
+    }
+
     const result = await this.campaignsService.sendCampaign(campaign.id);
 
     return { notificationId: campaign.id, jobId: result.jobId, queued: result.queued };
@@ -122,6 +128,16 @@ export class RestApiCampaignsController {
       success: true,
       data: { notificationId, status: campaign.status, ...stats },
     };
+  }
+
+  @Get("notifications/:notificationId/callback")
+  async getNotificationCallbackStatus(
+    @CurrentSite() site: SiteRecord,
+    @Param("notificationId") notificationId: string,
+  ): Promise<{ success: true; data: unknown }> {
+    const campaign = await this.campaignsService.getCampaign(notificationId);
+    if (campaign.siteId !== site.id) throw new NotFoundException("Notification not found");
+    return { success: true, data: await this.notificationCallbackService.getStatus(notificationId) };
   }
 
   @Get("subscribers/count")

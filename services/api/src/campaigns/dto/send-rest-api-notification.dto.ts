@@ -33,4 +33,8 @@ export class SendRestApiNotificationDto {
   @emptyStringToNull
   @IsUrl({ require_tld: false })
   image?: string | null;
+
+  @IsOptional()
+  @IsUrl({ require_tld: false, require_protocol: true })
+  callbackUrl?: string | null;
 }

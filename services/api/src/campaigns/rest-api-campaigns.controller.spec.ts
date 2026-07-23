@@ -43,7 +43,7 @@ test("sendNotification creates and sends a campaign scoped to the authenticated 
     },
   };
   const redis = createFakeRedis();
-  const controller = new RestApiCampaignsController(campaignsService as never, {} as never, redis as never);
+  const controller = new RestApiCampaignsController(campaignsService as never, {} as never, redis as never, {} as never);
 
   const response = await controller.sendNotification(
     site,
@@ -61,6 +61,27 @@ test("sendNotification creates and sends a campaign scoped to the authenticated 
   assert.equal((calls[0]?.arg as { siteId: string }).siteId, "site-1");
 });
 
+test("sendNotification registers a durable CRM callback when callbackUrl is supplied", async () => {
+  const registrations: Array<{ siteId: string; campaignId: string; callbackUrl: string }> = [];
+  const campaignsService = {
+    async createCampaign() { return { id: "campaign-1", siteId: "site-1", status: "draft" }; },
+    async sendCampaign() { return { jobId: "job-1", queued: true as const }; },
+  };
+  const callbacks = {
+    async register(siteId: string, campaignId: string, callbackUrl: string) {
+      registrations.push({ siteId, campaignId, callbackUrl });
+    },
+  };
+  const controller = new RestApiCampaignsController(campaignsService as never, {} as never, createFakeRedis() as never, callbacks as never);
+
+  await controller.sendNotification(site, {
+    title: "Flash sale", body: "20% off tonight", url: "https://example.com/sale",
+    callbackUrl: "https://crm.example.com/hooks/push",
+  });
+
+  assert.deepEqual(registrations, [{ siteId: "site-1", campaignId: "campaign-1", callbackUrl: "https://crm.example.com/hooks/push" }]);
+});
+
 test("sendNotification replays the cached result for a repeated idempotency key instead of sending twice", async () => {
   let sendCount = 0;
   const campaignsService = {
@@ -73,7 +94,7 @@ test("sendNotification replays the cached result for a repeated idempotency key 
     },
   };
   const redis = createFakeRedis();
-  const controller = new RestApiCampaignsController(campaignsService as never, {} as never, redis as never);
+  const controller = new RestApiCampaignsController(campaignsService as never, {} as never, redis as never, {} as never);
   const dto = { title: "Flash sale", body: "20% off tonight", url: "https://example.com/sale" };
 
   const first = await controller.sendNotification(site, dto, "key-123");
@@ -98,7 +119,7 @@ test("sendNotification frees the idempotency key on failure so a retry can succe
     },
   };
   const redis = createFakeRedis();
-  const controller = new RestApiCampaignsController(campaignsService as never, {} as never, redis as never);
+  const controller = new RestApiCampaignsController(campaignsService as never, {} as never, redis as never, {} as never);
   const dto = { title: "Flash sale", body: "20% off tonight", url: "https://example.com/sale" };
 
   await assert.rejects(() => controller.sendNotification(site, dto, "key-456"));
@@ -119,7 +140,7 @@ test("getNotificationStatus returns delivery stats for a campaign belonging to t
       return { pending: 1, sent: 2, delivered: 3, failed: 0, expired: 0, clicked: 1, total: 6, deliveryRate: 50, clickThroughRate: 20 };
     },
   };
-  const controller = new RestApiCampaignsController(campaignsService as never, analyticsService as never, {} as never);
+  const controller = new RestApiCampaignsController(campaignsService as never, analyticsService as never, {} as never, {} as never);
 
   const response = await controller.getNotificationStatus(site, "campaign-1");
 
@@ -139,7 +160,7 @@ test("getNotificationStatus 404s instead of leaking stats for a campaign on a di
       throw new Error("must not be called for a cross-site campaign");
     },
   };
-  const controller = new RestApiCampaignsController(campaignsService as never, analyticsService as never, {} as never);
+  const controller = new RestApiCampaignsController(campaignsService as never, analyticsService as never, {} as never, {} as never);
 
   await assert.rejects(
     () => controller.getNotificationStatus(site, "campaign-owned-by-another-site"),
@@ -148,7 +169,7 @@ test("getNotificationStatus 404s instead of leaking stats for a campaign on a di
 });
 
 test("getSubscriberCount returns the authenticated site's subscriber count", async () => {
-  const controller = new RestApiCampaignsController({} as never, {} as never, {} as never);
+  const controller = new RestApiCampaignsController({} as never, {} as never, {} as never, {} as never);
 
   const response = await controller.getSubscriberCount(site);
 

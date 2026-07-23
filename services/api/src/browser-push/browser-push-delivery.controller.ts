@@ -1,4 +1,4 @@
-import { Controller, forwardRef, Inject, Param, Post } from "@nestjs/common";
+import { Controller, forwardRef, HttpCode, HttpStatus, Inject, Param, Post } from "@nestjs/common";
 
 import { WorkflowService } from "../workflows/workflow.service";
 import { BrowserPushRepository } from "./browser-push.repository";
@@ -11,6 +11,7 @@ export class BrowserPushDeliveryController {
   ) {}
 
   @Post(":deliveryId/delivered")
+  @HttpCode(HttpStatus.OK)
   async markDelivered(
     @Param("deliveryId") deliveryId: string,
   ): Promise<{ success: true; data: { updated: boolean } }> {
@@ -19,6 +20,7 @@ export class BrowserPushDeliveryController {
   }
 
   @Post(":deliveryId/clicked")
+  @HttpCode(HttpStatus.OK)
   async markClicked(
     @Param("deliveryId") deliveryId: string,
   ): Promise<{ success: true; data: { updated: boolean } }> {

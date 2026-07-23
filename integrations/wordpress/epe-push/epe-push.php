@@ -213,12 +213,22 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
 
+async function postCallback(url) {
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const response = await fetch(url, { method: 'POST', credentials: 'omit', cache: 'no-store' });
+      if (response.ok) return;
+    } catch (_) {}
+    if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 500));
+  }
+}
+
 function acknowledgeDelivery(payload) {
   if (!payload.deliveryId || !payload.ackUrl) {
     return Promise.resolve();
   }
 
-  return fetch(payload.ackUrl, { method: 'POST' }).catch(() => undefined);
+  return postCallback(payload.ackUrl);
 }
 
 function acknowledgeClick(clickUrl) {
@@ -226,7 +236,7 @@ function acknowledgeClick(clickUrl) {
     return Promise.resolve();
   }
 
-  return fetch(clickUrl, { method: 'POST' }).catch(() => undefined);
+  return postCallback(clickUrl);
 }
 
 self.addEventListener('push', (event) => {
