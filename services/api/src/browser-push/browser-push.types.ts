@@ -7,6 +7,15 @@ export interface BrowserPushNotificationPayload {
   deliveryId?: string | null;
   ackUrl?: string | null;
   clickUrl?: string | null;
+  variantId?: string | null;
+}
+
+export interface BrowserPushVariantPayload {
+  id: string;
+  title: string;
+  body: string;
+  url: string;
+  weight: number;
 }
 
 export interface BrowserPushDispatchRequest {
@@ -17,6 +26,8 @@ export interface BrowserPushDispatchRequest {
   segmentId?: string | null;
   /** Send to exactly this one subscriber instead of the site's full eligible audience. */
   subscriberId?: string | null;
+  variants?: BrowserPushVariantPayload[];
+  retrySourceEventId?: string | null;
 }
 
 export interface BrowserPushJobPayload extends BrowserPushDispatchRequest {

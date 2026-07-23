@@ -28,6 +28,18 @@ export interface FailedDeliveryFilters {
   offset?: number | undefined;
 }
 
+export interface DeliveryIncidentRow {
+  id: string;
+  channel: "browser" | "mobile";
+  provider: string;
+  siteName: string | null;
+  errorCode: string;
+  errorMessage: string;
+  failureCount: number;
+  status: "open" | "recovered" | "exhausted";
+  lastSeenAt: string;
+}
+
 const emptyPage: FailedDeliveryPage = { items: [], total: 0 };
 
 export function getPushTypeLabel(pushType: PushType): string {
@@ -57,5 +69,10 @@ export async function getFailureReasons(): Promise<Array<{ reason: string; count
   const response = await apiJson<{ success?: boolean; data?: Array<{ reason: string; count: number }> }>(
     "/analytics/failed-deliveries/reasons",
   );
+  return response?.data ?? [];
+}
+
+export async function getDeliveryIncidents(): Promise<DeliveryIncidentRow[]> {
+  const response = await apiJson<{ success?: boolean; data?: DeliveryIncidentRow[] }>("/analytics/delivery-incidents?limit=50");
   return response?.data ?? [];
 }

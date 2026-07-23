@@ -6,6 +6,7 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import type { AuthenticatedUser } from "../auth/auth.types";
 import { CreateBrowserPushDispatchDto } from "./dto/create-browser-push-dispatch.dto";
+import { RetryTransientFailuresDto } from "./dto/retry-transient-failures.dto";
 import { BrowserPushService } from "./browser-push.service";
 
 @Controller("browser-push")
@@ -27,6 +28,15 @@ export class BrowserPushController {
   async clearFailedDeliveries(@CurrentUser() user: AuthenticatedUser): Promise<{ success: true; data: { cleared: number } }> {
     const cleared = await this.browserPushService.clearFailedDeliveries(user.id);
     return { success: true, data: { cleared } };
+  }
+
+  @Post("retry-transient-failures")
+  async retryTransientFailures(
+    @Body() body: RetryTransientFailuresDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ success: true; data: { queued: number } }> {
+    const result = await this.browserPushService.retryTransientFailures(body, user.id);
+    return { success: true, data: result };
   }
 
   @Post("clear-all-delivery-history")

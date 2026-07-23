@@ -3,8 +3,9 @@ import Link from "next/link";
 import { DashboardShell } from "../../_components/dashboard-shell";
 import { formatDisplayDateTime } from "../../_components/format-date";
 import { FilterSelect, PageSizeSelect, Pagination } from "../../_components/list-controls";
-import { getFailedDeliveriesPage, getFailureReasons, getPushTypeLabel, type PushType } from "../../_data/failed-deliveries";
+import { getDeliveryIncidents, getFailedDeliveriesPage, getFailureReasons, getPushTypeLabel, type PushType } from "../../_data/failed-deliveries";
 import { getSiteChoices } from "../../_data/sites";
+import { RetryTransientButton } from "./retry-transient-button";
 
 const PUSH_TYPES: PushType[] = ["campaign", "automation", "manual"];
 
@@ -28,7 +29,7 @@ export default async function FailedDeliveriesPage({
   const pageSize = Number.parseInt(query.pageSize ?? "25", 10) || 25;
   const pushType = PUSH_TYPES.includes(query.pushType as PushType) ? (query.pushType as PushType) : undefined;
 
-  const [result, sites, reasons] = await Promise.all([
+  const [result, sites, reasons, incidents] = await Promise.all([
     getFailedDeliveriesPage({
       siteId: query.siteId,
       pushType,
@@ -38,6 +39,7 @@ export default async function FailedDeliveriesPage({
     }),
     getSiteChoices(),
     getFailureReasons(),
+    getDeliveryIncidents(),
   ]);
 
   const realSites = sites.filter((site) => site.id !== "site-3");
@@ -57,11 +59,38 @@ export default async function FailedDeliveriesPage({
       title="Failed deliveries"
       description="Every push that failed, with the site, the campaign/automation/manual push it came from, and why -- filterable so a recurring cause is easy to spot."
       actions={
-        <Link className="button secondary" href="/analytics">
-          Back to analytics
-        </Link>
+        <>
+          <RetryTransientButton {...(query.siteId ? { siteId: query.siteId } : {})} />
+          <Link className="button secondary" href="/analytics">
+            Back to analytics
+          </Link>
+        </>
       }
     >
+      <section className="card">
+        <div className="report-toolbar">
+          <div>
+            <strong>Delivery incidents</strong>
+            <span>Provider-wide outages are tracked separately from recipient failures.</span>
+          </div>
+        </div>
+        <div className="audit-logs-table-wrap" style={{ marginTop: 14 }}>
+          <table className="audit-logs-table">
+            <thead><tr><th>Last seen</th><th>Provider</th><th>Site</th><th>Status</th><th>Cause</th></tr></thead>
+            <tbody>{incidents.map((incident) => (
+              <tr key={incident.id}>
+                <td className="subtle">{formatTimestamp(incident.lastSeenAt)}</td>
+                <td>{incident.channel} / {incident.provider}</td>
+                <td>{incident.siteName ?? "Platform"}</td>
+                <td><span className={`status-badge ${incident.status === "recovered" ? "success" : incident.status === "open" ? "danger" : "warning"}`}>{incident.status}</span></td>
+                <td className="subtle mono">{incident.errorCode} ({incident.failureCount})</td>
+              </tr>
+            ))}</tbody>
+          </table>
+          {incidents.length === 0 ? <p className="subtle" style={{ marginTop: 12 }}>No delivery incidents recorded.</p> : null}
+        </div>
+      </section>
+
       <section className="card audit-logs-panel">
         <details className="filter-panel">
           <summary className="button secondary">

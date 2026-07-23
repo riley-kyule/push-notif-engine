@@ -56,10 +56,12 @@ export class PlatformHealthService {
       this.campaignMediaStorage.ping(),
       this.checkQueueBroker(),
     ]);
-    const [queueDepth, workerHeartbeats, siteHealth] = await Promise.all([
+    const [queueDepth, workerHeartbeats, siteHealth, deliveryIncidents, callbackFailures] = await Promise.all([
       this.getQueueDepth(),
       this.getWorkerHeartbeats(),
       this.getSiteHealth(),
+      this.getDeliveryIncidents(),
+      this.getCallbackFailures(),
     ]);
 
     const liveWorkers = workerHeartbeats.filter((worker) => worker.status !== "offline");
@@ -108,6 +110,22 @@ export class PlatformHealthService {
 
     const score = components.reduce((total, component) => total + component.score, 0);
     const alerts = this.buildAlerts(components, queueDepth, workerHeartbeats, siteHealth);
+    for (const incident of deliveryIncidents.filter((entry) => entry.status !== "recovered").slice(0, 5)) {
+      alerts.push({
+        key: `delivery-incident-${incident.id}`,
+        severity: incident.status === "open" ? "critical" : "warning",
+        title: `${incident.provider.toUpperCase()} delivery incident`,
+        detail: `${incident.errorCode}: ${incident.errorMessage}`,
+      });
+    }
+    for (const callback of callbackFailures) {
+      alerts.push({
+        key: `crm-callback-${callback.id}`,
+        severity: callback.status === "exhausted" ? "critical" : "warning",
+        title: "CRM notification callback failing",
+        detail: `${callback.attemptCount} attempt(s): ${callback.lastError ?? "unknown callback error"}`,
+      });
+    }
 
     return {
       status: computeOverallStatus(score),
@@ -127,6 +145,31 @@ export class PlatformHealthService {
       return true;
     } catch {
       return false;
+    }
+  }
+
+  private async getCallbackFailures(): Promise<Array<{
+    id: string; status: "retrying" | "exhausted"; attemptCount: number; lastError: string | null;
+  }>> {
+    try {
+      const { rows } = await this.pool.query<{
+        id: string; status: "retrying" | "exhausted"; attempt_count: number; last_error: string | null;
+      }>(
+        `SELECT id, status, attempt_count, last_error FROM notification_callbacks
+         WHERE status IN ('retrying', 'exhausted') ORDER BY updated_at DESC LIMIT 5`,
+      );
+      return rows.map((row) => ({ id: row.id, status: row.status, attemptCount: row.attempt_count, lastError: row.last_error }));
+    } catch {
+      // Migration may not have run yet during a rolling deployment.
+      return [];
+    }
+  }
+
+  private async getDeliveryIncidents() {
+    try {
+      return await this.analyticsService.listDeliveryIncidents(20);
+    } catch {
+      return [];
     }
   }
 
@@ -413,5 +456,19 @@ function parseBrowserPushEgress(parsed: object): PlatformWorkerHeartbeat["browse
     latencyMs: egress.latencyMs,
     errorCode: typeof egress.errorCode === "string" ? egress.errorCode : null,
     errorMessage: typeof egress.errorMessage === "string" ? egress.errorMessage : null,
+    ...(Array.isArray(egress.providers) ? {
+      providers: egress.providers.flatMap((item) => {
+        if (!item || typeof item !== "object") return [];
+        const provider = item as Record<string, unknown>;
+        if (typeof provider.provider !== "string" || typeof provider.hostname !== "string" ||
+            (provider.status !== "healthy" && provider.status !== "unhealthy") || typeof provider.latencyMs !== "number") return [];
+        return [{
+          provider: provider.provider, hostname: provider.hostname, status: provider.status,
+          latencyMs: provider.latencyMs,
+          errorCode: typeof provider.errorCode === "string" ? provider.errorCode : null,
+          errorMessage: typeof provider.errorMessage === "string" ? provider.errorMessage : null,
+        }];
+      }),
+    } : {}),
   };
 }

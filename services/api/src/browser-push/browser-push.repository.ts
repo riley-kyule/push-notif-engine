@@ -18,6 +18,15 @@ interface BrowserPushSubscriberRow {
   auth_key: string | null;
 }
 
+export interface RetryableBrowserPushDelivery {
+  id: string;
+  siteId: string;
+  campaignId: string | null;
+  automationId: string | null;
+  subscriberId: string;
+  notification: BrowserPushNotificationPayload;
+}
+
 @Injectable()
 export class BrowserPushRepository {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool) {}
@@ -39,6 +48,76 @@ export class BrowserPushRepository {
   async clearAllDeliveryHistory(): Promise<number> {
     const result = await this.pool.query(`DELETE FROM push_delivery_events`);
     return result.rowCount ?? 0;
+  }
+
+  async claimRetryableTransientDeliveries(input: { siteId?: string; limit: number }): Promise<RetryableBrowserPushDelivery[]> {
+    const params: Array<string | number> = [];
+    const siteClause = input.siteId ? `AND pde.site_id = $${params.push(input.siteId)}` : "";
+    params.push(input.limit);
+
+    const { rows } = await this.pool.query<{
+      id: string;
+      site_id: string;
+      campaign_id: string | null;
+      automation_id: string | null;
+      subscriber_id: string;
+      payload: BrowserPushNotificationPayload | string;
+    }>(
+      `
+      WITH candidates AS (
+        SELECT pde.id
+        FROM push_delivery_events pde
+        JOIN subscribers sub ON sub.id = pde.subscriber_id AND sub.status = 'active'
+        WHERE pde.status = 'failed'
+          AND pde.retried_at IS NULL
+          AND pde.subscriber_id IS NOT NULL
+          AND (
+            pde.error_code IN ('EAI_AGAIN', 'ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'ENETUNREACH', '429', '500', '502', '503', '504', 'INFRASTRUCTURE_RETRY_EXHAUSTED')
+            OR pde.error_message ~* '(EAI_AGAIN|ETIMEDOUT|ECONNRESET|ECONNREFUSED|ENETUNREACH|timed out|response code 5[0-9][0-9])'
+          )
+          ${siteClause}
+        ORDER BY pde.created_at ASC
+        LIMIT $${params.length}
+        FOR UPDATE OF pde SKIP LOCKED
+      )
+      UPDATE push_delivery_events pde
+      SET retried_at = NOW(), updated_at = NOW()
+      FROM candidates
+      WHERE pde.id = candidates.id
+      RETURNING pde.id, pde.site_id, pde.campaign_id, pde.automation_id, pde.subscriber_id, pde.payload
+      `,
+      params,
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      siteId: row.site_id,
+      campaignId: row.campaign_id,
+      automationId: row.automation_id,
+      subscriberId: row.subscriber_id,
+      notification: typeof row.payload === "string" ? JSON.parse(row.payload) as BrowserPushNotificationPayload : row.payload,
+    }));
+  }
+
+  async markDeliveriesRetried(items: Array<{ deliveryId: string; jobId: string }>): Promise<void> {
+    if (items.length === 0) return;
+    await this.pool.query(
+      `
+      UPDATE push_delivery_events pde
+      SET retry_job_id = retry.job_id, updated_at = NOW()
+      FROM unnest($1::uuid[], $2::text[]) AS retry(delivery_id, job_id)
+      WHERE pde.id = retry.delivery_id
+      `,
+      [items.map((item) => item.deliveryId), items.map((item) => item.jobId)],
+    );
+  }
+
+  async releaseRetryClaims(deliveryIds: string[]): Promise<void> {
+    if (deliveryIds.length === 0) return;
+    await this.pool.query(
+      `UPDATE push_delivery_events SET retried_at = NULL, updated_at = NOW() WHERE id = ANY($1::uuid[]) AND retry_job_id IS NULL`,
+      [deliveryIds],
+    );
   }
 
   async findSiteCredentials(siteId: string): Promise<BrowserPushSiteRow | null> {

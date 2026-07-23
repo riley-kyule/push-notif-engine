@@ -33,6 +33,14 @@ export interface PlatformWorkerHeartbeat {
     latencyMs: number;
     errorCode: string | null;
     errorMessage: string | null;
+    providers?: Array<{
+      provider: string;
+      hostname: string;
+      status: "healthy" | "unhealthy";
+      latencyMs: number;
+      errorCode: string | null;
+      errorMessage: string | null;
+    }>;
   } | null;
   status: "healthy" | "stale" | "offline";
 }

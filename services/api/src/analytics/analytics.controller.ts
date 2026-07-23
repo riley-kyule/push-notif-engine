@@ -125,6 +125,11 @@ export class AnalyticsController {
     return { success: true, data: stats };
   }
 
+  @Get("campaigns/:campaignId/variants")
+  async getCampaignVariantStats(@Param("campaignId") campaignId: string): Promise<{ success: true; data: unknown }> {
+    return { success: true, data: await this.analyticsService.getCampaignVariantStats(campaignId) };
+  }
+
   @Get("sites/:siteId")
   async getSiteOverview(
     @Param("siteId") siteId: string,
@@ -213,6 +218,11 @@ export class AnalyticsController {
   @Get("failed-deliveries/reasons")
   async listFailureReasons(): Promise<{ success: true; data: unknown }> {
     return { success: true, data: await this.analyticsService.listFailureReasons() };
+  }
+
+  @Get("delivery-incidents")
+  async listDeliveryIncidents(@Query("limit") limit?: string): Promise<{ success: true; data: unknown }> {
+    return { success: true, data: await this.analyticsService.listDeliveryIncidents(limit ? parseInt(limit, 10) : 50) };
   }
 
   @Get("export")

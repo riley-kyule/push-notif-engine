@@ -12,6 +12,10 @@ export class AnalyticsService {
     return this.analyticsRepository.getCampaignStats(campaignId);
   }
 
+  async getCampaignVariantStats(campaignId: string) {
+    return this.analyticsRepository.getCampaignVariantStats(campaignId);
+  }
+
   async getCampaignStatsBulk(campaignIds: string[]) {
     return this.analyticsRepository.getCampaignStatsBulk(campaignIds);
   }
@@ -70,6 +74,10 @@ export class AnalyticsService {
 
   async listFailureReasons() {
     return this.analyticsRepository.listFailureReasons();
+  }
+
+  async listDeliveryIncidents(limit = 50) {
+    return this.analyticsRepository.listDeliveryIncidents(limit);
   }
 
   async exportReport(input: {

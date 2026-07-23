@@ -65,6 +65,23 @@ export interface FailedDeliveryRecord {
   createdAt: string;
 }
 
+export interface DeliveryIncidentRecord {
+  id: string;
+  channel: "browser" | "mobile";
+  provider: string;
+  jobId: string;
+  siteId: string | null;
+  siteName: string | null;
+  campaignId: string | null;
+  errorCode: string;
+  errorMessage: string;
+  failureCount: number;
+  status: "open" | "recovered" | "exhausted";
+  firstSeenAt: string;
+  lastSeenAt: string;
+  recoveredAt: string | null;
+}
+
 // Shared with getOverview's single most-common-reason query so both always
 // agree on what counts as the same failure reason.
 const FAILURE_REASON_EXPRESSION = `
@@ -220,6 +237,52 @@ export class AnalyticsRepository {
       deliveryRate: total > 0 ? Math.round((delivered / total) * 10000) / 100 : 0,
       clickThroughRate: successfullyHandedOff > 0 ? Math.round((clicked / successfullyHandedOff) * 10000) / 100 : 0,
     };
+  }
+
+  async getCampaignVariantStats(campaignId: string): Promise<Array<{
+    variantId: string;
+    sent: number;
+    delivered: number;
+    failed: number;
+    expired: number;
+    clicked: number;
+    total: number;
+    deliveryRate: number;
+    clickThroughRate: number;
+  }>> {
+    const { rows } = await this.pool.query<{
+      variant_id: string; sent: string; delivered: string; failed: string;
+      expired: string; clicked: string; total: string;
+    }>(
+      `
+      SELECT COALESCE(payload->>'variantId', 'control') AS variant_id,
+             COUNT(*) FILTER (WHERE status = 'sent')::text AS sent,
+             COUNT(*) FILTER (WHERE status = 'delivered')::text AS delivered,
+             COUNT(*) FILTER (WHERE status = 'failed')::text AS failed,
+             COUNT(*) FILTER (WHERE status = 'expired')::text AS expired,
+             COUNT(*) FILTER (WHERE clicked_at IS NOT NULL)::text AS clicked,
+             COUNT(*)::text AS total
+      FROM push_delivery_events
+      WHERE campaign_id = $1
+      GROUP BY COALESCE(payload->>'variantId', 'control')
+      ORDER BY variant_id
+      `,
+      [campaignId],
+    );
+    return rows.map((row) => {
+      const sent = parseInt(row.sent, 10);
+      const delivered = parseInt(row.delivered, 10);
+      const failed = parseInt(row.failed, 10);
+      const expired = parseInt(row.expired, 10);
+      const clicked = parseInt(row.clicked, 10);
+      const total = parseInt(row.total, 10);
+      const handedOff = sent + delivered;
+      return {
+        variantId: row.variant_id, sent, delivered, failed, expired, clicked, total,
+        deliveryRate: total > 0 ? Math.round((delivered / total) * 10_000) / 100 : 0,
+        clickThroughRate: handedOff > 0 ? Math.round((clicked / handedOff) * 10_000) / 100 : 0,
+      };
+    });
   }
 
   // One grouped query for a whole page of campaigns -- the list view would
@@ -1047,5 +1110,34 @@ export class AnalyticsRepository {
     );
 
     return rows.map((row) => ({ reason: row.reason, count: parseInt(row.count, 10) }));
+  }
+
+  async listDeliveryIncidents(limit = 50): Promise<DeliveryIncidentRecord[]> {
+    const { rows } = await this.pool.query<{
+      id: string; channel: "browser" | "mobile"; provider: string; job_id: string;
+      site_id: string | null; site_name: string | null; campaign_id: string | null;
+      error_code: string; error_message: string; failure_count: string;
+      status: "open" | "recovered" | "exhausted"; first_seen_at: string;
+      last_seen_at: string; recovered_at: string | null;
+    }>(
+      `
+      SELECT i.id, i.channel, i.provider, i.job_id, i.site_id, s.name AS site_name,
+             i.campaign_id, i.error_code, i.error_message, i.failure_count::text,
+             i.status, i.first_seen_at, i.last_seen_at, i.recovered_at
+      FROM push_delivery_incidents i
+      LEFT JOIN sites s ON s.id = i.site_id
+      ORDER BY (i.status = 'open') DESC, i.last_seen_at DESC
+      LIMIT $1
+      `,
+      [Math.min(Math.max(limit, 1), 200)],
+    );
+
+    return rows.map((row) => ({
+      id: row.id, channel: row.channel, provider: row.provider, jobId: row.job_id,
+      siteId: row.site_id, siteName: row.site_name, campaignId: row.campaign_id,
+      errorCode: row.error_code, errorMessage: row.error_message,
+      failureCount: parseInt(row.failure_count, 10), status: row.status,
+      firstSeenAt: row.first_seen_at, lastSeenAt: row.last_seen_at, recoveredAt: row.recovered_at,
+    }));
   }
 }

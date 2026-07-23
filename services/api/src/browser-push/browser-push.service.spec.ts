@@ -127,3 +127,63 @@ test("browser push service clears all delivery history and audits the count", as
   assert.equal(auditCalls[0]?.action, "platform.all_delivery_history_cleared");
   assert.deepEqual(auditCalls[0]?.metadata, { cleared: 5000 });
 });
+
+test("browser push service requeues claimed transient failures with original attribution", async () => {
+  const marked: Array<{ deliveryId: string; jobId: string }> = [];
+  const auditCalls: Array<Record<string, unknown>> = [];
+  const repository = {
+    async claimRetryableTransientDeliveries() {
+      return [{
+        id: "delivery-1",
+        siteId: "site-1",
+        campaignId: "campaign-1",
+        automationId: "automation-1",
+        subscriberId: "subscriber-1",
+        notification: { title: "Title", body: "Body", url: "https://example.com", icon: null, image: null },
+      }];
+    },
+    async markDeliveriesRetried(items: Array<{ deliveryId: string; jobId: string }>) {
+      marked.push(...items);
+    },
+  };
+  const queued: BrowserPushJobPayload[] = [];
+  const queue = {
+    async addBulk(jobs: Array<{ data: BrowserPushJobPayload }>) {
+      queued.push(...jobs.map((job) => job.data));
+      return [{ id: "retry-job-1" }];
+    },
+  };
+  const audit = { async log(entry: Record<string, unknown>) { auditCalls.push(entry); } };
+  const service = new BrowserPushService({} as never, repository as never, audit as never, queue as never);
+
+  const result = await service.retryTransientFailures({ siteId: "site-1", limit: 50 }, "user-1");
+
+  assert.deepEqual(result, { queued: 1 });
+  assert.equal(queued[0]?.campaignId, "campaign-1");
+  assert.equal(queued[0]?.automationId, "automation-1");
+  assert.equal(queued[0]?.subscriberId, "subscriber-1");
+  assert.deepEqual(marked, [{ deliveryId: "delivery-1", jobId: "retry-job-1" }]);
+  assert.equal(auditCalls[0]?.action, "platform.transient_deliveries_retried");
+});
+
+test("browser push service releases retry claims if queueing fails", async () => {
+  const released: string[][] = [];
+  const repository = {
+    async claimRetryableTransientDeliveries() {
+      return [{
+        id: "delivery-1",
+        siteId: "site-1",
+        campaignId: null,
+        automationId: null,
+        subscriberId: "subscriber-1",
+        notification: { title: "Title", body: "Body", url: "https://example.com", icon: null, image: null },
+      }];
+    },
+    async releaseRetryClaims(ids: string[]) { released.push(ids); },
+  };
+  const queue = { async addBulk() { throw new Error("Redis unavailable"); } };
+  const service = new BrowserPushService({} as never, repository as never, {} as never, queue as never);
+
+  await assert.rejects(() => service.retryTransientFailures({}), /Redis unavailable/);
+  assert.deepEqual(released, [["delivery-1"]]);
+});

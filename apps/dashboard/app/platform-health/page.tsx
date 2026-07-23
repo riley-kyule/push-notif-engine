@@ -195,7 +195,9 @@ export default async function PlatformHealthPage() {
                       {Math.round(worker.uptimeMs / 1000).toLocaleString()}s uptime
                       {" · "}
                       {worker.redisLatencyMs}ms Redis
-                      {worker.browserPushEgress ? ` · ${worker.browserPushEgress.latencyMs}ms FCM (${worker.browserPushEgress.status})` : " · FCM check unavailable"}
+                      {worker.browserPushEgress
+                        ? ` · ${(worker.browserPushEgress.providers ?? [{ provider: "FCM", status: worker.browserPushEgress.status }]).map((provider) => `${provider.provider} ${provider.status}`).join(", ")}`
+                        : " · provider checks unavailable"}
                     </span>
                   </div>
                   <span className={`badge ${worker.status === "healthy" ? "good" : worker.status === "stale" ? "warn" : "bad"}`}>

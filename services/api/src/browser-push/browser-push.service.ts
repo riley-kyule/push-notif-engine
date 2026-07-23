@@ -21,6 +21,7 @@ export interface BrowserPushDispatchInput {
   automationId?: string | null;
   segmentId?: string | null;
   subscriberId?: string | null;
+  variants?: Array<{ id: string; title: string; body: string; url: string; weight: number }>;
 }
 
 @Injectable()
@@ -47,6 +48,7 @@ export class BrowserPushService {
       automationId: dto.automationId ?? null,
       segmentId: dto.segmentId ?? null,
       subscriberId: dto.subscriberId ?? null,
+      variants: "variants" in dto ? dto.variants ?? [] : [],
       notification: {
         title: dto.title,
         body: dto.body,
@@ -83,6 +85,57 @@ export class BrowserPushService {
     });
 
     return cleared;
+  }
+
+  async retryTransientFailures(input: { siteId?: string; limit?: number }, actorUserId?: string): Promise<{ queued: number }> {
+    const limit = Math.min(Math.max(input.limit ?? 1_000, 1), 5_000);
+    const deliveries = await this.browserPushRepository.claimRetryableTransientDeliveries({
+      ...(input.siteId ? { siteId: input.siteId } : {}),
+      limit,
+    });
+
+    if (deliveries.length === 0) {
+      return { queued: 0 };
+    }
+
+    let jobs: Array<{ id?: string }>;
+    try {
+      jobs = await this.queue.addBulk(deliveries.map((delivery) => ({
+        name: BROWSER_PUSH_JOB_NAME,
+        data: {
+          siteId: delivery.siteId,
+          campaignId: delivery.campaignId,
+          automationId: delivery.automationId,
+          subscriberId: delivery.subscriberId,
+          retrySourceEventId: delivery.id,
+          notification: {
+            title: delivery.notification.title,
+            body: delivery.notification.body,
+            url: delivery.notification.url,
+            icon: delivery.notification.icon ?? null,
+            image: delivery.notification.image ?? null,
+          },
+          enqueuedAt: new Date().toISOString(),
+        } satisfies BrowserPushJobPayload,
+      })));
+    } catch (error) {
+      await this.browserPushRepository.releaseRetryClaims(deliveries.map((delivery) => delivery.id));
+      throw error;
+    }
+
+    await this.browserPushRepository.markDeliveriesRetried(
+      deliveries.flatMap((delivery, index) => jobs[index]?.id ? [{ deliveryId: delivery.id, jobId: jobs[index]!.id! }] : []),
+    );
+
+    await this.auditService.log({
+      actorUserId: actorUserId ?? null,
+      action: "platform.transient_deliveries_retried",
+      targetType: "platform",
+      targetId: "push_delivery_events",
+      metadata: { queued: jobs.length, siteId: input.siteId ?? null },
+    });
+
+    return { queued: jobs.length };
   }
 
   async clearAllDeliveryHistory(actorUserId?: string): Promise<number> {
