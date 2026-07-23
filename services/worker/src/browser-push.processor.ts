@@ -2,7 +2,8 @@ import type { BrowserPushJobPayload } from "./browser-push.types";
 import type { BrowserPushRepository } from "./browser-push.repository";
 import type { BrowserPushCredentials, BrowserPushSender } from "./browser-push.sender";
 import { loadBrowserPushConfig } from "./config";
-import { chunk, mapWithConcurrency } from "./concurrency.util";
+import { AdaptiveConcurrencyController, chunk, mapWithConcurrency } from "./concurrency.util";
+import { decryptVapidPrivateKey } from "./vapid-key-encryption.util";
 
 // A single bulk INSERT (createPendingDeliveryEvents) and a single in-memory
 // outcomes array sized to the whole subscriber list both stay comfortably
@@ -14,6 +15,34 @@ import { chunk, mapWithConcurrency } from "./concurrency.util";
 // together mean a retried job only re-sends to subscribers the previous
 // attempt hadn't actually reached yet, regardless of which batch it died in.
 const SEND_BATCH_SIZE = 5_000;
+
+function stableBucket(value: string, range: number): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) % range;
+}
+
+export function selectNotificationForSubscriber(
+  subscriberId: string,
+  fallback: BrowserPushJobPayload["notification"],
+  variants: NonNullable<BrowserPushJobPayload["variants"]>,
+): BrowserPushJobPayload["notification"] {
+  const valid = variants.filter((variant) => variant.weight > 0);
+  const totalWeight = valid.reduce((total, variant) => total + variant.weight, 0);
+  if (totalWeight === 0) return fallback;
+  const bucket = stableBucket(subscriberId, totalWeight);
+  let cursor = 0;
+  for (const variant of valid) {
+    cursor += variant.weight;
+    if (bucket < cursor) {
+      return { ...fallback, title: variant.title, body: variant.body, url: variant.url, variantId: variant.id };
+    }
+  }
+  return fallback;
+}
 
 type PushError = {
   statusCode?: number;
@@ -87,7 +116,7 @@ export class BrowserPushProcessor {
     const credentials: BrowserPushCredentials = {
       vapidSubject: site.vapid_subject,
       vapidPublicKey: site.vapid_public_key,
-      vapidPrivateKey: site.vapid_private_key,
+      vapidPrivateKey: decryptVapidPrivateKey(site.vapid_private_key),
     };
 
     const allSubscribers = job.subscriberId
@@ -110,8 +139,13 @@ export class BrowserPushProcessor {
       failureCount: 0,
       error: null,
     };
+    const adaptiveConcurrency = new AdaptiveConcurrencyController(browserPushConfig.sendConcurrency);
 
     for (const batch of chunk(subscribers, SEND_BATCH_SIZE)) {
+      const notificationBySubscriber = new Map(batch.map((subscriber) => [
+        subscriber.id,
+        selectNotificationForSubscriber(subscriber.id, job.notification, job.variants ?? []),
+      ]));
       // One bulk insert per batch instead of one INSERT per subscriber, and one
       // single multi-hundred-thousand-row insert for the whole job -- bounds how
       // much any single statement or in-memory array has to hold at once.
@@ -120,14 +154,16 @@ export class BrowserPushProcessor {
         campaignId: job.campaignId ?? null,
         automationId: job.automationId ?? null,
         jobId: jobId ?? null,
+        retrySourceEventId: job.retrySourceEventId ?? null,
         payload: { ...job.notification, deliveryId: null, ackUrl: null, clickUrl: null },
         subscribers: batch.map((subscriber) => ({
           subscriberId: subscriber.id,
           endpoint: subscriber.subscription_endpoint,
+          payload: { ...notificationBySubscriber.get(subscriber.id)!, deliveryId: null, ackUrl: null, clickUrl: null },
         })),
       });
 
-      const results = await mapWithConcurrency(batch, browserPushConfig.sendConcurrency, async (subscriber): Promise<RecipientResult> => {
+      const results = await mapWithConcurrency(batch, adaptiveConcurrency.current, async (subscriber): Promise<RecipientResult> => {
         const deliveryId = deliveryIdsBySubscriber.get(subscriber.id);
         if (!deliveryId) {
           return { kind: "outcome", outcome: "failed" };
@@ -149,12 +185,13 @@ export class BrowserPushProcessor {
 
         try {
           const notification = {
-            ...job.notification,
+            ...notificationBySubscriber.get(subscriber.id)!,
             deliveryId,
             ackUrl: `${browserPushConfig.ackBaseUrl}/browser-push/deliveries/${deliveryId}/delivered`,
             clickUrl: `${browserPushConfig.ackBaseUrl}/browser-push/deliveries/${deliveryId}/clicked`,
           };
           const result = await this.sendWithRetry(subscription, notification, credentials);
+          adaptiveConcurrency.observe(result.attempts > 1);
 
           await this.repository.markDeliveryEventSent(deliveryId, result.providerMessageId, result.attempts);
           return { kind: "outcome", outcome: "sent" };
@@ -166,6 +203,7 @@ export class BrowserPushProcessor {
 
           const pushError: PushError = statusCode ? { statusCode, message } : { message };
           if (isRetryableError(pushError)) {
+            adaptiveConcurrency.observe(true);
             circuit.failureCount += 1;
             if (circuit.failureCount >= browserPushConfig.transientFailureThreshold && !circuit.error) {
               circuit.error = new TransientPushInfrastructureError(circuit.failureCount, errorCode, message);
@@ -188,6 +226,7 @@ export class BrowserPushProcessor {
           // up to 3x with backoff in sendWithRetry before reaching here, so
           // this isn't a transient rate-limit blip either.
           const shouldExpire = statusCode === 401 || statusCode === 403 || statusCode === 404 || statusCode === 410;
+          adaptiveConcurrency.observe(false);
 
           await this.repository.markDeliveryEventFailed(deliveryId, {
             status: shouldExpire ? "expired" : "failed",
@@ -206,7 +245,45 @@ export class BrowserPushProcessor {
       });
 
       if (circuit.error) {
+        if (jobId) {
+          await this.repository.recordInfrastructureIncident({
+            jobId,
+            siteId: job.siteId,
+            campaignId: job.campaignId ?? null,
+            errorCode: circuit.error.causeCode,
+            errorMessage: circuit.error.message,
+            failureCount: circuit.error.failureCount,
+          });
+        }
         throw circuit.error;
+      }
+
+      // Automation/CRM sends commonly target one subscriber. Waiting for the
+      // bulk-send circuit threshold here would let the only transient failure
+      // complete the BullMQ job and report the campaign as sent, so it would
+      // never receive the queue's delayed retries. One exhausted transient is
+      // enough to retry a single-recipient job; its pending row is reused by
+      // the idempotency guard on the next attempt.
+      const targetedTransient = job.subscriberId
+        ? results.find((result): result is Extract<RecipientResult, { kind: "transient" }> => result.kind === "transient")
+        : undefined;
+      if (targetedTransient) {
+        const targetedError = new TransientPushInfrastructureError(
+          1,
+          targetedTransient.errorCode,
+          targetedTransient.errorMessage,
+        );
+        if (jobId) {
+          await this.repository.recordInfrastructureIncident({
+            jobId,
+            siteId: job.siteId,
+            campaignId: job.campaignId ?? null,
+            errorCode: targetedError.causeCode,
+            errorMessage: targetedError.message,
+            failureCount: 1,
+          });
+        }
+        throw targetedError;
       }
 
       for (const result of results) {
@@ -222,10 +299,15 @@ export class BrowserPushProcessor {
           totals[result.outcome] += 1;
         }
       }
+      adaptiveConcurrency.advanceWindow();
     }
 
     if (job.campaignId) {
       await this.repository.markCampaignSent(job.campaignId);
+    }
+
+    if (jobId) {
+      await this.repository.markInfrastructureIncidentRecovered(jobId);
     }
 
     // A completed job with zero sent is always worth a warning -- it means

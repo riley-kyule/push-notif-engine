@@ -16,6 +16,7 @@ export interface BrowserPushConfig {
 export interface MobilePushConfig {
   sendConcurrency: number;
   queueConcurrency: number;
+  transientFailureThreshold: number;
 }
 
 function readConcurrencyEnv(name: string, fallback: number): number {
@@ -87,5 +88,6 @@ export function loadMobilePushConfig(): MobilePushConfig {
   return {
     sendConcurrency: readConcurrencyEnv("MOBILE_PUSH_SEND_CONCURRENCY", 200),
     queueConcurrency: readConcurrencyEnv("MOBILE_PUSH_QUEUE_CONCURRENCY", 5),
+    transientFailureThreshold: readConcurrencyEnv("MOBILE_PUSH_TRANSIENT_FAILURE_THRESHOLD", 10),
   };
 }

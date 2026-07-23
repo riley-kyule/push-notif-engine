@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { MobilePushProcessor } from "../src/mobile-push.processor";
+import { MobilePushProcessor, TransientMobilePushInfrastructureError } from "../src/mobile-push.processor";
 import type { MobilePushJobPayload } from "../src/mobile-push.types";
 
 test("mobile push processor expires invalid tokens", async () => {
@@ -152,4 +152,27 @@ test("mobile push processor sends with bounded concurrency, not sequentially", a
   assert.equal(result.sent, deviceCount);
   assert.ok(maxInFlight > 1, "expected more than one send in flight at once");
   assert.ok(maxInFlight <= 8, `expected concurrency to stay at or below the configured limit, got ${maxInFlight}`);
+});
+
+test("mobile push processor retries a transient failure for a small audience at job level", async () => {
+  const incidents: string[] = [];
+  const fakeRepository = {
+    async findCredentials() { return { id: "cred", siteId: "site-1" }; },
+    async listEligibleDevices() {
+      return [{ id: "device-1", siteId: "site-1", platform: "android", deviceToken: "token",
+        country: null, language: null, status: "active", lastSeenAt: null, createdAt: new Date(), updatedAt: new Date() }];
+    },
+    async findAlreadySentDeviceIds() { return new Set<string>(); },
+    async recordDeliveryEvent() { return undefined; },
+    async recordInfrastructureIncident(input: { provider: string }) { incidents.push(input.provider); },
+  };
+  const sender = { async send() { throw Object.assign(new Error("getaddrinfo EAI_AGAIN fcm.googleapis.com"), { code: "EAI_AGAIN" }); } };
+  const processor = new MobilePushProcessor(fakeRepository as never, { apnsSender: sender as never, fcmSender: sender as never });
+
+  await assert.rejects(
+    () => processor.process({ siteId: "site-1", platform: "all", enqueuedAt: new Date().toISOString(),
+      notification: { title: "t", body: "b", url: "https://example.com", icon: null, image: null } }, "job-1"),
+    TransientMobilePushInfrastructureError,
+  );
+  assert.deepEqual(incidents, ["fcm"]);
 });

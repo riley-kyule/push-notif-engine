@@ -45,6 +45,40 @@ export interface MobilePushDeliveryEventInput {
 export class MobilePushRepository {
   constructor(private readonly pool: Pool) {}
 
+  async recordInfrastructureIncident(input: {
+    provider: "apns" | "fcm"; jobId: string; siteId: string;
+    errorCode: string | null; errorMessage: string; failureCount: number;
+  }): Promise<void> {
+    await this.pool.query(
+      `
+      INSERT INTO push_delivery_incidents
+        (channel, provider, job_id, site_id, error_code, error_message, failure_count, metadata)
+      VALUES ('mobile', $1, $2, $3, $4, $5, $6, '{}'::jsonb)
+      ON CONFLICT (channel, provider, job_id, error_code)
+      DO UPDATE SET error_message = EXCLUDED.error_message,
+                    failure_count = GREATEST(push_delivery_incidents.failure_count, EXCLUDED.failure_count),
+                    status = 'open', last_seen_at = NOW(), updated_at = NOW()
+      `,
+      [input.provider, input.jobId, input.siteId, input.errorCode ?? "NETWORK_ERROR", input.errorMessage, input.failureCount],
+    );
+  }
+
+  async markInfrastructureIncidentsRecovered(jobId: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE push_delivery_incidents SET status = 'recovered', recovered_at = NOW(), updated_at = NOW()
+       WHERE channel = 'mobile' AND job_id = $1 AND status = 'open'`,
+      [jobId],
+    );
+  }
+
+  async markInfrastructureIncidentsExhausted(jobId: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE push_delivery_incidents SET status = 'exhausted', updated_at = NOW()
+       WHERE channel = 'mobile' AND job_id = $1 AND status = 'open'`,
+      [jobId],
+    );
+  }
+
   async findCredentials(siteId: string): Promise<MobilePushCredentialsRecord | null> {
     const { rows } = await this.pool.query<DbMobileCredentialsRow>(
       `

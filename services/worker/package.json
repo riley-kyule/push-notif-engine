@@ -7,7 +7,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/src/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx --test $(find test -name '*.test.ts')"
+    "test": "node --import tsx --test $(find test -name '*.test.ts')",
+    "load-test": "npm run build && node scripts/load-test.mjs"
   },
   "dependencies": {
     "bullmq": "^5.58.9",

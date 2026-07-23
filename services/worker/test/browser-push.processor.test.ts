@@ -1,13 +1,25 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { BrowserPushProcessor, TransientPushInfrastructureError } from "../src/browser-push.processor";
+import { BrowserPushProcessor, selectNotificationForSubscriber, TransientPushInfrastructureError } from "../src/browser-push.processor";
 import type { BrowserPushJobPayload } from "../src/browser-push.types";
 
 // loadBrowserPushConfig() now requires this (see config.ts) rather than
 // silently falling back to a broken 127.0.0.1 default -- set it once for the
 // whole file instead of duplicating it per test.
 process.env.BROWSER_PUSH_ACK_BASE_URL ??= "https://api.example.com/api";
+
+test("A/B assignment is deterministic for a subscriber and preserves variant identity", () => {
+  const fallback = { title: "Control", body: "Control body", url: "https://example.com/control", icon: null, image: null };
+  const variants = [
+    { id: "a", title: "A", body: "Body A", url: "https://example.com/a", weight: 50 },
+    { id: "b", title: "B", body: "Body B", url: "https://example.com/b", weight: 50 },
+  ];
+  const first = selectNotificationForSubscriber("subscriber-42", fallback, variants);
+  const second = selectNotificationForSubscriber("subscriber-42", fallback, variants);
+  assert.deepEqual(second, first);
+  assert.ok(first.variantId === "a" || first.variantId === "b");
+});
 
 // Fake bulk-insert: assigns deterministic delivery ids in input order and records
 // each call so tests can assert on what was sent.
@@ -98,6 +110,8 @@ test("browser push processor passes VAPID credentials per send call, not via glo
       return [{ id: "sub-1", subscription_endpoint: "https://push.example.com/1", p256dh_key: "p256dh", auth_key: "auth" }];
     },
     async findAlreadySentSubscriberIds() { return new Set<string>(); },
+    async markInfrastructureIncidentRecovered() { return undefined; },
+    async recordInfrastructureIncident() { return undefined; },
     createPendingDeliveryEvents: createPendingDeliveryEventsFake([]),
     async markDeliveryEventSent() { return undefined; },
   };
@@ -128,6 +142,8 @@ test("browser push processor retries network errors (no statusCode) instead of m
       return [{ id: "sub-1", subscription_endpoint: "https://push.example.com/1", p256dh_key: "p256dh", auth_key: "auth" }];
     },
     async findAlreadySentSubscriberIds() { return new Set<string>(); },
+    async markInfrastructureIncidentRecovered() { return undefined; },
+    async recordInfrastructureIncident() { return undefined; },
     createPendingDeliveryEvents: createPendingDeliveryEventsFake([]),
     async markDeliveryEventFailed({ status }: { status: string }) {
       if (status === "expired") expiredIds.push("sub-1");
@@ -143,7 +159,10 @@ test("browser push processor retries network errors (no statusCode) instead of m
   };
 
   const processor = new BrowserPushProcessor(fakeRepository as never, fakeSender as never, async () => { return; });
-  await processor.process({ siteId: "site-1", subscriberId: "sub-1", enqueuedAt: new Date().toISOString(), notification: { title: "t", body: "b", url: "https://example.com", icon: null, image: null } }, "job-1");
+  await assert.rejects(
+    () => processor.process({ siteId: "site-1", subscriberId: "sub-1", enqueuedAt: new Date().toISOString(), notification: { title: "t", body: "b", url: "https://example.com", icon: null, image: null } }, "job-1"),
+    TransientPushInfrastructureError,
+  );
 
   assert.equal(attempts, 3, "should retry 3 times for a network error");
   assert.equal(expiredIds.length, 0, "should not mark subscriber expired for a network error");
@@ -513,6 +532,7 @@ test("browser push processor skips subscribers already sent to under the same jo
       assert.equal(jobId, "job-retry-1");
       return new Set(["subscriber-1"]);
     },
+    async markInfrastructureIncidentRecovered() { return undefined; },
     createPendingDeliveryEvents: createPendingDeliveryEventsFake(createCalls),
     async markDeliveryEventSent() {
       return undefined;
@@ -676,6 +696,7 @@ test("browser push processor opens the circuit instead of recording a mass trans
   process.env.BROWSER_PUSH_TRANSIENT_FAILURE_THRESHOLD = "3";
   let sendAttempts = 0;
   let failedRows = 0;
+  const incidents: Array<{ jobId: string; failureCount: number; errorCode: string | null }> = [];
 
   const fakeRepository = {
     async findSiteCredentials() {
@@ -696,6 +717,9 @@ test("browser push processor opens the circuit instead of recording a mass trans
     },
     async findAlreadySentSubscriberIds() {
       return new Set<string>();
+    },
+    async recordInfrastructureIncident(input: { jobId: string; failureCount: number; errorCode: string | null }) {
+      incidents.push(input);
     },
     createPendingDeliveryEvents: createPendingDeliveryEventsFake([]),
     async markDeliveryEventSent() {
@@ -735,4 +759,8 @@ test("browser push processor opens the circuit instead of recording a mass trans
 
   assert.equal(sendAttempts, 9, "three recipients should each exhaust three local attempts before the circuit opens");
   assert.equal(failedRows, 0, "transient rows stay pending so BullMQ can retry the same job later");
+  assert.equal(incidents.length, 1);
+  assert.equal(incidents[0]?.jobId, "job-outage");
+  assert.equal(incidents[0]?.failureCount, 3);
+  assert.equal(incidents[0]?.errorCode, "EAI_AGAIN");
 });

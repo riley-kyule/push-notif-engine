@@ -23,8 +23,8 @@ function createMobilePushQueue(): Queue {
     // because the processor skips devices already delivered to for this job id
     // (see findAlreadySentDeviceIds).
     defaultJobOptions: {
-      attempts: 3,
-      backoff: { type: "exponential", delay: 2_000 },
+      attempts: 5,
+      backoff: { type: "exponential", delay: 30_000 },
       // See browser-push.module.ts: bounds Redis memory growth from job history.
       removeOnComplete: { count: 2_000 },
       removeOnFail: { count: 5_000 },

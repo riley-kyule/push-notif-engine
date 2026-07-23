@@ -7,6 +7,15 @@ export interface BrowserPushNotificationPayload {
   deliveryId?: string | null;
   ackUrl?: string | null;
   clickUrl?: string | null;
+  variantId?: string | null;
+}
+
+export interface BrowserPushVariantPayload {
+  id: string;
+  title: string;
+  body: string;
+  url: string;
+  weight: number;
 }
 
 export interface BrowserPushJobPayload {
@@ -15,6 +24,8 @@ export interface BrowserPushJobPayload {
   automationId?: string | null;
   segmentId?: string | null;
   subscriberId?: string | null;
+  variants?: BrowserPushVariantPayload[];
+  retrySourceEventId?: string | null;
   notification: BrowserPushNotificationPayload;
   enqueuedAt: string;
 }

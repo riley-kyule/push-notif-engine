@@ -135,6 +135,7 @@ export async function bootstrapBrowserPushWorker(): Promise<{
     void repository
       .markPendingDeliveryEventsFailed(job.id, error.message)
       .then(async () => {
+        await repository.markInfrastructureIncidentExhausted(job.id!);
         if (job.data.campaignId) {
           await repository.markCampaignFailed(job.data.campaignId);
         }
@@ -150,6 +151,15 @@ export async function bootstrapBrowserPushWorker(): Promise<{
     async (job) => mobileProcessor.process(job.data, job.id),
     { connection: connection as never, concurrency: mobilePushConfig.queueConcurrency, lockDuration: 10 * 60 * 1000 },
   );
+
+  mobileWorker.on("failed", (job) => {
+    const configuredAttempts = job?.opts.attempts ?? 1;
+    if (job?.id && job.attemptsMade >= configuredAttempts) {
+      void mobileRepository.markInfrastructureIncidentsExhausted(job.id).catch((error: unknown) => {
+        console.error(`[worker] unable to finalize mobile incident for exhausted job ${job.id}:`, error);
+      });
+    }
+  });
 
   // Without these, a Redis blip or a processor throwing outside the per-job
   // try/catch (a bug, not a delivery failure) would fail silently — BullMQ

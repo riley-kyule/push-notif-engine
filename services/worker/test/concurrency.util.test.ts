@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { mapWithConcurrency } from "../src/concurrency.util";
+import { AdaptiveConcurrencyController, mapWithConcurrency } from "../src/concurrency.util";
 
 test("mapWithConcurrency preserves result order regardless of completion order", async () => {
   const delays = [30, 10, 20, 5, 25];
@@ -40,4 +40,12 @@ test("mapWithConcurrency clamps concurrency below 1 to 1", async () => {
   });
 
   assert.deepEqual(order, [1, 2, 3]);
+});
+
+test("adaptive concurrency backs off on provider pressure and recovers gradually", () => {
+  const controller = new AdaptiveConcurrencyController(100, 10);
+  for (let index = 0; index < 100; index += 1) controller.observe(index < 10);
+  assert.equal(controller.advanceWindow(), 50);
+  for (let index = 0; index < 100; index += 1) controller.observe(false);
+  assert.equal(controller.advanceWindow(), 60);
 });
