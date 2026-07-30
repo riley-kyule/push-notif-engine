@@ -37,6 +37,8 @@ const ACTION_LABELS: Record<string, string> = {
   "auth.login.failure": "had a failed login attempt",
   "auth.google.login.success": "logged in with Google",
   "auth.google.login.failure": "had a failed Google login attempt",
+  "auth.native_sign_in_enabled": "enabled native email and password sign-in",
+  "auth.native_sign_in_disabled": "deactivated native email and password sign-in",
   "auth.token.refreshed": "refreshed their session",
   "access_control.user_created": "created a user",
   "access_control.user_role_updated": "changed a user's role",

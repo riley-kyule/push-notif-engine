@@ -7,9 +7,10 @@ import { GoogleSignInButton } from "./google-sign-in";
 
 interface LoginFormProps {
   googleClientId: string | undefined;
+  nativeSignInEnabled: boolean;
 }
 
-export function LoginForm({ googleClientId }: LoginFormProps) {
+export function LoginForm({ googleClientId, nativeSignInEnabled }: LoginFormProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -77,43 +78,47 @@ export function LoginForm({ googleClientId }: LoginFormProps) {
           <div className="login-card-accent" />
           <div className="login-card-top">
             <h2>Sign in to Exotic Push Engine</h2>
-            <p>Enter your credentials to continue.</p>
+            <p>{nativeSignInEnabled ? "Enter your credentials to continue." : "Continue securely with Google."}</p>
           </div>
 
           <form onSubmit={handleSubmit} className="login-form">
             {error && <div className="login-error">{error}</div>}
 
-            <div className="field-group">
-              <label htmlFor="email">Email</label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                autoComplete="username"
-                placeholder="admin@example.com"
-              />
-            </div>
+            {nativeSignInEnabled ? (
+              <>
+                <div className="field-group">
+                  <label htmlFor="email">Email</label>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    required
+                    autoComplete="username"
+                    placeholder="admin@example.com"
+                  />
+                </div>
 
-            <div className="field-group">
-              <label htmlFor="password">Password</label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                autoComplete="current-password"
-                placeholder="••••••••"
-              />
-            </div>
+                <div className="field-group">
+                  <label htmlFor="password">Password</label>
+                  <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    required
+                    autoComplete="current-password"
+                    placeholder="••••••••"
+                  />
+                </div>
 
-            <button type="submit" className="button primary login-submit" disabled={loading}>
-              {loading ? "Signing in..." : "Sign in"}
-            </button>
+                <button type="submit" className="button primary login-submit" disabled={loading}>
+                  {loading ? "Signing in..." : "Sign in"}
+                </button>
 
-            <div className="login-divider">
-              <span>or</span>
-            </div>
+                <div className="login-divider">
+                  <span>or</span>
+                </div>
+              </>
+            ) : null}
 
             <GoogleSignInButton
               clientId={googleClientId}

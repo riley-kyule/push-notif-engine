@@ -121,6 +121,8 @@ JWT-based, with refresh token rotation and Google sign-in support.
 
 - `POST /api/auth/login` → `{ accessToken (15min), refreshToken (30 days) }`. Refresh tokens are stored hashed (SHA-256) in `refresh_tokens`, rotated on every refresh.
 - `POST /api/auth/google` → accepts a Google ID token, verifies it against Google's tokeninfo endpoint, links the Google subject to the existing Exotic user record, and issues the same JWT pair.
+- `GET /api/auth/login-options` → public login-page configuration: whether native email/password sign-in is enabled and the public Google OAuth client ID.
+- `GET/PATCH /api/auth/settings/native-sign-in` → super-admin-only control for enabling or deactivating email/password sign-in. The API enforces the setting, the dashboard hides native fields when it is off, and Google must be configured before deactivation is accepted.
 - `POST /api/auth/refresh` → issues a new pair, revokes the old refresh token.
 - Roles, most to least privileged: `super-admin > admin > sub-admin > customer-service`. Legacy `editor`/`analyst` slugs (the original names for `sub-admin`/`customer-service`) are still accepted everywhere via `canonicalRoleSlug()` so existing user records and any external references don't break. Enforced via `@Roles(...)` + `RolesGuard` on each controller/route.
 - Each role's permission set lives on `roles.permissions` (JSONB) — 14 possible slugs (`users:manage`, `roles:manage`, `automations:manage`, `sites:manage`, `sites:settings`, `analytics:view`, `subscribers:view`, `campaigns:manage`, `campaigns:assigned`, `campaign-taxonomies:manage`, `segments:manage`, `audit-logs:view`, `system-health:view`, `backups:manage`). Only `super-admin` can edit another role's permissions or rename a role (`PATCH /api/access-control/roles/:slug`); `admin` and above can manage users.
@@ -132,7 +134,7 @@ JWT-based, with refresh token rotation and Google sign-in support.
 
 The dashboard stores the access/refresh tokens in HTTP-only cookies (`epe_access_token`, `epe_refresh_token`) set by `/api/dashboard/auth/login` and `/api/dashboard/auth/google`. `middleware.ts` redirects any request without `epe_access_token` to `/login`.
 
-Google sign-in is the only supported SSO provider in the dashboard login UI. It uses the Google Identity Services button and only links to pre-provisioned Exotic user accounts whose email is already present in the system.
+Google sign-in is the only supported SSO provider in the dashboard login UI. It uses the Google Identity Services button and only links to pre-provisioned Exotic user accounts whose email is already present in the system. A super admin can use System Health → Native sign-in to remove the email/password form and make Google the only login method. Existing sessions remain active, and reactivation remains available from the same control. If Google becomes unavailable after every session expires, set `EPE_FORCE_NATIVE_SIGN_IN=true` in the API environment and recreate the API container to force the recovery form back on.
 
 The dashboard includes `/audit-logs` (super-admin/admin only, rate-limited 60/min) for reviewing every audited action above plus site, campaign, segment, taxonomy, automation, and backup events — actor identity, target, and a metadata JSON blob per row.
 

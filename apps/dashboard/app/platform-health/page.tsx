@@ -7,6 +7,7 @@ import { getPlatformHealthBadge, getPlatformHealthSummary, getPlatformHealthTone
 import { getSiteChoices } from "../_data/sites";
 import { DataCleanupPanel } from "./data-cleanup-panel";
 import { DeploymentActionsPanel } from "./deployment-actions-panel";
+import { NativeSignInPanel } from "./native-sign-in-panel";
 
 function formatScore(value: number): string {
   return `${Math.round(value)}%`;
@@ -299,6 +300,8 @@ export default async function PlatformHealthPage() {
       </section>
 
       <DataCleanupPanel sites={realSites} />
+
+      <NativeSignInPanel />
 
       <DeploymentActionsPanel />
     </DashboardShell>
