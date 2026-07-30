@@ -56,7 +56,6 @@ export default async function CampaignsPage({
 
   const realSites = sites.filter((site) => site.id !== "site-3");
   const siteNames = Object.fromEntries(sites.map((site) => [site.id, site.name]));
-  const timezoneBySiteId = new Map(sites.map((site) => [site.id, site.timezone]));
   const currentParams = {
     type: query.type,
     siteId: query.siteId,
@@ -108,7 +107,6 @@ export default async function CampaignsPage({
         <CampaignsTable
           campaigns={campaigns.items}
           siteNames={siteNames}
-          timezoneBySiteId={timezoneBySiteId}
           basePath="/campaigns"
           currentParams={currentParams}
         />

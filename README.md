@@ -250,6 +250,7 @@ Full CRUD plus a dispatch pipeline.
 - `POST /api/campaigns/:id/preview` — returns the rendered title/body/buttons for UI preview, no side effects.
 - `POST /api/campaigns/:id/schedule` — sets `status: scheduled`, `scheduledAt`, and optional recurrence (`recurrenceType: daily|weekly|monthly`, `recurrenceInterval`, `recurrenceUntilAt`).
 - `POST /api/campaigns/:id/send` — dispatches immediately. Rejects with 409 if the campaign is already `sending` or `sent`.
+- The campaign list displays the persisted `sentAt` timestamp to the minute in East Africa Time (UTC+3). Campaign details show that same instant in both EAT and the campaign/site platform timezone.
 - `POST /api/campaign-media` — uploads a campaign image or icon and returns a temporary asset URL plus asset ID.
 - `GET /api/campaign-media/:id/file` — streams the uploaded image back for previews and push payloads.
 - `GET /api/health/storage` — checks that the campaign media bucket is reachable.

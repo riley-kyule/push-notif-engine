@@ -10,7 +10,9 @@ export interface CampaignSummary {
   status: "draft" | "scheduled" | "sending" | "sent" | "failed" | "expired";
   sent: string;
   ctr: string;
-  scheduledAt: string;
+  scheduledAt: string | null;
+  sentAt: string | null;
+  timezone: string | null;
 }
 
 export interface CampaignDetail extends CampaignSummary {
@@ -54,6 +56,8 @@ export const campaignSummaries: CampaignSummary[] = [
     sent: "0",
     ctr: "0%",
     scheduledAt: "2026-06-18T09:00:00.000Z",
+    sentAt: null,
+    timezone: "Africa/Nairobi",
   },
   {
     id: "weekend-sale",
@@ -65,7 +69,9 @@ export const campaignSummaries: CampaignSummary[] = [
     status: "sent",
     sent: "0",
     ctr: "0%",
-    scheduledAt: "Sent today",
+    scheduledAt: null,
+    sentAt: "2026-06-16T06:00:00.000Z",
+    timezone: "Africa/Nairobi",
   },
   {
     id: "weekly-roundup",
@@ -77,7 +83,9 @@ export const campaignSummaries: CampaignSummary[] = [
     status: "draft",
     sent: "0",
     ctr: "-",
-    scheduledAt: "Draft",
+    scheduledAt: null,
+    sentAt: null,
+    timezone: "Africa/Nairobi",
   },
 ];
 
@@ -92,7 +100,9 @@ export const campaignDetails: Record<string, CampaignDetail> = {
     status: "scheduled",
     sent: "0",
     ctr: "0%",
-    scheduledAt: "2026-06-18 09:00",
+    scheduledAt: "2026-06-18T09:00:00.000Z",
+    sentAt: null,
+    timezone: "Africa/Nairobi",
     title: "Launch Week",
     message: "Sample campaign message shown while the API is unreachable.",
     url: "https://example.com/offers/launch-week",
@@ -122,7 +132,9 @@ export const campaignDetails: Record<string, CampaignDetail> = {
     status: "sent",
     sent: "0",
     ctr: "0%",
-    scheduledAt: "Sent today",
+    scheduledAt: null,
+    sentAt: "2026-06-16T06:00:00.000Z",
+    timezone: "Africa/Nairobi",
     title: "Weekend Sale",
     message: "Sample campaign message shown while the API is unreachable.",
     url: "https://example.org/deals",
@@ -152,7 +164,9 @@ export const campaignDetails: Record<string, CampaignDetail> = {
     status: "draft",
     sent: "0",
     ctr: "-",
-    scheduledAt: "Draft",
+    scheduledAt: null,
+    sentAt: null,
+    timezone: "Africa/Nairobi",
     title: "Weekly Roundup",
     message: "A recurring digest for content highlights and offers.",
     url: "https://example.com/roundup",
@@ -186,6 +200,7 @@ function toCampaignSummary(record: {
   sent?: string;
   ctr?: string;
   scheduledAt?: string | null;
+  timezone?: string | null;
 }): CampaignSummary {
   return {
     id: record.id,
@@ -197,9 +212,9 @@ function toCampaignSummary(record: {
     status: record.status,
     sent: record.sent ?? (record.sentAt ? "sent" : "0"),
     ctr: record.ctr ?? "0%",
-    scheduledAt:
-      record.scheduledAt ??
-      (record.status === "draft" ? "Draft" : record.status === "sent" ? "Sent today" : "Scheduled"),
+    scheduledAt: record.scheduledAt ?? null,
+    sentAt: record.sentAt ?? null,
+    timezone: record.timezone ?? null,
   };
 }
 
@@ -214,6 +229,8 @@ function toCampaignDetail(record: {
   sent?: string;
   ctr?: string;
   scheduledAt?: string | null;
+  sentAt?: string | null;
+  timezone?: string | null;
   title: string;
   message: string;
   url: string;

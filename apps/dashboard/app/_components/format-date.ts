@@ -24,6 +24,11 @@ export function formatDisplayDateTime(value: string | number | Date | null | und
   return formatDisplayDateTimeInZone(value, DISPLAY_TIME_ZONE);
 }
 
+/** dd/mm/yyyy-hh:mm, displayed in UTC+3 regardless of server/browser locale. */
+export function formatDisplayDateTimeToMinute(value: string | number | Date | null | undefined): string {
+  return formatDisplayDateTimeToMinuteInZone(value, DISPLAY_TIME_ZONE);
+}
+
 /** dd/mm/yyyy only, displayed in UTC+3. */
 export function formatDisplayDate(value: string | number | Date | null | undefined): string {
   return formatDisplayDateInZone(value, DISPLAY_TIME_ZONE);
@@ -36,6 +41,18 @@ export function formatDisplayDateTimeInZone(value: string | number | Date | null
   if (Number.isNaN(date.getTime())) return "—";
   const parts = getParts(date, timeZone || DISPLAY_TIME_ZONE);
   return `${parts.day}/${parts.month}/${parts.year}-${parts.hour}:${parts.minute}:${parts.second}`;
+}
+
+/** dd/mm/yyyy-hh:mm in an arbitrary IANA timezone. */
+export function formatDisplayDateTimeToMinuteInZone(
+  value: string | number | Date | null | undefined,
+  timeZone: string | null | undefined,
+): string {
+  if (value === null || value === undefined || value === "") return "—";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  const parts = getParts(date, timeZone || DISPLAY_TIME_ZONE);
+  return `${parts.day}/${parts.month}/${parts.year}-${parts.hour}:${parts.minute}`;
 }
 
 /** dd/mm/yyyy in an arbitrary IANA timezone. */

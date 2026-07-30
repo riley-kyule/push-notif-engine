@@ -1,7 +1,12 @@
 import { notFound } from "next/navigation";
 
 import { DashboardShell } from "../../_components/dashboard-shell";
+import {
+  formatDisplayDateTimeToMinute,
+  formatDisplayDateTimeToMinuteInZone,
+} from "../../_components/format-date";
 import { campaignDetails, getCampaignById, getCampaignVariantStats } from "../../_data/campaigns";
+import { fallbackSiteChoices, getSiteChoices } from "../../_data/sites";
 import { CampaignActions } from "./campaign-actions";
 
 export async function generateStaticParams(): Promise<Array<{ id: string }>> {
@@ -10,11 +15,25 @@ export async function generateStaticParams(): Promise<Array<{ id: string }>> {
 
 export default async function CampaignDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [liveCampaign, variantStats] = await Promise.all([getCampaignById(id), getCampaignVariantStats(id)]);
+  const [liveCampaign, variantStats, sites] = await Promise.all([
+    getCampaignById(id),
+    getCampaignVariantStats(id),
+    getSiteChoices().catch(() => fallbackSiteChoices),
+  ]);
   const campaign = liveCampaign ?? campaignDetails[id];
   if (!campaign) {
     notFound();
   }
+  const siteTimezone = campaign.siteId
+    ? sites.find((site) => site.id === campaign.siteId)?.timezone
+    : null;
+  const platformTimezone = campaign.timezone ?? siteTimezone ?? "UTC";
+  const sentAtEat = campaign.sentAt
+    ? formatDisplayDateTimeToMinute(campaign.sentAt)
+    : "Not sent yet";
+  const sentAtPlatform = campaign.sentAt
+    ? formatDisplayDateTimeToMinuteInZone(campaign.sentAt, platformTimezone)
+    : "Not sent yet";
 
   return (
     <DashboardShell
@@ -29,6 +48,19 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
             <p className="stat">{value}</p>
           </article>
         ))}
+      </section>
+
+      <section className="grid cards-2" style={{ marginTop: 18 }}>
+        <article className="card">
+          <p className="eyebrow">Sent at · local time</p>
+          <p className="stat">{sentAtEat}</p>
+          <p className="subtle">East Africa Time (UTC+3)</p>
+        </article>
+        <article className="card">
+          <p className="eyebrow">Sent at · platform time</p>
+          <p className="stat">{sentAtPlatform}</p>
+          <p className="subtle">{platformTimezone}</p>
+        </article>
       </section>
 
       <section className="grid" style={{ gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 0.9fr)", marginTop: 18 }}>

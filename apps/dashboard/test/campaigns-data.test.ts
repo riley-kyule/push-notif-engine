@@ -32,7 +32,14 @@ test("campaign list rows hydrate sent/CTR from the bulk analytics endpoint", asy
         success: true,
         data: {
           items: [
-            { id: CAMPAIGN_A, name: "Weekend Sale", type: "instant", status: "sent" },
+            {
+              id: CAMPAIGN_A,
+              name: "Weekend Sale",
+              type: "instant",
+              status: "sent",
+              sentAt: "2026-07-30T10:05:49.000Z",
+              timezone: "Africa/Accra",
+            },
             { id: CAMPAIGN_B, name: "Unsent Draft", type: "scheduled", status: "draft" },
           ],
           total: 2,
@@ -52,9 +59,12 @@ test("campaign list rows hydrate sent/CTR from the bulk analytics endpoint", asy
   // sent + delivered from analytics, not the "0" placeholder
   assert.equal(sale?.sent, "100");
   assert.equal(sale?.ctr, "25%");
+  assert.equal(sale?.sentAt, "2026-07-30T10:05:49.000Z");
+  assert.equal(sale?.timezone, "Africa/Accra");
   // campaigns without delivery events keep the placeholder values
   assert.equal(draft?.sent, "0");
   assert.equal(draft?.ctr, "0%");
+  assert.equal(draft?.sentAt, null);
 
   const statsRequest = requests.find((url) => url.includes("/analytics/campaigns?ids="));
   assert.ok(statsRequest, "expected one bulk stats request for the page");

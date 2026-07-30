@@ -1,31 +1,17 @@
 import Link from "next/link";
 
-import { formatDisplayDateTimeInZone } from "../_components/format-date";
+import { formatDisplayDateTimeToMinute } from "../_components/format-date";
 import { SortableHeader } from "../_components/list-controls";
 import type { CampaignSummary } from "../_data/campaigns";
-
-// `campaign.scheduledAt` is either a real ISO timestamp (scheduled/recurring
-// campaigns) or a literal label like "Draft"/"Sent today" when there's no
-// concrete time to show -- only the former should go through the timezone
-// formatter.
-function formatScheduledAt(value: string, timeZone: string | null): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-  return formatDisplayDateTimeInZone(parsed, timeZone);
-}
 
 export function CampaignsTable({
   campaigns,
   siteNames,
-  timezoneBySiteId,
   basePath,
   currentParams,
 }: {
   campaigns: CampaignSummary[];
   siteNames: Record<string, string>;
-  timezoneBySiteId: Map<string, string | null>;
   basePath: string;
   currentParams: Record<string, string | undefined>;
 }) {
@@ -40,7 +26,7 @@ export function CampaignsTable({
             <th>Sent</th>
             <th>CTR</th>
             <SortableHeader basePath={basePath} currentParams={currentParams} field="status" label="Status" />
-            <SortableHeader basePath={basePath} currentParams={currentParams} field="scheduledAt" label="Scheduled At (site local time)" />
+            <SortableHeader basePath={basePath} currentParams={currentParams} field="sentAt" label="Sent at (EAT · UTC+3)" />
           </tr>
         </thead>
         <tbody>
@@ -59,7 +45,7 @@ export function CampaignsTable({
                 <span className={`badge ${campaign.status}`}>{campaign.status}</span>
               </td>
               <td className="subtle">
-                {formatScheduledAt(campaign.scheduledAt, campaign.siteId ? timezoneBySiteId.get(campaign.siteId) ?? null : null)}
+                {formatDisplayDateTimeToMinute(campaign.sentAt)}
               </td>
             </tr>
           ))}
