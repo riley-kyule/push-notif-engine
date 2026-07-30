@@ -12,5 +12,6 @@ coverage
 .env.*
 !services/api/.env.example
 !services/worker/.env.example
+!apps/dashboard/.env.example
 *.log
 tmp

@@ -29,15 +29,20 @@ declare global {
 }
 
 interface GoogleSignInButtonProps {
+  clientId: string | undefined;
   onCredential: (credential: string) => Promise<void>;
   onError: (message: string) => void;
   disabled?: boolean;
 }
 
-export function GoogleSignInButton({ onCredential, onError, disabled = false }: GoogleSignInButtonProps) {
+export function GoogleSignInButton({
+  clientId,
+  onCredential,
+  onError,
+  disabled = false,
+}: GoogleSignInButtonProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scriptReady, setScriptReady] = useState(false);
-  const clientId = process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID;
 
   useEffect(() => {
     if (!scriptReady || !clientId || !containerRef.current || !window.google) {
