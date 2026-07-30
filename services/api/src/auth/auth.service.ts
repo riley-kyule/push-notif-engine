@@ -8,6 +8,7 @@ import { GoogleIdentityService } from "./google-identity.service";
 import { PasswordService } from "./password.service";
 import { TokenService } from "./token.service";
 import { AuditService } from "../audit/audit.service";
+import { AuthenticationSettingsService } from "./authentication-settings.service";
 
 // Both inputs are SHA-256 hex digests (64 chars), but length is still
 // checked explicitly -- timingSafeEqual throws on a length mismatch rather
@@ -28,9 +29,18 @@ export class AuthService {
     @Inject(TOKEN_SERVICE) private readonly tokenService: TokenService,
     private readonly googleIdentityService: GoogleIdentityService,
     private readonly auditService: AuditService,
+    private readonly authenticationSettingsService: AuthenticationSettingsService,
   ) {}
 
   async login(email: string, password: string): Promise<LoginResult> {
+    if (!(await this.authenticationSettingsService.isNativeSignInEnabled())) {
+      await this.auditService.log({
+        action: "auth.login.failure",
+        metadata: { reason: "native_sign_in_disabled", email },
+      });
+      throw new UnauthorizedException("Email and password sign-in is disabled. Use Google Sign-In.");
+    }
+
     const user = await this.authRepository.findUserByEmail(email);
     if (!user || !user.isActive) {
       await this.auditService.log({

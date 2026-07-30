@@ -13,6 +13,7 @@ import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { RolesGuard } from "./guards/roles.guard";
 import { DatabaseModule } from "../database/database.module";
 import { AuditModule } from "../audit/audit.module";
+import { AuthenticationSettingsService } from "./authentication-settings.service";
 
 @Module({
   imports: [DatabaseModule, AuditModule],
@@ -26,6 +27,7 @@ import { AuditModule } from "../audit/audit.module";
     PasswordService,
     TokenService,
     GoogleIdentityService,
+    AuthenticationSettingsService,
     AccessControlService,
     JwtAuthGuard,
     RolesGuard,
@@ -38,6 +40,6 @@ import { AuditModule } from "../audit/audit.module";
       useExisting: TokenService,
     },
   ],
-  exports: [AuthService],
+  exports: [AuthService, AuthenticationSettingsService],
 })
 export class AuthModule {}

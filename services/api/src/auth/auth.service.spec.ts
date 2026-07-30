@@ -18,6 +18,12 @@ const role: RoleRecord = {
   permissions: ["users:manage", "sites:manage"],
 };
 
+const nativeSignInEnabled = {
+  async isNativeSignInEnabled() {
+    return true;
+  },
+};
+
 test("auth service logs in and rotates refresh tokens", async () => {
   const passwordService = new PasswordService();
   const tokenService = new TokenService();
@@ -62,6 +68,7 @@ test("auth service logs in and rotates refresh tokens", async () => {
     tokenService,
     googleIdentityService as never,
     auditService,
+    nativeSignInEnabled as never,
   );
 
   const session = await authService.login("admin@example.com", "Password123!");
@@ -108,7 +115,14 @@ test("auth service logout revokes the refresh token so it can no longer mint new
     },
   };
 
-  const authService = new AuthService(repository, passwordService, tokenService, googleIdentityService as never, auditService);
+  const authService = new AuthService(
+    repository,
+    passwordService,
+    tokenService,
+    googleIdentityService as never,
+    auditService,
+    nativeSignInEnabled as never,
+  );
 
   const session = await authService.login("admin@example.com", "Password123!");
   await authService.logout(session.tokens.refreshToken);
@@ -123,7 +137,14 @@ test("auth service logout on an already-invalid token does not throw", async () 
   const auditService = { async log() { return undefined; } } as unknown as AuditService;
   const googleIdentityService = { async verifyIdToken() { throw new Error("not expected"); } };
 
-  const authService = new AuthService(repository, passwordService, tokenService, googleIdentityService as never, auditService);
+  const authService = new AuthService(
+    repository,
+    passwordService,
+    tokenService,
+    googleIdentityService as never,
+    auditService,
+    nativeSignInEnabled as never,
+  );
 
   await assert.doesNotReject(() => authService.logout("not-a-real-token"));
 });
@@ -175,6 +196,7 @@ test("auth service links and logs in with google identity", async () => {
     tokenService,
     googleIdentityService as never,
     auditService,
+    nativeSignInEnabled as never,
   );
 
   const session = await authService.loginWithGoogle("google-id-token");
@@ -182,4 +204,27 @@ test("auth service links and logs in with google identity", async () => {
   const linked = await repository.findUserByEmail("editor@example.com");
   assert.equal(linked?.googleSubject, "google-subject-1");
   assert.equal(linked?.authProvider, "google");
+});
+
+test("auth service rejects native credentials when native sign-in is disabled", async () => {
+  const auditEntries: Array<{ action: string; metadata?: Record<string, unknown> }> = [];
+  const authService = new AuthService(
+    new InMemoryAuthRepository({ roles: [role], users: [] }),
+    new PasswordService(),
+    new TokenService(),
+    { async verifyIdToken() { throw new Error("not expected"); } } as never,
+    {
+      async log(entry: { action: string; metadata?: Record<string, unknown> }) {
+        auditEntries.push(entry);
+      },
+    } as AuditService,
+    { async isNativeSignInEnabled() { return false; } } as never,
+  );
+
+  await assert.rejects(
+    () => authService.login("admin@example.com", "Password123!"),
+    /email and password sign-in is disabled/i,
+  );
+  assert.equal(auditEntries[0]?.action, "auth.login.failure");
+  assert.equal(auditEntries[0]?.metadata?.reason, "native_sign_in_disabled");
 });
