@@ -303,10 +303,13 @@ volumes:
 ```
 
 One-time host setup (the production Node image runs as UID 1000, which is the
-normal first-user UID for `riley`):
+normal first-user UID for `riley`). The restricted host agent also requires
+Node.js 18 or newer on the host; the installer validates the runtime before
+writing or starting the systemd unit:
 
 ```bash
 test "$(id -u riley)" = "1000"
+node --version
 sudo EPE_STACK_DIR=/srv/exotic/stacks/push-engine \
   EPE_REPO_DIR=/srv/exotic/src/push-engine \
   ./scripts/install-docker-updater.sh
@@ -343,5 +346,5 @@ COMPOSE_FILE=compose.yaml:compose.updates.yaml docker compose ps
 ```
 
 If the panel says the agent is unavailable, verify the bind mount, directory
-ownership, `EPE_DEPLOYMENT_MODE=docker`, and the systemd service. A failed
-update remains visible with its last 40KB of output.
+ownership, host `node` executable, `EPE_DEPLOYMENT_MODE=docker`, and the
+systemd service. A failed update remains visible with its last 40KB of output.
