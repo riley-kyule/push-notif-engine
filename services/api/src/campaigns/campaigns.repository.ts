@@ -33,6 +33,7 @@ export interface CreateCampaignInput {
   recurrenceInterval: number | null;
   recurrenceUntilAt: Date | null;
   clonedFromCampaignId: string | null;
+  externalIdempotencyKey: string | null;
   sentAt: Date | null;
 }
 
@@ -64,6 +65,7 @@ export interface CampaignsRepository {
   create(input: CreateCampaignInput): Promise<CampaignRecord>;
   update(id: string, input: UpdateCampaignInput): Promise<CampaignRecord | null>;
   findById(id: string): Promise<CampaignRecord | null>;
+  findBySiteAndExternalIdempotencyKey(siteId: string, idempotencyKey: string): Promise<CampaignRecord | null>;
   delete(id: string): Promise<boolean>;
   list(filters: CampaignListFilters): Promise<CampaignListResult>;
   listDueScheduledCampaigns(asOf: Date): Promise<CampaignRecord[]>;

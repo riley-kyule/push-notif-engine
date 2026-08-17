@@ -44,6 +44,7 @@ export interface CampaignRecord {
   recurrenceInterval: number | null;
   recurrenceUntilAt: Date | null;
   clonedFromCampaignId: string | null;
+  externalIdempotencyKey: string | null;
   sentAt: Date | null;
   createdAt: Date;
   updatedAt: Date;

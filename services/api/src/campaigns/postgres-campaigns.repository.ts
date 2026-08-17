@@ -28,6 +28,7 @@ interface DbCampaignRow {
   recurrence_interval: number | null;
   recurrence_until_at: string | null;
   cloned_from_campaign_id: string | null;
+  external_idempotency_key: string | null;
   sent_at: string | null;
   created_at: string;
   updated_at: string;
@@ -75,9 +76,9 @@ export class PostgresCampaignsRepository implements CampaignsRepository {
       INSERT INTO campaigns (
         site_id, segment_id, name, channel, type, title, message, url, image_url, icon_url, buttons, ab_variants,
         content_type, expiration_at, status, scheduled_at, timezone, recurrence_type, recurrence_interval,
-        recurrence_until_at, cloned_from_campaign_id, sent_at
+        recurrence_until_at, cloned_from_campaign_id, external_idempotency_key, sent_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
       RETURNING *
       `,
       [
@@ -102,6 +103,7 @@ export class PostgresCampaignsRepository implements CampaignsRepository {
         input.recurrenceInterval,
         input.recurrenceUntilAt,
         input.clonedFromCampaignId,
+        input.externalIdempotencyKey,
         input.sentAt,
       ],
     );
@@ -183,6 +185,21 @@ export class PostgresCampaignsRepository implements CampaignsRepository {
       LIMIT 1
       `,
       [id],
+    );
+
+    const row = rows[0];
+    return row ? this.mapRow(row) : null;
+  }
+
+  async findBySiteAndExternalIdempotencyKey(siteId: string, idempotencyKey: string): Promise<CampaignRecord | null> {
+    const { rows } = await this.pool.query<DbCampaignRow>(
+      `
+      SELECT *
+      FROM campaigns
+      WHERE site_id = $1 AND external_idempotency_key = $2
+      LIMIT 1
+      `,
+      [siteId, idempotencyKey],
     );
 
     const row = rows[0];
@@ -322,6 +339,7 @@ export class PostgresCampaignsRepository implements CampaignsRepository {
       recurrenceInterval: row.recurrence_interval,
       recurrenceUntilAt: row.recurrence_until_at ? new Date(row.recurrence_until_at) : null,
       clonedFromCampaignId: row.cloned_from_campaign_id,
+      externalIdempotencyKey: row.external_idempotency_key,
       sentAt: row.sent_at ? new Date(row.sent_at) : null,
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),

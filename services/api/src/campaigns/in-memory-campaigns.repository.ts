@@ -43,6 +43,7 @@ export class InMemoryCampaignsRepository implements CampaignsRepository {
       recurrenceInterval: input.recurrenceInterval,
       recurrenceUntilAt: input.recurrenceUntilAt,
       clonedFromCampaignId: input.clonedFromCampaignId,
+      externalIdempotencyKey: input.externalIdempotencyKey,
       sentAt: input.sentAt,
       createdAt: now,
       updatedAt: now,
@@ -89,6 +90,13 @@ export class InMemoryCampaignsRepository implements CampaignsRepository {
 
   async findById(id: string): Promise<CampaignRecord | null> {
     const campaign = this.campaigns.find((entry) => entry.id === id);
+    return campaign ? cloneCampaign(campaign) : null;
+  }
+
+  async findBySiteAndExternalIdempotencyKey(siteId: string, idempotencyKey: string): Promise<CampaignRecord | null> {
+    const campaign = this.campaigns.find(
+      (entry) => entry.siteId === siteId && entry.externalIdempotencyKey === idempotencyKey,
+    );
     return campaign ? cloneCampaign(campaign) : null;
   }
 
