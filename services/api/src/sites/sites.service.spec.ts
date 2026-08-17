@@ -57,6 +57,9 @@ test("sites service creates and lists sites", async () => {
   assert.equal(site.iconUrl, "https://news.example.com/icon.png");
   assert.equal(site.themeColor, "#111111");
   assert.equal(site.optInPromptRecentNotificationsLimit, 3);
+  assert.equal(site.optInPromptDisplayMode, "immediate");
+  assert.equal(site.optInPromptScrollPercent, 50);
+  assert.equal(site.optInPromptPageViewCount, 3);
   assert.equal(site.status, "active");
 
   const result = await service.listSites({ search: "news", limit: 10, offset: 0 });

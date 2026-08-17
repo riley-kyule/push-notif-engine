@@ -47,6 +47,9 @@ export class PublicSitesController {
         optInPromptApproveButtonBackgroundColor: site.optInPromptApproveButtonBackgroundColor,
         optInPromptRepromptDelayDays: site.optInPromptRepromptDelayDays,
         optInPromptRecentNotificationsLimit: site.optInPromptRecentNotificationsLimit,
+        optInPromptDisplayMode: site.optInPromptDisplayMode,
+        optInPromptScrollPercent: site.optInPromptScrollPercent,
+        optInPromptPageViewCount: site.optInPromptPageViewCount,
       },
     };
   }

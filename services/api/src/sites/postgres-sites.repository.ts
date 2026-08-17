@@ -34,6 +34,9 @@ interface DbSiteRow {
   opt_in_prompt_approve_button_background_color: string | null;
   opt_in_prompt_reprompt_delay_days: number | null;
   opt_in_prompt_recent_notifications_limit: number | null;
+  opt_in_prompt_display_mode: "immediate" | "scroll" | "page-views" | null;
+  opt_in_prompt_scroll_percent: number | null;
+  opt_in_prompt_page_view_count: number | null;
   rest_api_key_id: string | null;
   rest_api_auth_token_hash: string | null;
   rest_api_auth_token_last4: string | null;
@@ -55,9 +58,9 @@ export class PostgresSitesRepository implements SitesRepository {
   async create(input: CreateSiteInput): Promise<SiteRecord> {
     const { rows } = await this.pool.query<DbSiteRow>(
       `
-      INSERT INTO sites (name, url, country, language, platform, logo_url, app_name, icon_url, theme_color, opt_in_prompt_type, opt_in_prompt_animation, opt_in_prompt_background_color, opt_in_prompt_headline, opt_in_prompt_headline_text_color, opt_in_prompt_text, opt_in_prompt_text_color, opt_in_prompt_icon_url, opt_in_prompt_cancel_button_label, opt_in_prompt_cancel_button_text_color, opt_in_prompt_cancel_button_background_color, opt_in_prompt_approve_button_label, opt_in_prompt_approve_button_text_color, opt_in_prompt_approve_button_background_color, opt_in_prompt_reprompt_delay_days, opt_in_prompt_recent_notifications_limit, rest_api_key_id, rest_api_auth_token_hash, rest_api_auth_token_last4, rest_api_credentials_generated_at, vapid_subject, vapid_public_key, vapid_private_key, status, timezone)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34)
-      RETURNING id, name, url, country, language, platform, logo_url, app_name, icon_url, theme_color, opt_in_prompt_type, opt_in_prompt_animation, opt_in_prompt_background_color, opt_in_prompt_headline, opt_in_prompt_headline_text_color, opt_in_prompt_text, opt_in_prompt_text_color, opt_in_prompt_icon_url, opt_in_prompt_cancel_button_label, opt_in_prompt_cancel_button_text_color, opt_in_prompt_cancel_button_background_color, opt_in_prompt_approve_button_label, opt_in_prompt_approve_button_text_color, opt_in_prompt_approve_button_background_color, opt_in_prompt_reprompt_delay_days, opt_in_prompt_recent_notifications_limit, rest_api_key_id, rest_api_auth_token_last4, rest_api_credentials_generated_at, vapid_subject, vapid_public_key, vapid_private_key, status, timezone, last_connected_at, 0 AS subscriber_count, created_at, updated_at
+      INSERT INTO sites (name, url, country, language, platform, logo_url, app_name, icon_url, theme_color, opt_in_prompt_type, opt_in_prompt_animation, opt_in_prompt_background_color, opt_in_prompt_headline, opt_in_prompt_headline_text_color, opt_in_prompt_text, opt_in_prompt_text_color, opt_in_prompt_icon_url, opt_in_prompt_cancel_button_label, opt_in_prompt_cancel_button_text_color, opt_in_prompt_cancel_button_background_color, opt_in_prompt_approve_button_label, opt_in_prompt_approve_button_text_color, opt_in_prompt_approve_button_background_color, opt_in_prompt_reprompt_delay_days, opt_in_prompt_recent_notifications_limit, opt_in_prompt_display_mode, opt_in_prompt_scroll_percent, opt_in_prompt_page_view_count, rest_api_key_id, rest_api_auth_token_hash, rest_api_auth_token_last4, rest_api_credentials_generated_at, vapid_subject, vapid_public_key, vapid_private_key, status, timezone)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37)
+      RETURNING id, name, url, country, language, platform, logo_url, app_name, icon_url, theme_color, opt_in_prompt_type, opt_in_prompt_animation, opt_in_prompt_background_color, opt_in_prompt_headline, opt_in_prompt_headline_text_color, opt_in_prompt_text, opt_in_prompt_text_color, opt_in_prompt_icon_url, opt_in_prompt_cancel_button_label, opt_in_prompt_cancel_button_text_color, opt_in_prompt_cancel_button_background_color, opt_in_prompt_approve_button_label, opt_in_prompt_approve_button_text_color, opt_in_prompt_approve_button_background_color, opt_in_prompt_reprompt_delay_days, opt_in_prompt_recent_notifications_limit, opt_in_prompt_display_mode, opt_in_prompt_scroll_percent, opt_in_prompt_page_view_count, rest_api_key_id, rest_api_auth_token_last4, rest_api_credentials_generated_at, vapid_subject, vapid_public_key, vapid_private_key, status, timezone, last_connected_at, 0 AS subscriber_count, created_at, updated_at
       `,
       [
         input.name,
@@ -85,6 +88,9 @@ export class PostgresSitesRepository implements SitesRepository {
         input.optInPromptApproveButtonBackgroundColor,
         input.optInPromptRepromptDelayDays,
         input.optInPromptRecentNotificationsLimit,
+        input.optInPromptDisplayMode,
+        input.optInPromptScrollPercent,
+        input.optInPromptPageViewCount,
         input.restApiKeyId ?? null,
         input.restApiAuthTokenHash ?? null,
         input.restApiAuthTokenLast4 ?? null,
@@ -134,18 +140,21 @@ export class PostgresSitesRepository implements SitesRepository {
           opt_in_prompt_approve_button_background_color = COALESCE($24, opt_in_prompt_approve_button_background_color),
           opt_in_prompt_reprompt_delay_days = COALESCE($25, opt_in_prompt_reprompt_delay_days),
           opt_in_prompt_recent_notifications_limit = COALESCE($26, opt_in_prompt_recent_notifications_limit),
-          rest_api_key_id = COALESCE($27, rest_api_key_id),
-          rest_api_auth_token_hash = COALESCE($28, rest_api_auth_token_hash),
-          rest_api_auth_token_last4 = COALESCE($29, rest_api_auth_token_last4),
-          rest_api_credentials_generated_at = COALESCE($30, rest_api_credentials_generated_at),
-          vapid_subject = COALESCE($31, vapid_subject),
-          vapid_public_key = COALESCE($32, vapid_public_key),
-          vapid_private_key = COALESCE($33, vapid_private_key),
-          status = COALESCE($34, status),
-          timezone = COALESCE($35, timezone),
+          opt_in_prompt_display_mode = COALESCE($27, opt_in_prompt_display_mode),
+          opt_in_prompt_scroll_percent = COALESCE($28, opt_in_prompt_scroll_percent),
+          opt_in_prompt_page_view_count = COALESCE($29, opt_in_prompt_page_view_count),
+          rest_api_key_id = COALESCE($30, rest_api_key_id),
+          rest_api_auth_token_hash = COALESCE($31, rest_api_auth_token_hash),
+          rest_api_auth_token_last4 = COALESCE($32, rest_api_auth_token_last4),
+          rest_api_credentials_generated_at = COALESCE($33, rest_api_credentials_generated_at),
+          vapid_subject = COALESCE($34, vapid_subject),
+          vapid_public_key = COALESCE($35, vapid_public_key),
+          vapid_private_key = COALESCE($36, vapid_private_key),
+          status = COALESCE($37, status),
+          timezone = COALESCE($38, timezone),
           updated_at = NOW()
       WHERE id = $1
-      RETURNING id, name, url, country, language, platform, logo_url, app_name, icon_url, theme_color, opt_in_prompt_type, opt_in_prompt_animation, opt_in_prompt_background_color, opt_in_prompt_headline, opt_in_prompt_headline_text_color, opt_in_prompt_text, opt_in_prompt_text_color, opt_in_prompt_icon_url, opt_in_prompt_cancel_button_label, opt_in_prompt_cancel_button_text_color, opt_in_prompt_cancel_button_background_color, opt_in_prompt_approve_button_label, opt_in_prompt_approve_button_text_color, opt_in_prompt_approve_button_background_color, opt_in_prompt_reprompt_delay_days, opt_in_prompt_recent_notifications_limit, rest_api_key_id, rest_api_auth_token_last4, rest_api_credentials_generated_at, vapid_subject, vapid_public_key, vapid_private_key, status, timezone, last_connected_at, (SELECT COUNT(*)::int FROM subscribers sub WHERE sub.site_id = sites.id) AS subscriber_count, created_at, updated_at
+      RETURNING id, name, url, country, language, platform, logo_url, app_name, icon_url, theme_color, opt_in_prompt_type, opt_in_prompt_animation, opt_in_prompt_background_color, opt_in_prompt_headline, opt_in_prompt_headline_text_color, opt_in_prompt_text, opt_in_prompt_text_color, opt_in_prompt_icon_url, opt_in_prompt_cancel_button_label, opt_in_prompt_cancel_button_text_color, opt_in_prompt_cancel_button_background_color, opt_in_prompt_approve_button_label, opt_in_prompt_approve_button_text_color, opt_in_prompt_approve_button_background_color, opt_in_prompt_reprompt_delay_days, opt_in_prompt_recent_notifications_limit, opt_in_prompt_display_mode, opt_in_prompt_scroll_percent, opt_in_prompt_page_view_count, rest_api_key_id, rest_api_auth_token_last4, rest_api_credentials_generated_at, vapid_subject, vapid_public_key, vapid_private_key, status, timezone, last_connected_at, (SELECT COUNT(*)::int FROM subscribers sub WHERE sub.site_id = sites.id) AS subscriber_count, created_at, updated_at
       `,
       [
         id,
@@ -174,6 +183,9 @@ export class PostgresSitesRepository implements SitesRepository {
         input.optInPromptApproveButtonBackgroundColor ?? null,
         input.optInPromptRepromptDelayDays ?? null,
         input.optInPromptRecentNotificationsLimit ?? null,
+        input.optInPromptDisplayMode ?? null,
+        input.optInPromptScrollPercent ?? null,
+        input.optInPromptPageViewCount ?? null,
         input.restApiKeyId ?? null,
         input.restApiAuthTokenHash ?? null,
         input.restApiAuthTokenLast4 ?? null,
@@ -193,7 +205,7 @@ export class PostgresSitesRepository implements SitesRepository {
   async findById(id: string): Promise<SiteRecord | null> {
     const { rows } = await this.pool.query<DbSiteRow>(
       `
-      SELECT id, name, url, country, language, platform, logo_url, app_name, icon_url, theme_color, opt_in_prompt_type, opt_in_prompt_animation, opt_in_prompt_background_color, opt_in_prompt_headline, opt_in_prompt_headline_text_color, opt_in_prompt_text, opt_in_prompt_text_color, opt_in_prompt_icon_url, opt_in_prompt_cancel_button_label, opt_in_prompt_cancel_button_text_color, opt_in_prompt_cancel_button_background_color, opt_in_prompt_approve_button_label, opt_in_prompt_approve_button_text_color, opt_in_prompt_approve_button_background_color, opt_in_prompt_reprompt_delay_days, opt_in_prompt_recent_notifications_limit, rest_api_key_id, rest_api_auth_token_hash, rest_api_auth_token_last4, rest_api_credentials_generated_at, vapid_subject, vapid_public_key, vapid_private_key, status, timezone, last_connected_at, (SELECT COUNT(*)::int FROM subscribers sub WHERE sub.site_id = sites.id) AS subscriber_count, created_at, updated_at
+      SELECT id, name, url, country, language, platform, logo_url, app_name, icon_url, theme_color, opt_in_prompt_type, opt_in_prompt_animation, opt_in_prompt_background_color, opt_in_prompt_headline, opt_in_prompt_headline_text_color, opt_in_prompt_text, opt_in_prompt_text_color, opt_in_prompt_icon_url, opt_in_prompt_cancel_button_label, opt_in_prompt_cancel_button_text_color, opt_in_prompt_cancel_button_background_color, opt_in_prompt_approve_button_label, opt_in_prompt_approve_button_text_color, opt_in_prompt_approve_button_background_color, opt_in_prompt_reprompt_delay_days, opt_in_prompt_recent_notifications_limit, opt_in_prompt_display_mode, opt_in_prompt_scroll_percent, opt_in_prompt_page_view_count, rest_api_key_id, rest_api_auth_token_hash, rest_api_auth_token_last4, rest_api_credentials_generated_at, vapid_subject, vapid_public_key, vapid_private_key, status, timezone, last_connected_at, (SELECT COUNT(*)::int FROM subscribers sub WHERE sub.site_id = sites.id) AS subscriber_count, created_at, updated_at
       FROM sites
       WHERE id = $1
       LIMIT 1
@@ -227,7 +239,7 @@ export class PostgresSitesRepository implements SitesRepository {
   async findByUrl(url: string): Promise<SiteRecord | null> {
     const { rows } = await this.pool.query<DbSiteRow>(
       `
-      SELECT id, name, url, country, language, platform, logo_url, app_name, icon_url, theme_color, opt_in_prompt_type, opt_in_prompt_animation, opt_in_prompt_background_color, opt_in_prompt_headline, opt_in_prompt_headline_text_color, opt_in_prompt_text, opt_in_prompt_text_color, opt_in_prompt_icon_url, opt_in_prompt_cancel_button_label, opt_in_prompt_cancel_button_text_color, opt_in_prompt_cancel_button_background_color, opt_in_prompt_approve_button_label, opt_in_prompt_approve_button_text_color, opt_in_prompt_approve_button_background_color, opt_in_prompt_reprompt_delay_days, opt_in_prompt_recent_notifications_limit, rest_api_key_id, rest_api_auth_token_hash, rest_api_auth_token_last4, rest_api_credentials_generated_at, vapid_subject, vapid_public_key, vapid_private_key, status, timezone, last_connected_at, (SELECT COUNT(*)::int FROM subscribers sub WHERE sub.site_id = sites.id) AS subscriber_count, created_at, updated_at
+      SELECT id, name, url, country, language, platform, logo_url, app_name, icon_url, theme_color, opt_in_prompt_type, opt_in_prompt_animation, opt_in_prompt_background_color, opt_in_prompt_headline, opt_in_prompt_headline_text_color, opt_in_prompt_text, opt_in_prompt_text_color, opt_in_prompt_icon_url, opt_in_prompt_cancel_button_label, opt_in_prompt_cancel_button_text_color, opt_in_prompt_cancel_button_background_color, opt_in_prompt_approve_button_label, opt_in_prompt_approve_button_text_color, opt_in_prompt_approve_button_background_color, opt_in_prompt_reprompt_delay_days, opt_in_prompt_recent_notifications_limit, opt_in_prompt_display_mode, opt_in_prompt_scroll_percent, opt_in_prompt_page_view_count, rest_api_key_id, rest_api_auth_token_hash, rest_api_auth_token_last4, rest_api_credentials_generated_at, vapid_subject, vapid_public_key, vapid_private_key, status, timezone, last_connected_at, (SELECT COUNT(*)::int FROM subscribers sub WHERE sub.site_id = sites.id) AS subscriber_count, created_at, updated_at
       FROM sites
       WHERE LOWER(url) = LOWER($1)
       LIMIT 1
@@ -242,7 +254,7 @@ export class PostgresSitesRepository implements SitesRepository {
   async findByName(name: string): Promise<SiteRecord | null> {
     const { rows } = await this.pool.query<DbSiteRow>(
       `
-      SELECT id, name, url, country, language, platform, logo_url, app_name, icon_url, theme_color, opt_in_prompt_type, opt_in_prompt_animation, opt_in_prompt_background_color, opt_in_prompt_headline, opt_in_prompt_headline_text_color, opt_in_prompt_text, opt_in_prompt_text_color, opt_in_prompt_icon_url, opt_in_prompt_cancel_button_label, opt_in_prompt_cancel_button_text_color, opt_in_prompt_cancel_button_background_color, opt_in_prompt_approve_button_label, opt_in_prompt_approve_button_text_color, opt_in_prompt_approve_button_background_color, opt_in_prompt_reprompt_delay_days, opt_in_prompt_recent_notifications_limit, rest_api_key_id, rest_api_auth_token_hash, rest_api_auth_token_last4, rest_api_credentials_generated_at, vapid_subject, vapid_public_key, vapid_private_key, status, timezone, last_connected_at, (SELECT COUNT(*)::int FROM subscribers sub WHERE sub.site_id = sites.id) AS subscriber_count, created_at, updated_at
+      SELECT id, name, url, country, language, platform, logo_url, app_name, icon_url, theme_color, opt_in_prompt_type, opt_in_prompt_animation, opt_in_prompt_background_color, opt_in_prompt_headline, opt_in_prompt_headline_text_color, opt_in_prompt_text, opt_in_prompt_text_color, opt_in_prompt_icon_url, opt_in_prompt_cancel_button_label, opt_in_prompt_cancel_button_text_color, opt_in_prompt_cancel_button_background_color, opt_in_prompt_approve_button_label, opt_in_prompt_approve_button_text_color, opt_in_prompt_approve_button_background_color, opt_in_prompt_reprompt_delay_days, opt_in_prompt_recent_notifications_limit, opt_in_prompt_display_mode, opt_in_prompt_scroll_percent, opt_in_prompt_page_view_count, rest_api_key_id, rest_api_auth_token_hash, rest_api_auth_token_last4, rest_api_credentials_generated_at, vapid_subject, vapid_public_key, vapid_private_key, status, timezone, last_connected_at, (SELECT COUNT(*)::int FROM subscribers sub WHERE sub.site_id = sites.id) AS subscriber_count, created_at, updated_at
       FROM sites
       WHERE LOWER(name) = LOWER($1)
       LIMIT 1
@@ -282,7 +294,7 @@ export class PostgresSitesRepository implements SitesRepository {
 
   async list(filters: SiteListFilters): Promise<SiteListResult> {
     const query: string[] = [
-      `SELECT id, name, url, country, language, platform, logo_url, app_name, icon_url, theme_color, opt_in_prompt_type, opt_in_prompt_animation, opt_in_prompt_background_color, opt_in_prompt_headline, opt_in_prompt_headline_text_color, opt_in_prompt_text, opt_in_prompt_text_color, opt_in_prompt_icon_url, opt_in_prompt_cancel_button_label, opt_in_prompt_cancel_button_text_color, opt_in_prompt_cancel_button_background_color, opt_in_prompt_approve_button_label, opt_in_prompt_approve_button_text_color, opt_in_prompt_approve_button_background_color, opt_in_prompt_reprompt_delay_days, opt_in_prompt_recent_notifications_limit, rest_api_key_id, rest_api_auth_token_last4, rest_api_credentials_generated_at, vapid_subject, vapid_public_key, vapid_private_key, status, timezone, last_connected_at, (SELECT COUNT(*)::int FROM subscribers sub WHERE sub.site_id = sites.id) AS subscriber_count, created_at, updated_at`,
+      `SELECT id, name, url, country, language, platform, logo_url, app_name, icon_url, theme_color, opt_in_prompt_type, opt_in_prompt_animation, opt_in_prompt_background_color, opt_in_prompt_headline, opt_in_prompt_headline_text_color, opt_in_prompt_text, opt_in_prompt_text_color, opt_in_prompt_icon_url, opt_in_prompt_cancel_button_label, opt_in_prompt_cancel_button_text_color, opt_in_prompt_cancel_button_background_color, opt_in_prompt_approve_button_label, opt_in_prompt_approve_button_text_color, opt_in_prompt_approve_button_background_color, opt_in_prompt_reprompt_delay_days, opt_in_prompt_recent_notifications_limit, opt_in_prompt_display_mode, opt_in_prompt_scroll_percent, opt_in_prompt_page_view_count, rest_api_key_id, rest_api_auth_token_last4, rest_api_credentials_generated_at, vapid_subject, vapid_public_key, vapid_private_key, status, timezone, last_connected_at, (SELECT COUNT(*)::int FROM subscribers sub WHERE sub.site_id = sites.id) AS subscriber_count, created_at, updated_at`,
       `FROM sites`,
     ];
     const where: string[] = [];
@@ -373,6 +385,9 @@ export class PostgresSitesRepository implements SitesRepository {
       optInPromptApproveButtonBackgroundColor: row.opt_in_prompt_approve_button_background_color,
       optInPromptRepromptDelayDays: row.opt_in_prompt_reprompt_delay_days,
       optInPromptRecentNotificationsLimit: row.opt_in_prompt_recent_notifications_limit,
+      optInPromptDisplayMode: row.opt_in_prompt_display_mode ?? "immediate",
+      optInPromptScrollPercent: row.opt_in_prompt_scroll_percent ?? 50,
+      optInPromptPageViewCount: row.opt_in_prompt_page_view_count ?? 3,
       restApiKeyId: row.rest_api_key_id,
       restApiAuthTokenLast4: row.rest_api_auth_token_last4,
       restApiCredentialsGeneratedAt: row.rest_api_credentials_generated_at ? new Date(row.rest_api_credentials_generated_at) : null,

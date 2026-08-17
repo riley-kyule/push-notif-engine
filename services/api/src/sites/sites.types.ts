@@ -1,6 +1,7 @@
 export type SiteStatus = "active" | "inactive";
 export type OptInPromptType = "lightbox-1" | "lightbox-2" | "bell-icon";
 export type OptInPromptAnimation = "slide-in" | "fade-in" | "pop";
+export type OptInPromptDisplayMode = "immediate" | "scroll" | "page-views";
 
 export interface SiteRecord {
   id: string;
@@ -30,6 +31,9 @@ export interface SiteRecord {
   optInPromptApproveButtonBackgroundColor: string | null;
   optInPromptRepromptDelayDays: number | null;
   optInPromptRecentNotificationsLimit: number | null;
+  optInPromptDisplayMode: OptInPromptDisplayMode;
+  optInPromptScrollPercent: number;
+  optInPromptPageViewCount: number;
   restApiKeyId: string | null;
   restApiAuthTokenLast4: string | null;
   restApiCredentialsGeneratedAt: Date | null;
@@ -66,6 +70,9 @@ export interface SitePublicConfigRecord {
   optInPromptApproveButtonBackgroundColor: string | null;
   optInPromptRepromptDelayDays: number | null;
   optInPromptRecentNotificationsLimit: number | null;
+  optInPromptDisplayMode: OptInPromptDisplayMode;
+  optInPromptScrollPercent: number;
+  optInPromptPageViewCount: number;
 }
 
 export interface SiteRestApiCredentialsRecord {

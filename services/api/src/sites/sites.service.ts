@@ -126,6 +126,9 @@ export class SitesService {
         dto.optInPromptRecentNotificationsLimit === undefined
           ? existing.optInPromptRecentNotificationsLimit
           : dto.optInPromptRecentNotificationsLimit,
+      optInPromptDisplayMode: dto.optInPromptDisplayMode ?? existing.optInPromptDisplayMode,
+      optInPromptScrollPercent: dto.optInPromptScrollPercent ?? existing.optInPromptScrollPercent,
+      optInPromptPageViewCount: dto.optInPromptPageViewCount ?? existing.optInPromptPageViewCount,
       vapidSubject: dto.vapidSubject === undefined ? existing.vapidSubject : dto.vapidSubject,
       vapidPublicKey: dto.vapidPublicKey === undefined ? existing.vapidPublicKey : dto.vapidPublicKey,
       vapidPrivateKey: dto.vapidPrivateKey === undefined ? existing.vapidPrivateKey : dto.vapidPrivateKey,
@@ -334,6 +337,9 @@ export class SitesService {
       optInPromptRepromptDelayDays:
         dto.optInPromptRepromptDelayDays ?? 30,
       optInPromptRecentNotificationsLimit: dto.optInPromptRecentNotificationsLimit ?? 3,
+      optInPromptDisplayMode: dto.optInPromptDisplayMode ?? "immediate",
+      optInPromptScrollPercent: dto.optInPromptScrollPercent ?? 50,
+      optInPromptPageViewCount: dto.optInPromptPageViewCount ?? 3,
       vapidSubject: dto.vapidSubject ?? null,
       vapidPublicKey: dto.vapidPublicKey ?? null,
       vapidPrivateKey: dto.vapidPrivateKey ?? null,

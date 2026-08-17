@@ -27,6 +27,9 @@ export interface CreateSiteInput {
   optInPromptApproveButtonBackgroundColor: string | null;
   optInPromptRepromptDelayDays: number | null;
   optInPromptRecentNotificationsLimit: number | null;
+  optInPromptDisplayMode: "immediate" | "scroll" | "page-views";
+  optInPromptScrollPercent: number;
+  optInPromptPageViewCount: number;
   restApiKeyId?: string | null;
   restApiAuthTokenHash?: string | null;
   restApiAuthTokenLast4?: string | null;
@@ -64,6 +67,9 @@ export interface UpdateSiteInput {
   optInPromptApproveButtonBackgroundColor?: string | null;
   optInPromptRepromptDelayDays?: number | null;
   optInPromptRecentNotificationsLimit?: number | null;
+  optInPromptDisplayMode?: "immediate" | "scroll" | "page-views";
+  optInPromptScrollPercent?: number;
+  optInPromptPageViewCount?: number;
   restApiKeyId?: string | null;
   restApiAuthTokenHash?: string | null;
   restApiAuthTokenLast4?: string | null;

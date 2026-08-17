@@ -31,6 +31,9 @@ test("public sites controller returns branding config for active sites", async (
         optInPromptApproveButtonBackgroundColor: "#ea580c",
         optInPromptRepromptDelayDays: 30,
         optInPromptRecentNotificationsLimit: 3,
+        optInPromptDisplayMode: "scroll",
+        optInPromptScrollPercent: 60,
+        optInPromptPageViewCount: 4,
       };
     },
     async recordConnection() {
@@ -46,6 +49,9 @@ test("public sites controller returns branding config for active sites", async (
   assert.equal(response.success, true);
   assert.equal(response.data.appName, "Exotic News");
   assert.equal(response.data.vapidPublicKey, "public-key");
+  assert.equal(response.data.optInPromptDisplayMode, "scroll");
+  assert.equal(response.data.optInPromptScrollPercent, 60);
+  assert.equal(response.data.optInPromptPageViewCount, 4);
 });
 
 test("public sites controller hides inactive sites", async () => {

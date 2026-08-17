@@ -7,6 +7,7 @@ const SITE_STATUSES = ["active", "inactive"] as const;
 const SITE_PLATFORMS = ["WordPress", "Magento", "Node.js", "Laravel", "Other"] as const;
 const OPT_IN_PROMPT_TYPES = ["lightbox-1", "lightbox-2", "bell-icon"] as const;
 const OPT_IN_PROMPT_ANIMATIONS = ["slide-in", "fade-in", "pop"] as const;
+const OPT_IN_PROMPT_DISPLAY_MODES = ["immediate", "scroll", "page-views"] as const;
 
 export class UpdateSiteDto {
   @IsOptional()
@@ -116,6 +117,24 @@ export class UpdateSiteDto {
   @Min(1)
   @Max(10)
   optInPromptRecentNotificationsLimit?: number | null;
+
+  @IsOptional()
+  @IsIn(OPT_IN_PROMPT_DISPLAY_MODES)
+  optInPromptDisplayMode?: (typeof OPT_IN_PROMPT_DISPLAY_MODES)[number];
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  optInPromptScrollPercent?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  optInPromptPageViewCount?: number;
 
   @IsOptional()
   @IsString()
