@@ -183,6 +183,8 @@ The dashboard exposes this under `Site Settings -> Integrations -> REST API`. Th
 
 CRM sends may include a public `callbackUrl`. EPE stores the callback durably, sends a final campaign summary with bounded retries, and exposes its state at `GET /api/sites/:siteId/rest-api/notifications/:notificationId/callback`. Set `CRM_CALLBACK_SIGNING_SECRET` to add an HMAC signature. The complete contract and rollout procedure are in [`docs/delivery-reliability-and-crm-callbacks.md`](docs/delivery-reliability-and-crm-callbacks.md).
 
+CRM notification idempotency is also durable: EPE stores each `Idempotency-Key` on the generated campaign, permits repeated human-facing campaign titles, resumes a draft left behind by a partial API failure, and uses a deterministic BullMQ job ID so retrying cannot enqueue the same automatic push twice. Reusing a key with a different payload returns `409 Conflict`.
+
 Dashboard: `/sites` (list, with an "Add Site" button), `/sites/new`, `/sites/:id` (detail — VAPID keys, SDK snippet, downloadable service worker + manifest), `/sites/:id/edit`, `/platform-health` (platform score ring plus database, queue broker, storage, queue depth, worker heartbeat, and delivery drilldowns), `/platform/backup-config` (backup provider setup, schedules, history, and restore guidance).
 The platform health page also surfaces active alerts derived from queue backlog, worker heartbeat freshness, and component health.
 

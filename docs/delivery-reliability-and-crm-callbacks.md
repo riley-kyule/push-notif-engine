@@ -43,6 +43,12 @@ Content-Type: application/json
 ```
 
 `callbackUrl` is optional. When present, EPE stores it before queueing the push.
+`Idempotency-Key` must be a stable, non-empty CRM event identifier of at most
+200 characters. EPE persists it with the generated campaign, so retries remain
+idempotent after Redis expiry or an API restart. A retry reuses a matching draft
+campaign and its deterministic BullMQ job ID; reusing the key with different
+notification content returns `409 Conflict`. Visible campaign titles may repeat
+across different CRM events.
 After the campaign reaches a final `sent` or `failed` state, EPE posts a summary:
 
 ```json
