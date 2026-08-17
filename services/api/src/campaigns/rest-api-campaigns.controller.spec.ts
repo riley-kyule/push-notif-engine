@@ -33,6 +33,7 @@ const site = {
 test("sendNotification creates and sends a campaign scoped to the authenticated site", async () => {
   const calls: Array<{ name: string; arg: unknown }> = [];
   const campaignsService = {
+    async findByExternalIdempotencyKey() { return null; },
     async createCampaign(dto: unknown) {
       calls.push({ name: "createCampaign", arg: dto });
       return { id: "campaign-1", siteId: "site-1", status: "draft" };
@@ -64,6 +65,7 @@ test("sendNotification creates and sends a campaign scoped to the authenticated 
 test("sendNotification registers a durable CRM callback when callbackUrl is supplied", async () => {
   const registrations: Array<{ siteId: string; campaignId: string; callbackUrl: string }> = [];
   const campaignsService = {
+    async findByExternalIdempotencyKey() { return null; },
     async createCampaign() { return { id: "campaign-1", siteId: "site-1", status: "draft" }; },
     async sendCampaign() { return { jobId: "job-1", queued: true as const }; },
   };
@@ -85,6 +87,7 @@ test("sendNotification registers a durable CRM callback when callbackUrl is supp
 test("sendNotification replays the cached result for a repeated idempotency key instead of sending twice", async () => {
   let sendCount = 0;
   const campaignsService = {
+    async findByExternalIdempotencyKey() { return null; },
     async createCampaign() {
       sendCount += 1;
       return { id: `campaign-${sendCount}`, siteId: "site-1", status: "draft" };
@@ -107,6 +110,7 @@ test("sendNotification replays the cached result for a repeated idempotency key 
 test("sendNotification frees the idempotency key on failure so a retry can succeed", async () => {
   let attempt = 0;
   const campaignsService = {
+    async findByExternalIdempotencyKey() { return null; },
     async createCampaign() {
       attempt += 1;
       if (attempt === 1) {
@@ -127,6 +131,125 @@ test("sendNotification frees the idempotency key on failure so a retry can succe
 
   assert.equal(attempt, 2);
   assert.equal(retried.data.notificationId, "campaign-2");
+});
+
+test("sendNotification recovers a persisted draft after a post-create failure", async () => {
+  let storedCampaign: Record<string, unknown> | null = null;
+  let createCount = 0;
+  const sent: Array<{ id: string; jobId?: string }> = [];
+  const campaignsService = {
+    async findByExternalIdempotencyKey() {
+      return storedCampaign;
+    },
+    async createCampaign() {
+      createCount += 1;
+      storedCampaign = {
+        id: "campaign-1",
+        siteId: "site-1",
+        status: "draft",
+        title: "Flash sale",
+        message: "20% off tonight",
+        url: "https://example.com/sale",
+        iconUrl: null,
+        imageUrl: null,
+      };
+      throw new Error("audit store temporarily unavailable");
+    },
+    async sendCampaign(id: string, _actor: undefined, jobId?: string) {
+      sent.push({ id, ...(jobId ? { jobId } : {}) });
+      return { jobId, queued: true as const };
+    },
+  };
+  const controller = new RestApiCampaignsController(
+    campaignsService as never,
+    {} as never,
+    createFakeRedis() as never,
+    {} as never,
+  );
+  const dto = { title: "Flash sale", body: "20% off tonight", url: "https://example.com/sale" };
+
+  const recovered = await controller.sendNotification(site, dto, "epe-item-12446");
+  const replayed = await controller.sendNotification(site, dto, "epe-item-12446");
+
+  assert.equal(createCount, 1, "the persisted campaign must be reused rather than inserted again");
+  assert.equal(recovered.data.notificationId, "campaign-1");
+  assert.deepEqual(replayed.data, recovered.data);
+  assert.equal(sent.length, 1);
+  assert.match(sent[0]?.jobId ?? "", /^crm-[a-f0-9]{40}$/);
+});
+
+test("sendNotification permits repeated titles when CRM event keys differ", async () => {
+  let createCount = 0;
+  const campaignsService = {
+    async findByExternalIdempotencyKey() { return null; },
+    async createCampaign() {
+      createCount += 1;
+      return { id: `campaign-${createCount}`, siteId: "site-1", status: "draft" };
+    },
+    async sendCampaign(id: string, _actor: undefined, jobId?: string) {
+      return { jobId: jobId ?? `job-${id}`, queued: true as const };
+    },
+  };
+  const controller = new RestApiCampaignsController(
+    campaignsService as never,
+    {} as never,
+    createFakeRedis() as never,
+    {} as never,
+  );
+  const dto = { title: "SKINNY from Ikeja", body: "Profile update", url: "https://example.com/skinny" };
+
+  const first = await controller.sendNotification(site, dto, "epe-item-12446");
+  const second = await controller.sendNotification(site, dto, "epe-item-12447");
+
+  assert.equal(createCount, 2);
+  assert.notEqual(first.data.notificationId, second.data.notificationId);
+});
+
+test("sendNotification rejects a reused CRM key when the notification payload changes", async () => {
+  const storedCampaign = {
+    id: "campaign-1",
+    siteId: "site-1",
+    status: "sending",
+    title: "Flash sale",
+    message: "20% off tonight",
+    url: "https://example.com/sale",
+    iconUrl: null,
+    imageUrl: null,
+  };
+  let created = false;
+  const campaignsService = {
+    async findByExternalIdempotencyKey() {
+      return created ? storedCampaign : null;
+    },
+    async createCampaign() {
+      created = true;
+      return { ...storedCampaign, status: "draft" };
+    },
+    async sendCampaign(_id: string, _actor: undefined, jobId?: string) {
+      return { jobId, queued: true as const };
+    },
+  };
+  const controller = new RestApiCampaignsController(
+    campaignsService as never,
+    {} as never,
+    createFakeRedis() as never,
+    {} as never,
+  );
+
+  await controller.sendNotification(
+    site,
+    { title: "Flash sale", body: "20% off tonight", url: "https://example.com/sale" },
+    "crm-event-1",
+  );
+
+  await assert.rejects(
+    () => controller.sendNotification(
+      site,
+      { title: "Flash sale", body: "Changed content", url: "https://example.com/sale" },
+      "crm-event-1",
+    ),
+    (error: unknown) => error instanceof Error && error.constructor.name === "ConflictException",
+  );
 });
 
 test("getNotificationStatus returns delivery stats for a campaign belonging to the authenticated site", async () => {

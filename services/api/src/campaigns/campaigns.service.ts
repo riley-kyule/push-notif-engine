@@ -68,7 +68,11 @@ export class CampaignsService {
     @Inject(CAMPAIGNS_REPOSITORY) private readonly campaignsRepository: CampaignsRepository,
   ) {}
 
-  async createCampaign(dto: CreateCampaignDto, actorUserId?: string): Promise<CampaignRecord> {
+  async createCampaign(
+    dto: CreateCampaignDto,
+    actorUserId?: string,
+    externalIdempotencyKey: string | null = null,
+  ): Promise<CampaignRecord> {
     await this.sitesService.getSite(dto.siteId);
     if (dto.segmentId) {
       await this.assertSegmentBelongsToSite(dto.segmentId, dto.siteId);
@@ -81,7 +85,9 @@ export class CampaignsService {
       ...(dto.iconUrl !== undefined ? { iconUrl: dto.iconUrl } : {}),
     });
 
-    const campaign = await this.campaignsRepository.create(this.normalizeCreateInput(dto, media));
+    const campaign = await this.campaignsRepository.create(
+      this.normalizeCreateInput(dto, media, externalIdempotencyKey),
+    );
     await this.attachCampaignMedia(campaign.id, dto.imageAssetId, dto.iconAssetId);
     await this.auditService.log({
       actorUserId: actorUserId ?? null,
@@ -139,6 +145,10 @@ export class CampaignsService {
     }
 
     return campaign;
+  }
+
+  async findByExternalIdempotencyKey(siteId: string, idempotencyKey: string): Promise<CampaignRecord | null> {
+    return this.campaignsRepository.findBySiteAndExternalIdempotencyKey(siteId, idempotencyKey);
   }
 
   async listCampaigns(filters: Partial<ListCampaignsQueryDto>): Promise<CampaignListResult> {
@@ -212,6 +222,7 @@ export class CampaignsService {
       recurrenceInterval: null,
       recurrenceUntilAt: null,
       clonedFromCampaignId: existing.id,
+      externalIdempotencyKey: null,
       sentAt: null,
     });
     const clonedMedia = await this.campaignMediaService.cloneCampaignAssets(existing, cloned.id);
@@ -273,7 +284,11 @@ export class CampaignsService {
     return scheduled;
   }
 
-  async sendCampaign(id: string, actorUserId?: string): Promise<{ jobId: string | undefined; queued: true }> {
+  async sendCampaign(
+    id: string,
+    actorUserId?: string,
+    queueJobId?: string,
+  ): Promise<{ jobId: string | undefined; queued: true }> {
     const campaign = await this.getCampaign(id);
 
     if (campaign.status === "sending" || campaign.status === "sent") {
@@ -292,6 +307,7 @@ export class CampaignsService {
       variants: campaign.abVariants.map((variant) => ({
         id: variant.id, title: variant.title, body: variant.message, url: variant.url, weight: variant.weight,
       })),
+      ...(queueJobId ? { jobId: queueJobId } : {}),
     });
 
     await this.campaignsRepository.update(id, { status: "sending" });
@@ -351,7 +367,11 @@ export class CampaignsService {
     await this.campaignMediaService.attachAssetsToCampaign(campaignId, assetIds);
   }
 
-  private normalizeCreateInput(dto: CreateCampaignDto, media: { imageUrl: string | null; iconUrl: string | null }): CreateCampaignInput {
+  private normalizeCreateInput(
+    dto: CreateCampaignDto,
+    media: { imageUrl: string | null; iconUrl: string | null },
+    externalIdempotencyKey: string | null,
+  ): CreateCampaignInput {
     return {
       siteId: dto.siteId,
       segmentId: dto.segmentId ?? null,
@@ -374,6 +394,7 @@ export class CampaignsService {
       recurrenceInterval: dto.recurrenceInterval ?? null,
       recurrenceUntilAt: toNullableDate(dto.recurrenceUntilAt) ?? null,
       clonedFromCampaignId: null,
+      externalIdempotencyKey,
       sentAt: null,
     };
   }

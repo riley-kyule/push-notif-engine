@@ -11,6 +11,7 @@ import { CreateBrowserPushDispatchDto } from "./dto/create-browser-push-dispatch
 export const BROWSER_PUSH_QUEUE = Symbol("BROWSER_PUSH_QUEUE");
 
 export interface BrowserPushDispatchInput {
+  jobId?: string;
   siteId: string;
   title: string;
   body: string;
@@ -65,7 +66,11 @@ export class BrowserPushService {
       enqueuedAt: new Date().toISOString(),
     };
 
-    const job = await this.queue.add(BROWSER_PUSH_JOB_NAME, payload);
+    const job = await this.queue.add(
+      BROWSER_PUSH_JOB_NAME,
+      payload,
+      "jobId" in dto && dto.jobId ? { jobId: dto.jobId } : undefined,
+    );
 
     return {
       jobId: job.id,

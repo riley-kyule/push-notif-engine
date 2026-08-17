@@ -16,8 +16,10 @@ test("browser push service enqueues a dispatch job", async () => {
     },
   };
 
+  let queueOptions: { jobId?: string } | undefined;
   const queue = {
-    async add(_name: string, payload: BrowserPushJobPayload) {
+    async add(_name: string, payload: BrowserPushJobPayload, options?: { jobId?: string }) {
+      queueOptions = options;
       return { id: "job-1", payload };
     },
   };
@@ -34,10 +36,12 @@ test("browser push service enqueues a dispatch job", async () => {
     url: "https://example.com/articles/1",
     icon: null,
     image: null,
+    jobId: "crm-stable-job",
   });
 
   assert.equal(result.queued, true);
   assert.equal(result.jobId, "job-1");
+  assert.deepEqual(queueOptions, { jobId: "crm-stable-job" });
 });
 
 test("browser push service fills the icon slot from the image when no icon is given", async () => {
