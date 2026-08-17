@@ -31,6 +31,9 @@ export function buildSdkSnippet(site: SiteSummary): string {
     optInPromptApproveButtonTextColor: site.optInPromptApproveButtonTextColor,
     optInPromptApproveButtonBackgroundColor: site.optInPromptApproveButtonBackgroundColor,
     optInPromptRepromptDelayDays: site.optInPromptRepromptDelayDays,
+    optInPromptDisplayMode: site.optInPromptDisplayMode,
+    optInPromptScrollPercent: site.optInPromptScrollPercent,
+    optInPromptPageViewCount: site.optInPromptPageViewCount,
   };
 
   return [

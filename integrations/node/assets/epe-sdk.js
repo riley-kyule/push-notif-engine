@@ -98,6 +98,21 @@
     }
   }
 
+  function getPageViewCountKey() {
+    return "epe:prompt:page-views:" + getSiteKey();
+  }
+
+  function incrementPageViewCount() {
+    try {
+      var key = getPageViewCountKey();
+      var count = Math.max(Number(window.localStorage.getItem(key)) || 0, 0) + 1;
+      window.localStorage.setItem(key, String(count));
+      return count;
+    } catch {
+      return 1;
+    }
+  }
+
   function getSeenNotificationsKey() {
     return "epe:notifications:seen:" + getSiteKey();
   }
@@ -988,12 +1003,88 @@
     updateBellPosition();
   }
 
+  function scheduleOptInDisplay(registration) {
+    if (shouldSuppressPrompt()) {
+      return;
+    }
+
+    var display = function () {
+      if (Notification.permission !== "default") {
+        return;
+      }
+      if ((config.optInPromptType || "lightbox-1") === "bell-icon") {
+        renderOptInLauncher(registration);
+        return;
+      }
+      showPrompt(registration);
+    };
+    var mode = config.optInPromptDisplayMode || "immediate";
+
+    if (mode === "page-views") {
+      var requiredViews = Math.min(Math.max(Number(config.optInPromptPageViewCount) || 3, 1), 100);
+      if (incrementPageViewCount() >= requiredViews) {
+        display();
+      }
+      return;
+    }
+
+    if (mode === "scroll") {
+      var requiredPercent = Math.min(Math.max(Number(config.optInPromptScrollPercent) || 50, 1), 100);
+      var displayed = false;
+      var checkScrollDepth = function () {
+        if (displayed) {
+          return;
+        }
+        var pageHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+        var scrollableHeight = pageHeight - window.innerHeight;
+        if (scrollableHeight <= 0 || (window.scrollY / scrollableHeight) * 100 < requiredPercent) {
+          return;
+        }
+        displayed = true;
+        window.removeEventListener("scroll", checkScrollDepth);
+        display();
+      };
+      window.addEventListener("scroll", checkScrollDepth, { passive: true });
+      window.requestAnimationFrame(checkScrollDepth);
+      return;
+    }
+
+    display();
+  }
+
   function handlePushReceived() {
     if (state.tray && state.trayList) {
       populateTrayList(state.trayList);
     } else {
       refreshLauncherBadge();
     }
+  }
+
+  function hydratePublicConfig() {
+    if (!config.apiUrl || !config.siteKey || (config.vapidPublicKey && config.optInPromptDisplayMode)) {
+      return Promise.resolve();
+    }
+
+    var configUrl = config.apiUrl.replace(/\/$/, "") + "/sites/public/" + encodeURIComponent(config.siteKey);
+    return fetch(configUrl, { credentials: "omit", headers: { Accept: "application/json" } })
+      .then(function (response) {
+        if (!response.ok) {
+          return null;
+        }
+        return response.json();
+      })
+      .then(function (payload) {
+        var publicConfig = payload && payload.data;
+        if (!publicConfig || typeof publicConfig !== "object") {
+          return;
+        }
+        Object.keys(publicConfig).forEach(function (key) {
+          config[key] = publicConfig[key];
+        });
+      })
+      .catch(function () {
+        return undefined;
+      });
   }
 
   function init() {
@@ -1036,12 +1127,7 @@
           return;
         }
 
-        if ((config.optInPromptType || "lightbox-1") === "bell-icon") {
-          renderOptInLauncher(registration);
-          return;
-        }
-
-        showPrompt(registration);
+        scheduleOptInDisplay(registration);
       })
       .catch(function () {
         return undefined;
@@ -1056,9 +1142,13 @@
     );
   }
 
+  function start() {
+    hydratePublicConfig().then(init);
+  }
+
   if (document.readyState === "complete" || document.readyState === "interactive") {
-    init();
+    start();
   } else {
-    window.addEventListener("DOMContentLoaded", init, { once: true });
+    window.addEventListener("DOMContentLoaded", start, { once: true });
   }
 })();

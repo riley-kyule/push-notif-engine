@@ -29,6 +29,10 @@ test("node integration starter ships an install-and-go Express mount plus the ve
   assert.match(expressIntegration, /sdkAssetsDir/);
   assert.match(packageJson, /"\.\/express": "\.\/src\/express\.ts"/);
   assert.ok(sdk.length > 1000, "expected the vendored SDK to be a real, non-trivial file");
+  assert.match(sdk, /optInPromptDisplayMode/);
+  assert.match(sdk, /optInPromptScrollPercent/);
+  assert.match(sdk, /optInPromptPageViewCount/);
+  assert.match(sdk, /hydratePublicConfig/);
 });
 
 test("laravel integration starter exposes a service provider and blade bootstrap", () => {
@@ -57,4 +61,6 @@ test("laravel integration starter auto-registers routes instead of requiring pub
   assert.match(epePush, /manifestJson/);
   assert.match(epePush, /serviceWorkerScript/);
   assert.ok(sdk.length > 1000, "expected the vendored SDK to be a real, non-trivial file");
+  assert.match(sdk, /scheduleOptInDisplay/);
+  assert.match(sdk, /hydratePublicConfig/);
 });

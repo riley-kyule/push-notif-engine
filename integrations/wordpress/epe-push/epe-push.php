@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Exotic Push Engine
  * Description: Browser push integration for Exotic WordPress sites.
- * Version: 1.2.2
+ * Version: 1.3.0
  * Author: Riley Kyule
  * Text Domain: exotic-push-engine
  */
@@ -95,7 +95,7 @@ final class Exotic_Push_Engine_Plugin {
         // Registered with no src and loaded purely as a vehicle for inline content
         // below -- see the comment on add_inline_script_nonce() for why the SDK is
         // inlined rather than loaded as an external <script src> file.
-        wp_register_script('exotic-push-engine-sdk', '', [], '1.2.2', true);
+        wp_register_script('exotic-push-engine-sdk', '', [], '1.3.0', true);
         wp_enqueue_script('exotic-push-engine-sdk');
 
         $sdk_path = plugin_dir_path(__FILE__) . 'assets/epe-sdk.js';
@@ -128,6 +128,9 @@ final class Exotic_Push_Engine_Plugin {
                 'optInPromptApproveButtonBackgroundColor' => sanitize_text_field((string) $config['opt_in_prompt_approve_button_background_color']),
                 'optInPromptRepromptDelayDays' => (int) $config['opt_in_prompt_reprompt_delay_days'],
                 'optInPromptRecentNotificationsLimit' => (int) $config['opt_in_prompt_recent_notifications_limit'],
+                'optInPromptDisplayMode' => sanitize_text_field((string) $config['opt_in_prompt_display_mode']),
+                'optInPromptScrollPercent' => (int) $config['opt_in_prompt_scroll_percent'],
+                'optInPromptPageViewCount' => (int) $config['opt_in_prompt_page_view_count'],
             ]) . ';' . "\n" . $sdk_source,
             'before'
         );
@@ -430,6 +433,9 @@ JS;
             'opt_in_prompt_approve_button_background_color' => '#ea580c',
             'opt_in_prompt_reprompt_delay_days' => 30,
             'opt_in_prompt_recent_notifications_limit' => 3,
+            'opt_in_prompt_display_mode' => 'immediate',
+            'opt_in_prompt_scroll_percent' => 50,
+            'opt_in_prompt_page_view_count' => 3,
         ];
 
         if ($settings['api_url'] === '' || $settings['site_key'] === '') {
@@ -486,6 +492,9 @@ JS;
             'opt_in_prompt_approve_button_background_color' => isset($data['optInPromptApproveButtonBackgroundColor']) ? sanitize_text_field((string) $data['optInPromptApproveButtonBackgroundColor']) : '#ea580c',
             'opt_in_prompt_reprompt_delay_days' => isset($data['optInPromptRepromptDelayDays']) ? (int) $data['optInPromptRepromptDelayDays'] : 30,
             'opt_in_prompt_recent_notifications_limit' => isset($data['optInPromptRecentNotificationsLimit']) ? (int) $data['optInPromptRecentNotificationsLimit'] : 3,
+            'opt_in_prompt_display_mode' => isset($data['optInPromptDisplayMode']) ? sanitize_text_field((string) $data['optInPromptDisplayMode']) : 'immediate',
+            'opt_in_prompt_scroll_percent' => isset($data['optInPromptScrollPercent']) ? (int) $data['optInPromptScrollPercent'] : 50,
+            'opt_in_prompt_page_view_count' => isset($data['optInPromptPageViewCount']) ? (int) $data['optInPromptPageViewCount'] : 3,
         ];
 
         set_transient($cache_key, $config, 15 * MINUTE_IN_SECONDS);
