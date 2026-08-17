@@ -55,6 +55,9 @@ export default async function EditSitePage({ params }: { params: Promise<{ id: s
             optInPromptApproveButtonBackgroundColor: site.optInPromptApproveButtonBackgroundColor,
             optInPromptRepromptDelayDays: site.optInPromptRepromptDelayDays,
             optInPromptRecentNotificationsLimit: site.optInPromptRecentNotificationsLimit,
+            optInPromptDisplayMode: site.optInPromptDisplayMode,
+            optInPromptScrollPercent: site.optInPromptScrollPercent,
+            optInPromptPageViewCount: site.optInPromptPageViewCount,
           }}
         />
       </section>

@@ -91,6 +91,13 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
             <p className="subtle">Buttons</p>
             <p className="stat">{site.optInPromptCancelButtonLabel} / {site.optInPromptApproveButtonLabel}</p>
             <p className="subtle">Reprompt after {site.optInPromptRepromptDelayDays} day(s)</p>
+            <p className="subtle">
+              Display {site.optInPromptDisplayMode === "scroll"
+                ? `after ${site.optInPromptScrollPercent}% scroll`
+                : site.optInPromptDisplayMode === "page-views"
+                  ? `on page view ${site.optInPromptPageViewCount}`
+                  : "immediately"}
+            </p>
             <p className="subtle">Recent notifications: {site.optInPromptRecentNotificationsLimit}</p>
             <p className="subtle">Unsubscribe messaging is surfaced in the site UI as a tooltip, not as a push.</p>
           </article>

@@ -28,6 +28,9 @@ export interface SiteChoice {
   optInPromptApproveButtonBackgroundColor: string;
   optInPromptRepromptDelayDays: number;
   optInPromptRecentNotificationsLimit: number;
+  optInPromptDisplayMode: "immediate" | "scroll" | "page-views";
+  optInPromptScrollPercent: number;
+  optInPromptPageViewCount: number;
   restApiKeyId: string | null;
   restApiAuthTokenLast4: string | null;
   restApiCredentialsGeneratedAt: string | null;
@@ -64,6 +67,9 @@ export const fallbackSiteChoices: SiteChoice[] = [
     optInPromptApproveButtonBackgroundColor: "#ea580c",
     optInPromptRepromptDelayDays: 30,
     optInPromptRecentNotificationsLimit: 3,
+    optInPromptDisplayMode: "immediate",
+    optInPromptScrollPercent: 50,
+    optInPromptPageViewCount: 3,
     restApiKeyId: null,
     restApiAuthTokenLast4: null,
     restApiCredentialsGeneratedAt: null,
@@ -95,6 +101,9 @@ export const fallbackSiteChoices: SiteChoice[] = [
     optInPromptApproveButtonBackgroundColor: "#0ea5e9",
     optInPromptRepromptDelayDays: 14,
     optInPromptRecentNotificationsLimit: 3,
+    optInPromptDisplayMode: "scroll",
+    optInPromptScrollPercent: 50,
+    optInPromptPageViewCount: 3,
     restApiKeyId: null,
     restApiAuthTokenLast4: null,
     restApiCredentialsGeneratedAt: null,
@@ -126,6 +135,9 @@ export const fallbackSiteChoices: SiteChoice[] = [
     optInPromptApproveButtonBackgroundColor: "#ea580c",
     optInPromptRepromptDelayDays: 30,
     optInPromptRecentNotificationsLimit: 3,
+    optInPromptDisplayMode: "page-views",
+    optInPromptScrollPercent: 50,
+    optInPromptPageViewCount: 3,
     restApiKeyId: null,
     restApiAuthTokenLast4: null,
     restApiCredentialsGeneratedAt: null,

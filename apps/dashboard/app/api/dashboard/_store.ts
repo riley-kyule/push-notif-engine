@@ -32,6 +32,9 @@ export interface DashboardSiteRecord {
   optInPromptApproveButtonBackgroundColor: string;
   optInPromptRepromptDelayDays: number;
   optInPromptRecentNotificationsLimit: number;
+  optInPromptDisplayMode: "immediate" | "scroll" | "page-views";
+  optInPromptScrollPercent: number;
+  optInPromptPageViewCount: number;
   restApiKeyId?: string | null;
   restApiAuthTokenLast4?: string | null;
   restApiCredentialsGeneratedAt?: string | null;
@@ -65,6 +68,9 @@ export interface DashboardSiteInput {
   optInPromptApproveButtonBackgroundColor: string;
   optInPromptRepromptDelayDays: number;
   optInPromptRecentNotificationsLimit: number;
+  optInPromptDisplayMode: "immediate" | "scroll" | "page-views";
+  optInPromptScrollPercent: number;
+  optInPromptPageViewCount: number;
   restApiKeyId: string | null;
   restApiAuthTokenLast4: string | null;
   restApiCredentialsGeneratedAt: string | null;
@@ -158,6 +164,9 @@ const state: {
     optInPromptApproveButtonBackgroundColor: site.optInPromptApproveButtonBackgroundColor,
     optInPromptRepromptDelayDays: site.optInPromptRepromptDelayDays,
     optInPromptRecentNotificationsLimit: site.optInPromptRecentNotificationsLimit,
+    optInPromptDisplayMode: site.optInPromptDisplayMode,
+    optInPromptScrollPercent: site.optInPromptScrollPercent,
+    optInPromptPageViewCount: site.optInPromptPageViewCount,
     restApiKeyId: site.restApiKeyId,
     restApiAuthTokenLast4: site.restApiAuthTokenLast4,
     restApiCredentialsGeneratedAt: site.restApiCredentialsGeneratedAt,
@@ -247,6 +256,9 @@ export function createSite(input: DashboardSiteInput) {
     optInPromptApproveButtonBackgroundColor: input.optInPromptApproveButtonBackgroundColor,
     optInPromptRepromptDelayDays: input.optInPromptRepromptDelayDays,
     optInPromptRecentNotificationsLimit: input.optInPromptRecentNotificationsLimit,
+    optInPromptDisplayMode: input.optInPromptDisplayMode,
+    optInPromptScrollPercent: input.optInPromptScrollPercent,
+    optInPromptPageViewCount: input.optInPromptPageViewCount,
     restApiKeyId: input.restApiKeyId ?? null,
     restApiAuthTokenLast4: input.restApiAuthTokenLast4 ?? null,
     restApiCredentialsGeneratedAt: input.restApiCredentialsGeneratedAt ?? null,
@@ -300,6 +312,9 @@ export function updateSite(id: string, input: Partial<DashboardSiteInput>) {
     optInPromptRepromptDelayDays: input.optInPromptRepromptDelayDays ?? current.optInPromptRepromptDelayDays,
     optInPromptRecentNotificationsLimit:
       input.optInPromptRecentNotificationsLimit ?? current.optInPromptRecentNotificationsLimit,
+    optInPromptDisplayMode: input.optInPromptDisplayMode ?? current.optInPromptDisplayMode,
+    optInPromptScrollPercent: input.optInPromptScrollPercent ?? current.optInPromptScrollPercent,
+    optInPromptPageViewCount: input.optInPromptPageViewCount ?? current.optInPromptPageViewCount,
     restApiKeyId: input.restApiKeyId ?? current.restApiKeyId ?? null,
     restApiAuthTokenLast4: input.restApiAuthTokenLast4 ?? current.restApiAuthTokenLast4 ?? null,
     restApiCredentialsGeneratedAt: input.restApiCredentialsGeneratedAt ?? current.restApiCredentialsGeneratedAt ?? null,

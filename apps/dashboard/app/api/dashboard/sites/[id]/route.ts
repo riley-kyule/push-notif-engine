@@ -38,6 +38,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     optInPromptApproveButtonBackgroundColor: string;
     optInPromptRepromptDelayDays: number;
     optInPromptRecentNotificationsLimit: number;
+    optInPromptDisplayMode: "immediate" | "scroll" | "page-views";
+    optInPromptScrollPercent: number;
+    optInPromptPageViewCount: number;
   }> | null;
 
   if (!body) {
@@ -76,6 +79,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       optInPromptApproveButtonBackgroundColor: body.optInPromptApproveButtonBackgroundColor,
       optInPromptRepromptDelayDays: body.optInPromptRepromptDelayDays,
       optInPromptRecentNotificationsLimit: body.optInPromptRecentNotificationsLimit,
+      optInPromptDisplayMode: body.optInPromptDisplayMode,
+      optInPromptScrollPercent: body.optInPromptScrollPercent,
+      optInPromptPageViewCount: body.optInPromptPageViewCount,
     }),
   });
 

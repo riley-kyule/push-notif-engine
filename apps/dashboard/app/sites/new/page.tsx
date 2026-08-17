@@ -45,6 +45,9 @@ export default function NewSitePage() {
             optInPromptApproveButtonBackgroundColor: "#ea580c",
             optInPromptRepromptDelayDays: 30,
             optInPromptRecentNotificationsLimit: 3,
+            optInPromptDisplayMode: "immediate",
+            optInPromptScrollPercent: 50,
+            optInPromptPageViewCount: 3,
           }}
         />
       </section>

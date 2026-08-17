@@ -32,6 +32,9 @@ export interface SiteSummary {
   optInPromptApproveButtonBackgroundColor: string;
   optInPromptRepromptDelayDays: number;
   optInPromptRecentNotificationsLimit: number;
+  optInPromptDisplayMode: "immediate" | "scroll" | "page-views";
+  optInPromptScrollPercent: number;
+  optInPromptPageViewCount: number;
   restApiKeyId: string | null;
   restApiAuthTokenLast4: string | null;
   restApiCredentialsGeneratedAt: string | null;
@@ -78,6 +81,9 @@ interface ApiSiteRecord {
   optInPromptApproveButtonBackgroundColor?: string;
   optInPromptRepromptDelayDays?: number;
   optInPromptRecentNotificationsLimit?: number;
+  optInPromptDisplayMode?: SiteSummary["optInPromptDisplayMode"];
+  optInPromptScrollPercent?: number;
+  optInPromptPageViewCount?: number;
   restApiKeyId?: string | null;
   restApiAuthTokenLast4?: string | null;
   restApiCredentialsGeneratedAt?: string | null;
@@ -120,6 +126,9 @@ const fallbackSites: SiteSummary[] = [
     optInPromptApproveButtonBackgroundColor: "#ea580c",
     optInPromptRepromptDelayDays: 30,
     optInPromptRecentNotificationsLimit: 3,
+    optInPromptDisplayMode: "immediate",
+    optInPromptScrollPercent: 50,
+    optInPromptPageViewCount: 3,
     restApiKeyId: null,
     restApiAuthTokenLast4: null,
     restApiCredentialsGeneratedAt: null,
@@ -156,6 +165,9 @@ const fallbackSites: SiteSummary[] = [
     optInPromptApproveButtonBackgroundColor: "#0ea5e9",
     optInPromptRepromptDelayDays: 14,
     optInPromptRecentNotificationsLimit: 3,
+    optInPromptDisplayMode: "scroll",
+    optInPromptScrollPercent: 50,
+    optInPromptPageViewCount: 3,
     restApiKeyId: null,
     restApiAuthTokenLast4: null,
     restApiCredentialsGeneratedAt: null,
@@ -192,6 +204,9 @@ const fallbackSites: SiteSummary[] = [
     optInPromptApproveButtonBackgroundColor: "#ea580c",
     optInPromptRepromptDelayDays: 30,
     optInPromptRecentNotificationsLimit: 3,
+    optInPromptDisplayMode: "page-views",
+    optInPromptScrollPercent: 50,
+    optInPromptPageViewCount: 3,
     restApiKeyId: null,
     restApiAuthTokenLast4: null,
     restApiCredentialsGeneratedAt: null,
@@ -231,6 +246,9 @@ function toSiteSummary(record: ApiSiteRecord, subscribers?: number): SiteSummary
     optInPromptApproveButtonBackgroundColor: record.optInPromptApproveButtonBackgroundColor ?? "#ea580c",
     optInPromptRepromptDelayDays: record.optInPromptRepromptDelayDays ?? 30,
     optInPromptRecentNotificationsLimit: record.optInPromptRecentNotificationsLimit ?? 3,
+    optInPromptDisplayMode: record.optInPromptDisplayMode ?? "immediate",
+    optInPromptScrollPercent: record.optInPromptScrollPercent ?? 50,
+    optInPromptPageViewCount: record.optInPromptPageViewCount ?? 3,
     restApiKeyId: record.restApiKeyId ?? null,
     restApiAuthTokenLast4: record.restApiAuthTokenLast4 ?? null,
     restApiCredentialsGeneratedAt: record.restApiCredentialsGeneratedAt ?? null,

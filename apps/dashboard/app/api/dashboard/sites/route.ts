@@ -36,6 +36,9 @@ export async function POST(request: Request): Promise<Response> {
     optInPromptApproveButtonBackgroundColor: string;
     optInPromptRepromptDelayDays: number;
     optInPromptRecentNotificationsLimit: number;
+    optInPromptDisplayMode: "immediate" | "scroll" | "page-views";
+    optInPromptScrollPercent: number;
+    optInPromptPageViewCount: number;
   } | null;
 
   if (!body) {
@@ -74,6 +77,9 @@ export async function POST(request: Request): Promise<Response> {
       optInPromptApproveButtonBackgroundColor: body.optInPromptApproveButtonBackgroundColor,
       optInPromptRepromptDelayDays: body.optInPromptRepromptDelayDays,
       optInPromptRecentNotificationsLimit: body.optInPromptRecentNotificationsLimit,
+      optInPromptDisplayMode: body.optInPromptDisplayMode,
+      optInPromptScrollPercent: body.optInPromptScrollPercent,
+      optInPromptPageViewCount: body.optInPromptPageViewCount,
     }),
   });
 

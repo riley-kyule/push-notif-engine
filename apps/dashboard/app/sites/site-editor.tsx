@@ -41,6 +41,9 @@ interface SiteFormValues {
   optInPromptApproveButtonBackgroundColor: string;
   optInPromptRepromptDelayDays: number;
   optInPromptRecentNotificationsLimit: number;
+  optInPromptDisplayMode: "immediate" | "scroll" | "page-views";
+  optInPromptScrollPercent: number;
+  optInPromptPageViewCount: number;
 }
 
 const platformOptions = ["WordPress", "Laravel", "Node.js", "Magento", "Other"] as const;
@@ -91,6 +94,24 @@ export function validateSiteForm(values: SiteFormValues): string | null {
 
   if (!values.platform.trim()) {
     return "Platform is required.";
+  }
+
+  if (
+    values.optInPromptDisplayMode === "scroll" &&
+    (!Number.isInteger(values.optInPromptScrollPercent) ||
+      values.optInPromptScrollPercent < 1 ||
+      values.optInPromptScrollPercent > 100)
+  ) {
+    return "Scroll depth must be a whole number from 1 to 100.";
+  }
+
+  if (
+    values.optInPromptDisplayMode === "page-views" &&
+    (!Number.isInteger(values.optInPromptPageViewCount) ||
+      values.optInPromptPageViewCount < 1 ||
+      values.optInPromptPageViewCount > 100)
+  ) {
+    return "Page views before prompt must be a whole number from 1 to 100.";
   }
 
   return null;
@@ -446,6 +467,47 @@ export function SiteEditor({
 
           <div className="grid cards-2">
             <div className="field">
+              <label htmlFor="optInPromptDisplayMode">Display prompt</label>
+              <select
+                id="optInPromptDisplayMode"
+                className="select"
+                value={values.optInPromptDisplayMode}
+                onChange={(e) => updateField("optInPromptDisplayMode", e.target.value as SiteFormValues["optInPromptDisplayMode"])}
+              >
+                <option value="immediate">Immediately on visit</option>
+                <option value="scroll">After scrolling</option>
+                <option value="page-views">After a number of page views</option>
+              </select>
+            </div>
+            {values.optInPromptDisplayMode === "scroll" ? (
+              <div className="field">
+                <label htmlFor="optInPromptScrollPercent">Scroll depth (%)</label>
+                <input
+                  id="optInPromptScrollPercent"
+                  className="input"
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={values.optInPromptScrollPercent}
+                  onChange={(e) => updateField("optInPromptScrollPercent", Number(e.target.value))}
+                />
+              </div>
+            ) : null}
+            {values.optInPromptDisplayMode === "page-views" ? (
+              <div className="field">
+                <label htmlFor="optInPromptPageViewCount">Page views before prompt</label>
+                <input
+                  id="optInPromptPageViewCount"
+                  className="input"
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={values.optInPromptPageViewCount}
+                  onChange={(e) => updateField("optInPromptPageViewCount", Number(e.target.value))}
+                />
+              </div>
+            ) : null}
+            <div className="field">
               <label htmlFor="optInPromptAnimation">Animation</label>
               <select
                 id="optInPromptAnimation"
@@ -650,6 +712,13 @@ export function SiteEditor({
               <p className="subtle">{values.optInPromptAnimation} animation</p>
               <p className="subtle">Reprompt after {values.optInPromptRepromptDelayDays} day(s)</p>
               <p className="subtle">Recent notifications: {values.optInPromptRecentNotificationsLimit}</p>
+              <p className="subtle">
+                Display: {values.optInPromptDisplayMode === "scroll"
+                  ? `after ${values.optInPromptScrollPercent}% scroll`
+                  : values.optInPromptDisplayMode === "page-views"
+                    ? `on page view ${values.optInPromptPageViewCount}`
+                    : "immediately"}
+              </p>
             </article>
           </div>
         </div>
