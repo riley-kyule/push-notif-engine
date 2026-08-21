@@ -1,4 +1,4 @@
-import { Controller, Get, NotFoundException, Param, Query, Inject } from "@nestjs/common";
+import { Controller, Get, Header, NotFoundException, Param, Query, Inject } from "@nestjs/common";
 import type { Pool } from "pg";
 
 import { DATABASE_POOL } from "../database/database.constants";
@@ -13,6 +13,7 @@ export class PublicSitesController {
   ) {}
 
   @Get(":id")
+  @Header("Cache-Control", "public, max-age=300, s-maxage=300, stale-if-error=86400")
   async getPublicConfig(@Param("id") id: string): Promise<{ success: true; data: SitePublicConfigRecord }> {
     const site = await this.sitesService.getSite(id);
 

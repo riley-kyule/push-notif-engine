@@ -20,6 +20,11 @@
     return;
   }
 
+  if (window.__exoticPushEngineSdkLoaded) {
+    return;
+  }
+  window.__exoticPushEngineSdkLoaded = true;
+
   function decodeBase64Url(value) {
     var normalized = String(value || "").replace(/-/g, "+").replace(/_/g, "/");
     var padding = "=".repeat((4 - (normalized.length % 4)) % 4);
@@ -1189,11 +1194,12 @@
   }
 
   function hydratePublicConfig() {
-    if (!config.apiUrl || !config.siteKey || (config.vapidPublicKey && config.optInPromptDisplayMode)) {
+    if (!config.apiUrl || !config.siteKey) {
       return Promise.resolve();
     }
 
-    var configUrl = config.apiUrl.replace(/\/$/, "") + "/sites/public/" + encodeURIComponent(config.siteKey);
+    var configVersion = Math.floor(Date.now() / (5 * 60 * 1000));
+    var configUrl = config.apiUrl.replace(/\/$/, "") + "/sites/public/" + encodeURIComponent(config.siteKey) + "?v=" + configVersion;
     return fetch(configUrl, { credentials: "omit", headers: { Accept: "application/json" } })
       .then(function (response) {
         if (!response.ok) {
