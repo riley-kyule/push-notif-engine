@@ -8,6 +8,7 @@ This is the Magento integration scaffold for Exotic Push Engine.
 - Injects the EPE SDK config into the storefront `<head>`
 - Serves `/push-sw.js`, `/manifest.json`, and `/assets/epe-sdk.js` itself, generated from admin config on every request
 - Keeps the service worker and manifest on the storefront origin
+- Refreshes EPE-managed prompt settings through a versioned five-minute URL before deciding when to display the opt-in prompt
 
 ## Deployment model
 

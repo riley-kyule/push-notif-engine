@@ -55,3 +55,5 @@ something else in your app.
 
 Branding, opt-in prompt copy, and colors beyond `theme_color` live in EPE site
 settings and are fetched automatically by the SDK — they're not configured here.
+The configuration URL changes every five minutes so prompt display-rule changes
+cannot remain pinned by stale page or CDN markup.

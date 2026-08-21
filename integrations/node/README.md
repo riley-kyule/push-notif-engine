@@ -46,5 +46,5 @@ pieces exported from `@epe/node-starter`:
 ## Runtime contract
 
 - The service worker must be served from the same origin as the site.
-- Site branding, opt-in prompt copy, and colors live in EPE site settings — fetched automatically by the SDK, not configured here.
+- Site branding, opt-in prompt copy, colors, and display rules live in EPE site settings — fetched through a versioned five-minute URL before the SDK schedules the prompt.
 - `siteKey` and `apiUrl` are the only two values you need from EPE; generate a REST API key/token in the dashboard only if your app also needs native mobile push or CRM-style API access (see `docs/mobile-push-integration.md` in the main repo).
