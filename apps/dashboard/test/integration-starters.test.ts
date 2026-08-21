@@ -33,6 +33,10 @@ test("node integration starter ships an install-and-go Express mount plus the ve
   assert.match(sdk, /optInPromptScrollPercent/);
   assert.match(sdk, /optInPromptPageViewCount/);
   assert.match(sdk, /hydratePublicConfig/);
+  assert.match(sdk, /configVersion = Math\.floor\(Date\.now\(\) \/ \(5 \* 60 \* 1000\)\)/);
+  assert.match(sdk, /\?v=" \+ configVersion/);
+  assert.doesNotMatch(sdk, /vapidPublicKey && config\.optInPromptDisplayMode/);
+  assert.match(sdk, /__exoticPushEngineSdkLoaded/);
 });
 
 test("laravel integration starter exposes a service provider and blade bootstrap", () => {
@@ -63,4 +67,6 @@ test("laravel integration starter auto-registers routes instead of requiring pub
   assert.ok(sdk.length > 1000, "expected the vendored SDK to be a real, non-trivial file");
   assert.match(sdk, /scheduleOptInDisplay/);
   assert.match(sdk, /hydratePublicConfig/);
+  assert.match(sdk, /configVersion = Math\.floor\(Date\.now\(\) \/ \(5 \* 60 \* 1000\)\)/);
+  assert.doesNotMatch(sdk, /vapidPublicKey && config\.optInPromptDisplayMode/);
 });

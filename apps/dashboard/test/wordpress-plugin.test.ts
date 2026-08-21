@@ -20,6 +20,11 @@ test("wordpress plugin scaffold exposes expected endpoints and settings", () => 
   assert.match(pluginFile, /optInPromptDisplayMode/);
   assert.match(pluginFile, /optInPromptScrollPercent/);
   assert.match(pluginFile, /optInPromptPageViewCount/);
+  const sdkFile = readFileSync(path.join(pluginRoot, "assets", "epe-sdk.js"), "utf8");
+  assert.match(sdkFile, /configVersion = Math\.floor\(Date\.now\(\) \/ \(5 \* 60 \* 1000\)\)/);
+  assert.match(sdkFile, /\?v=" \+ configVersion/);
+  assert.doesNotMatch(sdkFile, /vapidPublicKey && config\.optInPromptDisplayMode/);
+  assert.match(sdkFile, /__exoticPushEngineSdkLoaded/);
   assert.match(readmeFile, /CSP guidance/);
   assert.match(readmeFile, /browser push only/i);
   assert.match(readmeFile, /\[epe_subscribe_button\]/);
